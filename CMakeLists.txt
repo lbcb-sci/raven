@@ -15,7 +15,18 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(raven_build_tests "Build raven unit tests" OFF)
 
 add_executable(raven
-    src/main.cpp)
+    src/graph.cpp
+    src/main.cpp
+    src/pile.cpp)
+
+if (NOT TARGET bioparser)
+    add_subdirectory(vendor/bioparser EXCLUDE_FROM_ALL)
+endif()
+if (NOT TARGET ram)
+    add_subdirectory(vendor/ram EXCLUDE_FROM_ALL)
+endif()
+
+target_link_libraries(raven bioparser ram)
 
 install(TARGETS raven DESTINATION ${CMAKE_INSTALL_BINDIR})
 

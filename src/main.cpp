@@ -5,6 +5,12 @@
 #include <iostream>
 #include <exception>
 
+#include "bioparser/bioparser.hpp"
+#include "thread_pool/thread_pool.hpp"
+#include "ram/sequence.hpp"
+
+#include "graph.hpp"
+
 static const std::string version = "v0.0.0";
 
 static struct option options[] = {
@@ -13,6 +19,8 @@ static struct option options[] = {
     {"help", no_argument, nullptr, 'h'},
     {nullptr, 0, nullptr, 0}
 };
+
+std::unique_ptr<bioparser::Parser<ram::Sequence>> createParser(const std::string& path);
 
 void help();
 
@@ -36,7 +44,49 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    std::unique_ptr<bioparser::Parser<ram::Sequence>> sparser = createParser(argv[optind]);
+    if (sparser == nullptr) {
+        return 1;
+    }
+
+    std::vector<std::unique_ptr<ram::Sequence>> sequences;
+    sparser->parse(sequences, -1);
+
+    std::shared_ptr<thread_pool::ThreadPool> thread_pool;
+    try {
+        thread_pool = thread_pool::createThreadPool(num_threads);
+    } catch (std::invalid_argument& exception) {
+        std::cerr << exception.what() << std::endl;
+        return 1;
+    }
+
+    auto graph = raven::createGraph(thread_pool);
+    graph->construct(sequences);
+
     return 0;
+}
+
+std::unique_ptr<bioparser::Parser<ram::Sequence>> createParser(const std::string& path) {
+
+    auto is_suffix = [](const std::string& src, const std::string& suffix) {
+        return src.size() < suffix.size() ? false :
+            src.compare(src.size() - suffix.size(), suffix.size(), suffix) == 0;
+    };
+
+    if (is_suffix(path, ".fasta")    || is_suffix(path, ".fa") ||
+        is_suffix(path, ".fasta.gz") || is_suffix(path, ".fa.gz")) {
+        return bioparser::createParser<bioparser::FastaParser, ram::Sequence>(path);
+    }
+    if (is_suffix(path, ".fastq")    || is_suffix(path, ".fq") ||
+        is_suffix(path, ".fastq.gz") || is_suffix(path, ".fq.gz")) {
+        return bioparser::createParser<bioparser::FastqParser, ram::Sequence>(path);
+    }
+
+    std::cerr << "[raven::] error: file " << path
+              << " has unsupported format extension (valid extensions: .fasta, "
+              << ".fasta.gz, .fa, .fa.gz, .fastq, .fastq.gz, .fq, .fq.gz)!"
+              << std::endl;
+    return nullptr;
 }
 
 void help() {
