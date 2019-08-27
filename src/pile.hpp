@@ -46,6 +46,16 @@ public:
      */
     void find_valid_region(std::uint32_t coverage);
 
+    /*!
+     * @brief Fills data_ inside interval [begin_, end_> with zeroes.
+     */
+    void clear_valid_region();
+
+    /*!
+     * @brief Fills data_ outside interval [begin_, end_> with zeroes.
+     */
+    void clear_invalid_region();
+
     std::uint32_t median() const {
         return median_;
     }
@@ -56,31 +66,45 @@ public:
     void find_median();
 
     /*!
-     * @brief Adds coverage from overlaps in which the q_id matches id_.
+     * @brief Adds coverage to data_ from a set of overlaps.
      */
     void add_layers(std::vector<ram::Overlap>::const_iterator begin,
         std::vector<ram::Overlap>::const_iterator end);
 
-    bool is_valid() const {
-        return state_ == 0;
+    void set_invalid() {
+        state_ |= 1U;
+    }
+
+    bool is_invalid() const {
+        return state_ & 1U;
     }
 
     void set_contained() {
-        state_ |= 1U << 1;
+        state_ |= (1U << 1);
     }
 
     bool is_contained() {
         return state_ & (1U << 1);
     }
 
-    bool hash_chimeric_regions() const {
+    bool is_chimeric() {
+        return state_ & (1U << 2);
+    }
+
+    bool has_chimeric_region() const {
         return chimeric_regions_.size();
     }
 
     /*!
-     * @brief Locates chimeric rifts (coverage drops) in data_
+     * @brief Locates chimeric rifts (coverage drops) in data_.
      */
     void find_chimeric_regions();
+
+    /*!
+     * @brief Truncates data_ to longest non-chimeric region given the component
+     * median.
+     */
+    void resolve_chimeric_regions(std::uint32_t median);
 
     std::string to_json() const;
 

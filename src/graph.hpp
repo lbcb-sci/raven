@@ -35,7 +35,7 @@ public:
      * removing contained sequences and removing overlaps between repetitive
      * sequences.
      */
-    void construct(const std::vector<std::unique_ptr<ram::Sequence>>& sequences);
+    void construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences);
 
     /*!
     * @brief Prints all unresolved graph junctions in JSON format (can be drawn
