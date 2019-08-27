@@ -22,16 +22,17 @@ Pile::Pile(std::uint32_t id, std::uint32_t size)
         : id_(id), data_(size, 0), begin_(0), end_(size), median_(0) {
 }
 
-void Pile::add_layers(const std::vector<ram::Overlap>& overlaps) {
+void Pile::add_layers(std::vector<ram::Overlap>::const_iterator begin,
+    std::vector<ram::Overlap>::const_iterator end) {
 
-    if (overlaps.empty()) {
+    if (begin >= end) {
         return;
     }
 
     std::vector<std::uint32_t> boundaries;
-    for (const auto& it: overlaps) {
-        boundaries.emplace_back((it.q_begin + 1) << 1);
-        boundaries.emplace_back((it.q_end - 1) << 1 | 1);
+    for (auto it = begin; it != end; ++it) {
+        boundaries.emplace_back((it->q_begin + 1) << 1);
+        boundaries.emplace_back((it->q_end - 1) << 1 | 1);
     }
     std::sort(boundaries.begin(), boundaries.end());
 
@@ -64,7 +65,7 @@ std::string Pile::to_json() const {
     ss << "\"begin\":" << begin_ << ",";
     ss << "\"end\":" << end_ << ",";
 
-    ss << "\"median\":" << median_ << ",";
+    ss << "\"median\":" << median_;
     ss << "}";
 
     return ss.str();

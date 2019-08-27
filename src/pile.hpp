@@ -24,7 +24,8 @@ class Pile {
 public:
     ~Pile() = default;
 
-    void add_layers(const std::vector<ram::Overlap>& overlaps);
+    void add_layers(std::vector<ram::Overlap>::const_iterator begin,
+        std::vector<ram::Overlap>::const_iterator end);
 
     std::string to_json() const;
 
