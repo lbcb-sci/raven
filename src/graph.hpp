@@ -33,13 +33,13 @@ public:
     /*!
      * @brief Constructs the assembly graph by breaking chimeric sequences,
      * removing contained sequences and removing overlaps between repetitive
-     * sequences
+     * sequences.
      */
     void construct(const std::vector<std::unique_ptr<ram::Sequence>>& sequences);
 
     /*!
     * @brief Prints all unresolved graph junctions in JSON format (can be drawn
-    * with misc/plotter.py)
+    * with misc/plotter.py).
     */
     void print_json(const std::string& path) const;
 
