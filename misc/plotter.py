@@ -29,7 +29,8 @@ class Plotter:
     @staticmethod
     def plot_pile(pile, orientation, overlap_length, type, title, ylimit, ax):
         if ("data" not in pile or "begin" not in pile or "end" not in pile or
-            "chimeric" not in pile or "median" not in pile):
+            "chimeric" not in pile or "repetitive" not in pile or
+            "median" not in pile):
             eprint("[rala::Plotter::plot_pile] error: incomplete pile!")
             sys.exit(1);
 
@@ -44,12 +45,16 @@ class Plotter:
             ax.plot(x, pile["data"], label="data", color=scpb[2])
             for slope in pile["chimeric"]:
                 ax.axvline(slope, color=scpr[2], linestyle=":")
+            for slope in pile["repetitive"]:
+                ax.axvline(slope, color=scpr[3], linestyle=":")
             begin = pile["begin"]
             end = pile["end"]
         else:
             ax.plot(x, list(reversed(pile["data"])), label="data", color=scpb[2])
             for slope in pile["chimeric"]:
                 ax.axvline(len(x) - slope, color=scpr[2], linestyle=":")
+            for slope in pile["repetitive"]:
+                ax.axvline(len(x) - slope, color=scpr[3], linestyle=":")
             begin = len(x) - pile["end"]
             end = len(x) - pile["begin"]
 

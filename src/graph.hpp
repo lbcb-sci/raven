@@ -38,7 +38,7 @@ public:
     void construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences);
 
     /*!
-    * @brief Prints all unresolved graph junctions in JSON format (can be drawn
+    * @brief Prints all valid read piles in JSON format (can be drawn
     * with misc/plotter.py).
     */
     void print_json(const std::string& path) const;

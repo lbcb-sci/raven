@@ -106,6 +106,28 @@ public:
      */
     void resolve_chimeric_regions(std::uint32_t median);
 
+    bool has_repetitive_region() const {
+        return repetitive_regions_.size();
+    }
+
+    /*!
+     * @brief Locates regions in data_ which ought to be repetitive in the
+     * genome given the component median.
+     */
+    void find_repetitive_regions(std::uint32_t median);
+
+    /*!
+     * @brief Cheks whether the given overlap pierces throught repetitive
+     * regions at sequence ends.
+     */
+    void resolve_repetitive_regions(const ram::Overlap& o);
+
+    bool is_false_overlap(const ram::Overlap& o);
+
+    void clear_repetitive_regions() {
+        repetitive_regions_.clear();
+    }
+
     std::string to_json() const;
 
     friend std::unique_ptr<Pile> createPile(std::uint32_t id, std::uint32_t size);
@@ -123,6 +145,7 @@ private:
     std::uint32_t median_;
     std::uint32_t state_;
     std::vector<std::pair<std::uint32_t, std::uint32_t>> chimeric_regions_;
+    std::vector<std::pair<std::uint32_t, std::uint32_t>> repetitive_regions_;
 };
 
 }

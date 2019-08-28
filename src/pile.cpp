@@ -46,7 +46,7 @@ std::unique_ptr<Pile> createPile(std::uint32_t id, std::uint32_t size) {
 
 Pile::Pile(std::uint32_t id, std::uint32_t size)
         : id_(id), data_(size, 0), begin_(0), end_(size), median_(0), state_(0),
-        chimeric_regions_() {
+        chimeric_regions_(), repetitive_regions_() {
 }
 
 std::vector<std::pair<std::uint32_t, std::uint32_t>> Pile::find_slopes(double q) {
@@ -156,7 +156,7 @@ std::vector<std::pair<std::uint32_t, std::uint32_t>> Pile::find_slopes(double q)
                     if (data_[j] * q < right_subpile.front().second) {
                         if (found_up) {
                             if (j - last_up > 1) {
-                                dst.emplace_back(first_up, last_up);
+                                dst.emplace_back(first_up << 1 | 1, last_up);
                                 first_up = j;
                             }
                         } else {
@@ -167,7 +167,7 @@ std::vector<std::pair<std::uint32_t, std::uint32_t>> Pile::find_slopes(double q)
                     }
                 }
                 if (found_up) {
-                    dst.emplace_back(first_up, last_up);
+                    dst.emplace_back(first_up << 1 | 1, last_up);
                 }
                 dst[i].first = subpile_end << 1 | 1;
 
@@ -187,7 +187,7 @@ std::vector<std::pair<std::uint32_t, std::uint32_t>> Pile::find_slopes(double q)
                     if (!left_subpile.empty() && data_[j] * q < left_subpile.front().second) {
                         if (found_down) {
                             if (j - last_down > 1) {
-                                dst.emplace_back(first_down, last_down);
+                                dst.emplace_back(first_down << 1, last_down);
                                 first_down = j;
                             }
                         } else {
@@ -199,7 +199,7 @@ std::vector<std::pair<std::uint32_t, std::uint32_t>> Pile::find_slopes(double q)
                     subpile_add(left_subpile, data_[j], j);
                 }
                 if (found_down) {
-                    dst.emplace_back(first_down, last_down);
+                    dst.emplace_back(first_down << 1, last_down);
                 }
                 dst[i].second = subpile_begin;
             }
@@ -398,6 +398,125 @@ void Pile::resolve_chimeric_regions(std::uint32_t median) {
     set_valid_region(begin, end);
 }
 
+void Pile::find_repetitive_regions(std::uint32_t median) {
+
+    auto slopes = find_slopes(1.42);
+    if (slopes.empty()) {
+        return;
+    }
+
+    auto is_repetitive_reagion = [&] (
+        const std::pair<std::uint32_t, std::uint32_t>& begin,
+        const std::pair<std::uint32_t, std::uint32_t>& end) -> bool {
+
+        if (((end.first >> 1) + end.second) / 2 -
+            ((begin.first >> 1) + begin.second) / 2 > 0.84 * (end_ - begin_)) {
+            return false;
+        }
+        bool found_peak = false;
+        std::uint32_t peak_value = 1.42 * std::max(data_[begin.second], data_[end.first >> 1]);
+        std::uint32_t min_value = median * 1.42;
+        std::uint32_t num_valid = 0;
+
+        for (std::uint32_t i = begin.second + 1; i < (end.first >> 1); ++i) {
+            if (data_[i] > min_value) {
+                ++num_valid;
+            }
+            if (data_[i] > peak_value) {
+                found_peak = true;
+            }
+        }
+
+        if (!found_peak || num_valid < 0.9 * ((end.first >> 1) - begin.second)) {
+            return false;
+        }
+        return true;
+    };
+
+    for (std::uint32_t i = 0; i < slopes.size() - 1; ++i) {
+        if (!(slopes[i].first & 1)) {
+            continue;
+        }
+        for (std::uint32_t j = i + 1; j < slopes.size(); ++j) {
+            if (slopes[j].first & 1) {
+                continue;
+            }
+
+            if (is_repetitive_reagion(slopes[i], slopes[j])) {
+                repetitive_regions_.emplace_back(
+                    slopes[i].second - 0.336 * (slopes[i].second - (slopes[i].first >> 1)),
+                    (slopes[j].first >> 1) + 0.336 * (slopes[j].second - (slopes[j].first >> 1)));
+            }
+        }
+    }
+
+    mergeRegions(repetitive_regions_);
+    for (auto& it: repetitive_regions_) {
+        it.first = std::max(begin_, it.first) << 1;
+        it.second = std::min(end_, it.second);
+    }
+}
+
+void Pile::resolve_repetitive_regions(const ram::Overlap& o) {
+
+    if (repetitive_regions_.empty()) {
+        return;
+    }
+    if (id_ != o.q_id && id_ != o.t_id) {
+        return;
+    }
+
+    std::uint32_t begin = id_ == o.q_id ? o.q_begin : o.t_begin;
+    std::uint32_t end = id_ == o.q_id ? o.q_end : o.t_end;
+    std::uint32_t fuzz = 420;
+    std::uint32_t offset = 0.1 * (end_ - begin_);
+
+    for (auto& it: repetitive_regions_) {
+        if (begin < it.second && (it.first >> 1) < end) {
+            if ((it.first >> 1) < begin_ + offset && begin - begin_ < end_ - end) {
+                if (end >= it.second + fuzz) {
+                    it.first |= 1;
+                }
+            } else if (it.second > end_ - offset && begin - begin_ > end_ - end) {
+                if (begin + fuzz <= (it.first >> 1)) {
+                    it.first |= 1;
+                }
+            }
+        }
+    }
+}
+
+bool Pile::is_false_overlap(const ram::Overlap& o) {
+
+    if (repetitive_regions_.empty()) {
+        return false;
+    }
+    if (id_ != o.q_id && id_ != o.t_id) {
+        return false;
+    }
+
+    std::uint32_t begin = id_ == o.q_id ? o.q_begin : o.t_begin;
+    std::uint32_t end = id_ == o.q_id ? o.q_end : o.t_end;
+    std::uint32_t fuzz = 420;
+    std::uint32_t offset = 0.1 * (end_ - begin_);
+
+    for (const auto& it: repetitive_regions_) {
+        if (begin < it.second && (it.first >> 1) < end) {
+            if ((it.first >> 1) < begin_ + offset) {
+                if (end < it.second + fuzz && (it.first & 1)) {
+                    return true;
+                }
+            } else if (it.second > end_ - offset) {
+                if (begin + fuzz < (it.first >> 1) && (it.first & 1)) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
 std::string Pile::to_json() const {
 
     std::stringstream ss;
@@ -416,6 +535,15 @@ std::string Pile::to_json() const {
     for (std::uint32_t i = 0; i < chimeric_regions_.size(); ++i) {
         ss << chimeric_regions_[i].first << "," << chimeric_regions_[i].second;
         if (i < chimeric_regions_.size() - 1) {
+            ss << ",";
+        }
+    }
+    ss << "],";
+
+    ss << "\"repetitive\":[";
+    for (std::uint32_t i = 0; i < repetitive_regions_.size(); ++i) {
+        ss << (repetitive_regions_[i].first >> 1) << "," << repetitive_regions_[i].second;
+        if (i < repetitive_regions_.size() - 1) {
             ss << ",";
         }
     }
