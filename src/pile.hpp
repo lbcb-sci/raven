@@ -25,10 +25,13 @@ class Pile {
 public:
     ~Pile() = default;
 
+    std::uint32_t id() const {
+        return id_;
+    }
+
     std::uint32_t begin() const {
         return begin_;
     }
-
     std::uint32_t end() const {
         return end_;
     }
@@ -71,26 +74,23 @@ public:
     void add_layers(std::vector<ram::Overlap>::const_iterator begin,
         std::vector<ram::Overlap>::const_iterator end);
 
-    void set_invalid() {
-        state_ |= 1U;
-    }
-
     bool is_invalid() const {
         return state_ & 1U;
     }
-
-    void set_contained() {
-        state_ |= (1U << 1);
+    void set_invalid() {
+        state_ |= 1U;
     }
 
     bool is_contained() {
         return state_ & (1U << 1);
     }
+    void set_contained() {
+        state_ |= (1U << 1);
+    }
 
     bool is_chimeric() {
         return state_ & (1U << 2);
     }
-
     bool has_chimeric_region() const {
         return chimeric_regions_.size();
     }

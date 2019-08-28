@@ -17,6 +17,67 @@
 
 namespace raven {
 
+struct Graph::Node {
+    Node(std::uint32_t id, std::uint32_t sequence, const std::string& name,
+        const std::string& data);
+    Node(std::uint32_t id, Node* begin, Node* end);
+    Node(const Node&) = delete;
+    const Node& operator=(const Node&) = delete;
+
+    ~Node() = default;
+
+    bool is_rc() const {
+        return id & 1;
+    }
+
+    std::uint32_t length() const {
+        return data.size();
+    }
+
+    std::uint32_t indegree() const {
+        return inedges.size();
+    }
+    std::uint32_t outdegree() const {
+        return outedges.size();
+    }
+
+    bool is_junction() const {
+        return outdegree() > 1 || indegree() > 1;
+    }
+    bool is_tip() const {
+        return outdegree() > 0 && indegree() == 0 && sequences.size() < 6;
+    }
+
+    std::uint32_t id;
+    std::string name;
+    std::string data;
+    std::uint32_t state;
+    std::vector<std::uint32_t> sequences;
+    std::vector<Edge*> inedges;
+    std::vector<Edge*> outedges;
+    Node* pair;
+};
+
+struct Graph::Edge {
+    Edge(std::uint32_t id, Node* begin, Node* end, std::uint32_t length);
+    Edge(const Edge&) = delete;
+    const Edge& operator=(const Edge&) = delete;
+
+    ~Edge() = default;
+
+    std::string label() const {
+        return begin->data.substr(0, length);
+    }
+
+    std::uint32_t id;
+    std::uint32_t length;
+    std::uint32_t state;
+    double weight;
+    Node* begin;
+    Node* end;
+    Edge* pair;
+};
+
 std::unique_ptr<Graph> createGraph(std::shared_ptr<thread_pool::ThreadPool> thread_pool) {
 
     if (thread_pool == nullptr) {
@@ -477,8 +538,6 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
     }
     thread_futures.clear();
 
-    std::cerr << overlaps.front().size() << std::endl;
-
     std::sort(sequences.begin(), sequences.end(),
         [&] (const std::unique_ptr<ram::Sequence>& lhs,
             const std::unique_ptr<ram::Sequence>& rhs) -> bool {
@@ -542,6 +601,702 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
     }
 
     // construct assembly graph
+    auto reverse_complement = [] (const std::string& src) -> std::string {
+        std::string dst;
+        for (const auto& it: src) {
+            switch (it) {
+                case 'A': case 'a': dst += 'T'; break;
+                case 'T': case 't': dst += 'A'; break;
+                case 'G': case 'g': dst += 'C'; break;
+                case 'C': case 'c': dst += 'G'; break;
+                default: dst += it; break;
+            }
+        }
+        std::reverse(dst.begin(), dst.end());
+        return dst;
+    };
+
+    std::vector<std::int32_t> sequence_to_node(piles_.size(), -1);
+    std::uint32_t node_id = 0;
+    for (const auto& it: piles_) {
+        if (it->is_invalid()) {
+            continue;
+        }
+
+        sequence_to_node[it->id()] = node_id;
+
+        const auto& name = sequences[it->id()]->name;
+        const auto& data = sequences[it->id()]->data.substr(it->begin(),
+            it->end() - it->begin());
+
+        std::unique_ptr<Node> n(new Node(node_id++, it->id(), name, data));
+        std::unique_ptr<Node> nc(new Node(node_id++, it->id(), name,
+            reverse_complement(data)));
+
+        n->pair = nc.get();
+        nc->pair = n.get();
+
+        nodes_.emplace_back(std::move(n));
+        nodes_.emplace_back(std::move(nc));
+    }
+
+    std::uint32_t edge_id = 0;
+    for (const auto& it: overlaps.front()) {
+        Node* q = nodes_[sequence_to_node[it.q_id]].get();
+        Node* t = nodes_[sequence_to_node[it.t_id] + 1 - it.strand].get();
+
+        std::uint32_t q_length = piles_[it.q_id]->end() - piles_[it.q_id]->begin();
+        std::uint32_t q_begin = it.q_begin - piles_[it.q_id]->begin();
+        std::uint32_t q_end = it.q_end - piles_[it.q_id]->begin();
+
+        std::uint32_t t_length = piles_[it.t_id]->end() - piles_[it.t_id]->begin();
+        std::uint32_t t_begin = it.strand ?
+            it.t_begin - piles_[it.t_id]->begin() :
+            t_length - (it.t_end - piles_[it.t_id]->begin());
+        std::uint32_t t_end = it.strand ?
+            it.t_end - piles_[it.t_id]->begin():
+            t_length - (it.t_begin - piles_[it.t_id]->begin());
+
+        std::uint32_t type = overlap_type(it);
+
+        if (type == 3) {
+            std::unique_ptr<Edge> e(new Edge(edge_id++, q, t, q_begin - t_begin));
+            std::unique_ptr<Edge> ec(new Edge(edge_id++, t->pair, q->pair,
+                (t_length - t_end) - (q_length - q_end)));
+
+            e->pair = ec.get();
+            ec->pair = e.get();
+
+            q->outedges.emplace_back(e.get());
+            q->pair->inedges.emplace_back(ec.get());
+            t->inedges.emplace_back(e.get());
+            t->pair->outedges.emplace_back(ec.get());
+
+            edges_.emplace_back(std::move(e));
+            edges_.emplace_back(std::move(ec));
+        } else if (type == 4) {
+            std::unique_ptr<Edge> e(new Edge(edge_id++, t, q, t_begin - q_begin));
+            std::unique_ptr<Edge> ec(new Edge(edge_id++, q->pair, t->pair,
+                (q_length - q_end) - (t_length - t_end)));
+
+            e->pair = ec.get();
+            ec->pair = e.get();
+
+            t->outedges.emplace_back(e.get());
+            t->pair->inedges.emplace_back(ec.get());
+            q->inedges.emplace_back(e.get());
+            q->pair->outedges.emplace_back(ec.get());
+
+            edges_.emplace_back(std::move(e));
+            edges_.emplace_back(std::move(ec));
+        }
+    }
+}
+
+void Graph::assemble(std::vector<std::unique_ptr<ram::Sequence>>& dst) {
+
+    remove_transitive_edges();
+    while (true) {
+        std::uint32_t num_changes = remove_tips();
+        num_changes += remove_bubbles();
+
+        if (num_changes == 0) {
+            break;
+        }
+    }
+
+    print_csv("assembly.csv");
+    print_json("assembly.json");
+    extract_unitigs(dst);
+}
+
+std::uint32_t Graph::remove_transitive_edges() {
+
+    std::uint32_t num_transitive = 0;
+    std::vector<Edge*> candidate(nodes_.size(), nullptr);
+
+    auto comparable = [] (double a, double b, double eps) -> bool {
+        return (a >= b * (1 - eps) && a <= b * (1 + eps)) ||
+               (b >= a * (1 - eps) && b <= a * (1 + eps));
+    };
+
+    for (const auto& node_a: nodes_) {
+        if (node_a == nullptr) {
+            continue;
+        }
+
+        for (const auto& edge_ab: node_a->outedges) {
+            candidate[edge_ab->end->id] = edge_ab;
+        }
+
+        for (const auto& edge_ab: node_a->outedges) {
+            const auto& node_b = nodes_[edge_ab->end->id];
+
+            for (const auto& edge_bc: node_b->outedges) {
+                uint64_t c = edge_bc->end->id;
+
+                if (candidate[c] != nullptr && !(candidate[c]->state & 1)) {
+                    if (comparable(edge_ab->length + edge_bc->length,
+                        candidate[c]->length, 0.12)) {
+
+                        candidate[c]->state |= 1;
+                        candidate[c]->pair->state |= 1;
+                        marked_edges_.emplace(candidate[c]->id);
+                        marked_edges_.emplace(candidate[c]->pair->id);
+                        ++num_transitive;
+                    }
+                }
+            }
+        }
+
+        for (const auto& edge_ab: node_a->outedges) {
+            candidate[edge_ab->end->id] = nullptr;
+        }
+    }
+
+    for (const auto& it: marked_edges_) {
+        if (it & 1) {
+            transitive_edges_.emplace_back(
+                (edges_[it]->begin->id >> 1) << 1,
+                (edges_[it]->end->id >> 1) << 1);
+            transitive_edges_.emplace_back(
+                transitive_edges_.back().second,
+                transitive_edges_.back().first);
+        }
+    }
+    std::sort(transitive_edges_.begin(), transitive_edges_.end());
+
+    remove_marked_objects();
+
+    return num_transitive;
+}
+
+std::uint32_t Graph::remove_tips() {
+
+    std::uint32_t num_tip_edges = 0;
+    std::vector<char> is_visited(nodes_.size(), 0);
+
+    for (const auto& it: nodes_) {
+        if (it == nullptr || is_visited[it->id] || !it->is_tip()) {
+            continue;
+        }
+
+        bool is_circular = false;
+        std::uint32_t num_sequences = 0;
+
+        auto end = it.get();
+        while (!end->is_junction()) {
+            num_sequences += end->sequences.size();
+            is_visited[end->id] = 1;
+            is_visited[end->pair->id] = 1;
+            if (end->outdegree() == 0 ||
+                end->outedges[0]->end->is_junction()) {
+                break;
+            }
+            end = end->outedges[0]->end;
+            if (end->id == it->id) {
+                is_circular = true;
+                break;
+            }
+        }
+
+        if (is_circular || end->outdegree() == 0 || num_sequences > 5) {
+            continue;
+        }
+
+        std::uint32_t num_removed_edges = 0;
+
+        for (const auto& edge: end->outedges) {
+            if (edge->end->indegree() > 1) {
+                edge->state |= 1;
+                edge->pair->state |= 1;
+                marked_edges_.emplace(edge->id);
+                marked_edges_.emplace(edge->pair->id);
+                ++num_removed_edges;
+            }
+        }
+
+        if (num_removed_edges == end->outedges.size()) {
+            auto curr = it.get();
+            while (curr->id != end->id) {
+                curr->outedges[0]->state |= 1;
+                curr->outedges[0]->pair->state |= 1;
+                marked_edges_.emplace(curr->outedges[0]->id);
+                marked_edges_.emplace(curr->outedges[0]->pair->id);
+                curr = curr->outedges[0]->end;
+            }
+        }
+
+        num_tip_edges += num_removed_edges;
+
+        remove_marked_objects(true);
+    }
+
+    return num_tip_edges;
+}
+
+std::uint32_t Graph::remove_bubbles() {
+
+    std::vector<std::uint32_t> distance(nodes_.size(), 0);
+    std::vector<std::uint32_t> visited(nodes_.size(), 0);
+    std::uint32_t visited_length = 0;
+    std::vector<std::int32_t> predecessor(nodes_.size(), -1);
+    std::deque<std::uint32_t> node_queue;
+
+    // path helper functions
+    auto extract_path = [&] (std::vector<std::uint32_t>& dst, std::uint32_t source,
+        std::uint32_t sink) -> void {
+
+        std::uint32_t curr_id = sink;
+        while (curr_id != source) {
+            dst.emplace_back(curr_id);
+            curr_id = predecessor[curr_id];
+        }
+        dst.emplace_back(source);
+        std::reverse(dst.begin(), dst.end());
+    };
+    auto calculate_path_length = [&] (const std::vector<std::uint32_t>& path) -> std::uint32_t {
+
+        if (path.empty()) {
+            return 0;
+        }
+
+        std::uint32_t path_length = nodes_[path.back()]->length();
+        for (std::uint32_t i = 0; i < path.size() - 1; ++i) {
+            for (const auto& edge: nodes_[path[i]]->outedges) {
+                if (edge->end->id == (std::uint32_t) path[i + 1]) {
+                    path_length += edge->length;
+                    break;
+                }
+            }
+        }
+        return path_length;
+    };
+    auto is_valid_bubble = [&] (const std::vector<std::uint32_t>& path,
+        const std::vector<std::uint32_t>& other_path) -> bool {
+
+        if (path.empty() || other_path.empty()) {
+            return false;
+        }
+
+        std::unordered_set<std::uint32_t> node_set;
+        for (const auto& it: path) {
+            node_set.emplace(it);
+        }
+        for (const auto& it: other_path) {
+            node_set.emplace(it);
+        }
+        if (path.size() + other_path.size() - 2 != node_set.size()) {
+            return false;
+        }
+        for (const auto& it: path) {
+            std::uint32_t pair_id = nodes_[it]->pair->id;
+            if (node_set.count(pair_id) != 0) {
+                return false;
+            }
+        }
+        std::uint32_t path_length = calculate_path_length(path);
+        std::uint32_t other_path_length = calculate_path_length(other_path);
+        if (std::min(path_length, other_path_length) <
+            std::max(path_length, other_path_length) * 0.8) {
+
+            for (std::uint32_t i = 1; i < other_path.size() - 1; ++i) {
+                if (nodes_[other_path[i]]->is_junction()) {
+                    return false;
+                }
+            }
+            for (std::uint32_t i = 1; i < path.size() - 1; ++i) {
+                if (nodes_[path[i]]->is_junction()) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    };
+
+    std::uint32_t num_bubbles_popped = 0;
+    for (const auto& node: nodes_) {
+        if (node == nullptr || node->outdegree() < 2) {
+            continue;
+        }
+
+        bool found_sink = false;
+        std::uint32_t sink = 0, sink_other_predecesor = 0;
+        std::uint32_t source = node->id;
+
+        // BFS
+        node_queue.emplace_back(source);
+        visited[visited_length++] = source;
+        while (!node_queue.empty() && !found_sink) {
+            std::uint32_t v = node_queue.front();
+            const auto& curr_node = nodes_[v];
+
+            node_queue.pop_front();
+
+            for (const auto& edge: curr_node->outedges) {
+                std::uint32_t w = edge->end->id;
+
+                if (w == source) {
+                    continue; // Cycle
+                }
+
+                if (distance[v] + edge->length > 5000000) {
+                    continue; // Out of reach
+                }
+
+                distance[w] = distance[v] + edge->length;
+                visited[visited_length++] = w;
+                    node_queue.emplace_back(w);
+
+                if (predecessor[w] != -1) {
+                    sink = w;
+                    sink_other_predecesor = v;
+                    found_sink = true;
+                    break;
+                }
+
+                predecessor[w] = v;
+            }
+        }
+
+        if (found_sink) {
+            std::vector<std::uint32_t> path;
+            extract_path(path, source, sink);
+
+            std::vector<std::uint32_t> other_path(1, sink);
+            extract_path(other_path, source, sink_other_predecesor);
+
+            if (is_valid_bubble(path, other_path)) {
+                std::uint32_t path_num_reads = 0;
+                for (const auto& it: path) {
+                    path_num_reads += nodes_[it]->sequences.size();
+                }
+
+                std::uint32_t other_path_num_reads = 0;
+                for (const auto& it: other_path) {
+                    other_path_num_reads += nodes_[it]->sequences.size();
+                }
+
+                std::vector<std::uint32_t> edges_for_removal;
+                if (path_num_reads > other_path_num_reads) {
+                    find_removable_edges(edges_for_removal, other_path);
+                } else {
+                    find_removable_edges(edges_for_removal, path);
+                }
+
+                if (edges_for_removal.empty()) {
+                    std::uint32_t path_length = calculate_path_length(path);
+                    std::uint32_t other_path_length = calculate_path_length(other_path);
+                    if (std::min(path_length, other_path_length) >=
+                        std::max(path_length, other_path_length) * 0.8) {
+
+                        if (path_num_reads > other_path_num_reads) {
+                            find_removable_edges(edges_for_removal, path);
+                        } else {
+                            find_removable_edges(edges_for_removal, other_path);
+                        }
+                    }
+                }
+
+                for (const auto& edge_id: edges_for_removal) {
+                    edges_[edge_id]->state |= 1;
+                    edges_[edge_id]->pair->state |= 1;
+                    marked_edges_.emplace(edge_id);
+                    marked_edges_.emplace(edges_[edge_id]->pair->id);
+                }
+                if (!edges_for_removal.empty()) {
+                    remove_marked_objects(true);
+                    ++num_bubbles_popped;
+                }
+            }
+        }
+
+        node_queue.clear();
+        for (std::uint32_t i = 0; i < visited_length; ++i) {
+            distance[visited[i]] = 0;
+            predecessor[visited[i]] = -1;
+        }
+        visited_length = 0;
+    }
+
+    return num_bubbles_popped;
+}
+
+std::uint32_t Graph::create_unitigs() {
+
+    std::vector<char> is_visited(nodes_.size(), 0);
+
+    std::uint32_t node_id = nodes_.size();
+    std::vector<std::unique_ptr<Node>> unitigs;
+
+    std::uint32_t edge_id = edges_.size();
+    std::vector<std::unique_ptr<Edge>> unitig_edges;
+
+    std::uint32_t num_unitigs_created = 0;
+
+    for (const auto& it: nodes_) {
+        if (it == nullptr || is_visited[it->id] || it->is_junction()) {
+            continue;
+        }
+
+        bool is_circular = false;
+        auto begin = it.get();
+        while (!begin->is_junction()) {
+            is_visited[begin->id] = 1;
+            is_visited[begin->pair->id] = 1;
+            if (begin->indegree() == 0 || begin->inedges[0]->begin->is_junction()) {
+                break;
+            }
+            begin = begin->inedges[0]->begin;
+            if (begin->id == it->id) {
+                is_circular = true;
+                break;
+            }
+        }
+
+        auto end = it.get();
+        while (!end->is_junction()) {
+            is_visited[end->id] = 1;
+            is_visited[end->pair->id] = 1;
+            if (end->outdegree() == 0 || end->outedges[0]->end->is_junction()) {
+                break;
+            }
+            end = end->outedges[0]->end;
+            if (end->id == it->id) {
+                is_circular = true;
+                break;
+            }
+        }
+
+        if (!is_circular && begin == end) {
+            continue;
+        }
+
+        std::unique_ptr<Node> u(new Node(node_id++, begin, end));
+        std::unique_ptr<Node> uc(new Node(node_id++, end->pair, begin->pair));
+
+        u->pair = uc.get();
+        uc->pair = u.get();
+
+        if (begin != end) {
+            if (begin->indegree() != 0) {
+                const auto& edge = begin->inedges[0];
+
+                edge->state |= 1;
+                edge->pair->state |= 1;
+                marked_edges_.emplace(edge->id);
+                marked_edges_.emplace(edge->pair->id);
+
+                std::unique_ptr<Edge> e(new Edge(edge_id++, edge->begin,
+                    u.get(), edge->length));
+                std::unique_ptr<Edge> ec(new Edge(edge_id++, uc.get(),
+                    edge->pair->end, edge->pair->length + uc->length() -
+                    begin->pair->length()));
+
+                e->pair = ec.get();
+                ec->pair = e.get();
+
+                edge->begin->outedges.emplace_back(e.get());
+                edge->pair->end->inedges.emplace_back(ec.get());
+                u->inedges.emplace_back(e.get());
+                uc->outedges.emplace_back(ec.get());
+
+                unitig_edges.emplace_back(std::move(e));
+                unitig_edges.emplace_back(std::move(ec));
+            }
+            if (end->outdegree() != 0) {
+                const auto& edge = end->outedges[0];
+
+                edge->state |= 1;
+                edge->pair->state |= 1;
+                marked_edges_.emplace(edge->id);
+                marked_edges_.emplace(edge->pair->id);
+
+                std::unique_ptr<Edge> e(new Edge(edge_id++, u.get(), edge->end,
+                    edge->length + u->length() - end->length()));
+                std::unique_ptr<Edge> ec(new Edge(edge_id++, edge->pair->begin,
+                    uc.get(), edge->pair->length));
+
+                e->pair = ec.get();
+                ec->pair = e.get();
+
+                u->outedges.emplace_back(e.get());
+                uc->inedges.emplace_back(ec.get());
+                edge->end->inedges.emplace_back(e.get());
+                edge->pair->begin->outedges.emplace_back(ec.get());
+
+                unitig_edges.emplace_back(std::move(e));
+                unitig_edges.emplace_back(std::move(ec));
+            }
+        }
+
+        unitigs.emplace_back(std::move(u));
+        unitigs.emplace_back(std::move(uc));
+
+        ++num_unitigs_created;
+
+        // mark edges for deletion
+        auto node = begin;
+        while (true) {
+            const auto& edge = node->outedges[0];
+
+            edge->state |= 1;
+            edge->pair->state |= 1;
+            marked_edges_.emplace(edge->id);
+            marked_edges_.emplace(edge->pair->id);
+
+            node = edge->end;
+            if (node == end) {
+                break;
+            }
+        }
+    }
+
+    for (std::uint32_t i = 0; i < unitigs.size(); ++i) {
+        nodes_.emplace_back(std::move(unitigs[i]));
+    }
+    for (std::uint32_t i = 0; i < unitig_edges.size(); ++i) {
+        edges_.emplace_back(std::move(unitig_edges[i]));
+    }
+
+    remove_marked_objects(true);
+
+    return num_unitigs_created;
+}
+
+void Graph::extract_unitigs(std::vector<std::unique_ptr<ram::Sequence>>& dst) {
+
+    create_unitigs();
+
+    std::uint32_t contig_id = 0;
+    for (const auto& node: nodes_) {
+        if (node == nullptr || node->is_rc()) {
+            continue;
+        }
+        if (node->sequences.size() < 6 || node->length() < 10000) {
+            continue;
+        }
+
+        std::string name = "Ctg" + std::to_string(contig_id);
+        name += " RC:i:" + std::to_string(node->sequences.size());
+        name += " LN:i:" + std::to_string(node->data.size());
+
+        dst.emplace_back(std::unique_ptr<ram::Sequence>(new ram::Sequence(name, node->data)));
+        ++contig_id;
+    }
+}
+
+void Graph::remove_marked_objects(bool remove_nodes) {
+
+    auto delete_edges = [&](std::vector<Edge*>& edges) -> void {
+        std::uint32_t j = 0;
+        for (std::uint32_t i = 0; i < edges.size(); ++i) {
+            if (edges[i]->state & 1) {
+                continue;
+                edges[i] = nullptr;
+            }
+            edges[j++] = edges[i];
+        }
+        edges.resize(j);
+    };
+
+    std::unordered_set<std::uint32_t> marked_nodes;
+    for (const auto& it: marked_edges_) {
+        if (remove_nodes) {
+            marked_nodes.emplace(edges_[it]->begin->id);
+            marked_nodes.emplace(edges_[it]->end->id);
+        }
+        delete_edges(edges_[it]->begin->outedges);
+        delete_edges(edges_[it]->end->inedges);
+    }
+
+    if (remove_nodes) {
+        for (const auto& it: marked_nodes) {
+            if (nodes_[it]->outdegree() == 0 && nodes_[it]->indegree() == 0) {
+                nodes_[it].reset();
+            }
+        }
+    }
+
+    for (const auto& it: marked_edges_) {
+        edges_[it].reset();
+    }
+    marked_edges_.clear();
+}
+
+void Graph::find_removable_edges(std::vector<std::uint32_t>& dst,
+    const std::vector<std::uint32_t>& path) {
+
+    if (path.empty()) {
+        return;
+    }
+
+    auto find_edge = [&] (std::uint32_t src, std::uint32_t dst) -> std::uint32_t {
+        std::uint32_t edge_id = 0;
+        bool found_edge = false;
+        for (const auto& edge: nodes_[src]->outedges) {
+            if (edge->end->id == dst) {
+                edge_id = edge->id;
+                found_edge = true;
+                break;
+            }
+        }
+
+        if (!found_edge) {
+            throw std::logic_error("[raven::Graph::find_removable_edges] error: "
+                "missing edge between nodes");
+        }
+
+        return edge_id;
+    };
+
+    // find first node with multiple in edges
+    std::int32_t pref = -1;
+    for (std::uint32_t i = 1; i < path.size() - 1; ++i) {
+        if (nodes_[path[i]]->indegree() > 1) {
+            pref = i;
+            break;
+        }
+    }
+    // find last node with multiple out edges
+    std::int32_t suff = -1;
+    for (std::uint32_t i = 1; i < path.size() - 1; ++i) {
+        if (nodes_[path[i]]->outdegree() > 1) {
+            suff = i;
+        }
+    }
+
+    if (pref == -1 && suff == -1) {
+        // remove whole path
+        for (std::uint32_t i = 0; i < path.size() - 1; ++i) {
+            dst.emplace_back(find_edge(path[i], path[i + 1]));
+        }
+        return;
+    }
+
+    if (pref != -1 && nodes_[path[pref]]->outdegree() > 1) {
+        return;
+    }
+    if (suff != -1 && nodes_[path[suff]]->indegree() > 1) {
+        return;
+    }
+
+    if (pref == -1) {
+        // remove everything after last suff node
+        for (std::uint32_t i = suff; i < path.size() - 1; ++i) {
+            dst.emplace_back(find_edge(path[i], path[i + 1]));
+        }
+    } else if (suff == -1) {
+        // remove everything before first pref node
+        for (std::int32_t i = 0; i < pref; ++i) {
+            dst.emplace_back(find_edge(path[i], path[i + 1]));
+        }
+    } else if (suff < pref) {
+        // remove everything between last suff and first pref node
+        for (std::int32_t i = suff; i < pref; ++i) {
+            dst.emplace_back(find_edge(path[i], path[i + 1]));
+        }
+    }
 }
 
 void Graph::print_json(const std::string& path) const {
@@ -551,7 +1306,7 @@ void Graph::print_json(const std::string& path) const {
     bool is_first = true;
 
     for (const auto& it: piles_) {
-        if (it->is_invalid() || !it->has_repetitive_region()) {
+        if (it->is_invalid()) {
             continue;
         }
         if (!is_first) {
@@ -563,6 +1318,92 @@ void Graph::print_json(const std::string& path) const {
 
     os << "}}";
     os.close();
+}
+
+void Graph::print_csv(const std::string& path) const {
+
+    std::ofstream os(path);
+
+    for (const auto& it: nodes_) {
+        if (it == nullptr || it->is_rc() ||
+            (it->outdegree() == 0 && it->indegree() == 0)) {
+            continue;
+        }
+        os << it->id << "[" << it->sequences.front() << "] LN:i:";
+        os << it->length() << " RC:i:" << it->sequences.size() << ",";
+        os << it->pair->id << "[" << it->pair->sequences.front() << "] LN:i:";
+        os << it->pair->length() << " RC:i:" << it->pair->sequences.size() << ",";
+        os << "0,-";
+        os << std::endl;
+    }
+
+    for (const auto& it: edges_) {
+        if (it == nullptr) {
+            continue;
+        }
+        os << it->begin->id << "[" << it->begin->sequences.front() << "] LN:i:";
+        os << it->begin->length() << " RC:i:" << it->begin->sequences.size() << ",";
+        os << it->end->id << "[" << it->end->sequences.front() << "] LN:i:";
+        os << it->end->length() << " RC:i:" << it->end->sequences.size() << ",";
+        os << "1,";
+        os << it->id << " ";
+        os << it->length << " ";
+        os << it->weight;
+        os << std::endl;
+    }
+
+    os.close();
+}
+
+Graph::Node::Node(std::uint32_t id, std::uint32_t sequence, const std::string& name,
+    const std::string& data)
+        : id(id), name(name), data(data), state(0), sequences(1, sequence),
+        inedges(), outedges(), pair(nullptr) {
+    state |= (id & 1) << 1;
+    state |= (id & 1) << 2;
+}
+
+Graph::Node::Node(std::uint32_t id, Node* begin, Node* end)
+        : id(id), name(), data(), state(0), sequences(), inedges(), outedges(),
+        pair(nullptr) {
+
+    if (begin == nullptr) {
+        throw std::invalid_argument("[raven::Graph::Node::Node] error: "
+            "begin node is nullptr!");
+    }
+    if (end == nullptr) {
+        throw std::invalid_argument("[raven::Graph::Node::Node] error: "
+            "end node is nullptr!");
+    }
+
+    state |= (begin->state & (1U << 1));
+
+    auto node = begin;
+    while (true) {
+        auto edge = node->outedges[0];
+
+        data += edge->label();
+        sequences.insert(sequences.end(), node->sequences.begin(),
+            node->sequences.end());
+        state |= (node->state & (1U << 2));
+
+        node = edge->end;
+        if (node == end) {
+            break;
+        }
+    }
+
+    if (begin != end) {
+        data += end->data;
+        sequences.insert(sequences.end(), end->sequences.begin(),
+            end->sequences.end());
+        state |= (end->state & (1U << 2));
+    }
+}
+
+Graph::Edge::Edge(std::uint32_t id, Node* begin, Node* end, std::uint32_t length)
+        : id(id), length(length), state(0), weight(0), begin(begin), end(end),
+        pair(nullptr) {
 }
 
 }

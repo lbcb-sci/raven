@@ -507,7 +507,7 @@ bool Pile::is_false_overlap(const ram::Overlap& o) {
                     return true;
                 }
             } else if (it.second > end_ - offset) {
-                if (begin + fuzz < (it.first >> 1) && (it.first & 1)) {
+                if (begin + fuzz > (it.first >> 1) && (it.first & 1)) {
                     return true;
                 }
             }

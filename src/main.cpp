@@ -63,6 +63,14 @@ int main(int argc, char** argv) {
     auto graph = raven::createGraph(thread_pool);
     graph->construct(sequences);
 
+    std::vector<std::unique_ptr<ram::Sequence>> contigs;
+    graph->assemble(contigs);
+
+    for (const auto& it: contigs) {
+        std::cout << ">" << it->name << std::endl;
+        std::cout << it->data << std::endl;
+    }
+
     return 0;
 }
 
