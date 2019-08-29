@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <iostream>
 #include <fstream>
+#include <random>
 
 #include "thread_pool/thread_pool.hpp"
 #include "ram/ram.hpp"
@@ -714,14 +715,24 @@ void Graph::assemble(std::vector<std::unique_ptr<ram::Sequence>>& dst) {
     while (true) {
         std::uint32_t num_changes = remove_tips();
         num_changes += remove_bubbles();
+        if (num_changes == 0) {
+            break;
+        }
+    }
 
+    create_unitigs(42);
+    create_force_directed_layout("assembly.json");
+    remove_long_edges();
+    while (true) {
+        std::uint32_t num_changes = remove_tips();
+        num_changes += remove_bubbles();
         if (num_changes == 0) {
             break;
         }
     }
 
     print_csv("assembly.csv");
-    print_json("assembly.json");
+    print_json("piles.json");
     extract_unitigs(dst);
 }
 
@@ -1035,6 +1046,492 @@ std::uint32_t Graph::remove_bubbles() {
     }
 
     return num_bubbles_popped;
+}
+
+std::uint32_t Graph::remove_long_edges() {
+
+    std::uint32_t num_long_edges = 0;
+
+    for (const auto& node: nodes_) {
+        if (node == nullptr || node->outedges.size() < 2){
+            continue;
+        }
+
+        for (const auto& edge: node->outedges) {
+            for (const auto& other_edge: node->outedges) {
+                if (edge->id == other_edge->id || edge->state & 1 || other_edge->state & 1) {
+                    continue;
+                }
+                if (edge->weight * 2.0 < other_edge->weight) {
+                    other_edge->state |= 1;
+                    other_edge->pair->state |= 1;
+                    marked_edges_.emplace(other_edge->id);
+                    marked_edges_.emplace(other_edge->pair->id);
+                    ++num_long_edges;
+                }
+            }
+        }
+    }
+
+    remove_marked_objects();
+
+    return num_long_edges;
+}
+
+void Graph::create_force_directed_layout(const std::string& path) {
+
+    std::ofstream os;
+    bool is_first = true;
+    if (!path.empty()) {
+        os.open(path);
+        os << "{" << std::endl;
+        os << "  \"assembly\": {" << std::endl;
+    }
+
+    if (transitive_edges_.empty() == false) {
+        std::vector<std::pair<std::uint32_t, std::uint32_t>> valid = {
+            transitive_edges_[0]
+        };
+
+        for (std::uint32_t i = 1; i < transitive_edges_.size(); ++i) {
+            if (nodes_[transitive_edges_[i].first] == nullptr ||
+                nodes_[transitive_edges_[i].second] == nullptr) {
+                continue;
+            }
+            if (transitive_edges_[i].first != transitive_edges_[i].second &&
+                transitive_edges_[i] != transitive_edges_[i - 1]) {
+                valid.emplace_back(transitive_edges_[i]);
+            }
+        }
+
+        valid.swap(transitive_edges_);
+    }
+
+    std::vector<std::unordered_set<std::uint32_t>> components;
+    std::vector<char> is_visited(piles_.size(), 0);
+    for (std::uint32_t i = 0; i < nodes_.size(); ++i) {
+        if (nodes_[i] == nullptr || is_visited[i]) {
+            continue;
+        }
+
+        components.resize(components.size() + 1);
+
+        std::deque<std::uint32_t> que = { i };
+        while (!que.empty()) {
+            std::uint32_t j = que.front();
+            que.pop_front();
+
+            if (is_visited[j]) {
+                continue;
+            }
+            const auto& node = nodes_[j];
+            is_visited[node->id] = 1;
+            is_visited[node->pair->id] = 1;
+            components.back().emplace((node->id >> 1) << 1);
+
+            for (const auto& it: node->inedges) {
+                que.emplace_back(it->begin->id);
+            }
+            for (const auto& it: node->outedges) {
+                que.emplace_back(it->end->id);
+            }
+        }
+    }
+    std::vector<char>().swap(is_visited);
+
+    std::sort(components.begin(), components.end(),
+        [] (const std::unordered_set<std::uint32_t>& lhs,
+            const std::unordered_set<std::uint32_t>& rhs) {
+            return lhs.size() > rhs.size();
+        }
+    );
+
+    std::mt19937 generator(std::random_device{}());
+    std::uniform_real_distribution<> distribution(0., 1.);
+
+    using Point = std::pair<double, double>;
+
+    auto point_add = [] (const Point& x, const Point& y) -> Point {
+        return std::make_pair(x.first + y.first, x.second + y.second);
+    };
+    auto point_substract = [] (const Point& x, const Point& y) -> Point {
+       return std::make_pair(x.first - y.first, x.second - y.second);
+    };
+    auto point_multiply = [] (const Point& x, double s) -> Point {
+        return std::make_pair(x.first * s, x.second * s);
+    };
+    auto point_norm = [] (const Point& x) -> double {
+        return std::sqrt(x.first * x.first + x.second * x.second);
+    };
+
+    std::uint32_t c = 0;
+    for (const auto& component: components) {
+
+        if (component.size() < 6) {
+            continue;
+        }
+
+        bool has_junctions = false;
+        for (const auto& it: component) {
+            if (nodes_[it]->is_junction()) {
+                has_junctions = true;
+                break;
+            }
+        }
+        if (has_junctions == false) {
+            continue;
+        }
+
+        std::uint32_t num_iterations = 100;
+        double k = sqrt(1. / static_cast<double>(component.size()));
+        double t = 0.1;
+        double dt = t / static_cast<double>(num_iterations + 1);
+
+        std::vector<Point> points(nodes_.size());
+        for (const auto& it: component) {
+            points[it].first = distribution(generator);
+            points[it].second = distribution(generator);
+        }
+
+        for (std::uint32_t i = 0; i < num_iterations; ++i) {
+            std::vector<std::future<void>> thread_futures;
+            std::vector<Point> displacements(nodes_.size());
+
+            auto thread_task = [&](std::uint32_t n) -> void {
+                Point displacement = {0., 0.};
+                for (const auto& m: component) {
+                    if (n == m) {
+                        continue;
+                    }
+                    auto delta = point_substract(points[n], points[m]);
+                    auto distance = point_norm(delta);
+                    if (distance < 0.01) {
+                        distance = 0.01;
+                    }
+                    displacement = point_add(displacement,
+                        point_multiply(delta, (k * k) / (distance * distance)));
+                }
+                for (const auto& e: nodes_[n]->inedges) {
+                    auto m = (e->begin->id >> 1) << 1;
+                    auto delta = point_substract(points[n], points[m]);
+                    auto distance = point_norm(delta);
+                    if (distance < 0.01) {
+                        distance = 0.01;
+                    }
+                    displacement = point_add(displacement,
+                        point_multiply(delta, -1. * distance / k));
+                }
+                for (const auto& e: nodes_[n]->outedges) {
+                    auto m = (e->end->id >> 1) << 1;
+                    auto delta = point_substract(points[n], points[m]);
+                    auto distance = point_norm(delta);
+                    if (distance < 0.01) {
+                        distance = 0.01;
+                    }
+                    displacement = point_add(displacement,
+                        point_multiply(delta, -1. * distance / k));
+                }
+                bool found = false;
+                for (const auto& e: transitive_edges_) {
+                    if (e.first != n) {
+                        if (found) break;
+                        continue;
+                    }
+                    found = true;
+                    auto m = e.second;
+                    auto delta = point_substract(points[n], points[m]);
+                    auto distance = point_norm(delta);
+                    if (distance < 0.01) {
+                        distance = 0.01;
+                    }
+                    displacement = point_add(displacement,
+                        point_multiply(delta, -1. * distance / k));
+                }
+                auto length = point_norm(displacement);
+                if (length < 0.01) {
+                    length = 0.1;
+                }
+                displacements[n] = point_add(displacements[n],
+                    point_multiply(displacement, t / length));
+                return;
+            };
+
+            for (const auto& n: component) {
+                thread_futures.emplace_back(thread_pool_->submit(thread_task, n));
+            }
+            for (const auto& it: thread_futures) {
+                it.wait();
+            }
+            for (const auto& n: component) {
+                points[n] = point_add(points[n], displacements[n]);
+            }
+
+            t -= dt;
+            ++i;
+        }
+
+        for (const auto& it: edges_) {
+            if (it == nullptr || it->id & 1) {
+                continue;
+            }
+            auto n = (it->begin->id >> 1) << 1;
+            auto m = (it->end->id >> 1) << 1;
+
+            if (component.find(n) != component.end() &&
+                component.find(m) != component.end()) {
+                it->weight = point_norm(point_substract(points[n], points[m]));
+                it->pair->weight = it->weight;
+            }
+        }
+
+        if (!path.empty()) {
+            if (!is_first) {
+                os << "," << std::endl;
+            }
+            is_first = false;
+
+            os << "    \"component_" << c++ << "\": {" << std::endl;
+
+            bool is_first_node = true;
+            os << "      \"nodes\": {" << std::endl;
+            for (const auto& it: component) {
+                if (!is_first_node) {
+                    os << "," << std::endl;
+                }
+                is_first_node = false;
+                os << "        \"" << it << "\": [";
+                os << points[it].first << ", ";
+                os << points[it].second << ", ";
+                os << (nodes_[it]->is_junction() ? 1 : 0) << ", ";
+                os << nodes_[it]->sequences.size() << "]";
+            }
+            os << std::endl << "      }," << std::endl;
+
+            bool is_first_edge = true;
+            os << "      \"edges\": [" << std::endl;
+            for (const auto& it: component) {
+                for (const auto& e: nodes_[it]->inedges) {
+                    auto o = (e->begin->id >> 1) << 1;
+                    if (it < o) {
+                        continue;
+                    }
+                    if (!is_first_edge) {
+                        os << "," << std::endl;
+                    }
+                    is_first_edge = false;
+                    os << "        [\"" << it << "\", \"" << o << "\", 0]";
+                }
+                for (const auto& e: nodes_[it]->outedges) {
+                    auto o = (e->end->id >> 1) << 1;
+                    if (it < o) {
+                        continue;
+                    }
+                    if (!is_first_edge) {
+                        os << "," << std::endl;
+                    }
+                    is_first_edge = false;
+                    os << "        [\"" << it << "\", \"" << o << "\", 0]";
+                }
+            }
+            for (const auto& e: transitive_edges_) {
+                if (e.first < e.second &&
+                    component.find(e.first) != component.end() &&
+                    component.find(e.second) != component.end()) {
+                    if (!is_first_edge) {
+                        os << "," << std::endl;
+                    }
+                    is_first_edge = false;
+                    os << "        [\"" << e.first << "\", \"" << e.second << "\", 1]";
+                }
+            }
+            os << std::endl << "      ]" << std::endl;
+
+            os << "    }";
+        }
+    }
+
+    if (!path.empty()) {
+        os << std::endl << "  }";
+        os << std::endl << "}";
+        os << std::endl;
+        os.close();
+    }
+}
+
+std::uint32_t Graph::create_unitigs(std::uint32_t epsilon) {
+
+    std::vector<char> is_visited(nodes_.size(), 0);
+    std::vector<std::uint32_t> node_updates(nodes_.size(), 0);
+
+    std::uint32_t node_id = nodes_.size();
+    std::vector<std::unique_ptr<Node>> unitigs;
+
+    std::uint32_t edge_id = edges_.size();
+    std::vector<std::unique_ptr<Edge>> unitig_edges;
+
+    std::uint32_t num_unitigs_created = 0;
+
+    for (const auto& it: nodes_) {
+        if (it == nullptr || is_visited[it->id] || it->is_junction()) {
+            continue;
+        }
+
+        std::uint32_t extension = 1;
+
+        bool is_circular = false;
+        auto begin = it.get();
+        while (!begin->is_junction()) {
+            is_visited[begin->id] = 1;
+            is_visited[begin->pair->id] = 1;
+            if (begin->indegree() == 0 || begin->inedges[0]->begin->is_junction()) {
+                break;
+            }
+            begin = begin->inedges[0]->begin;
+            ++extension;
+            if (begin->id == it->id) {
+                is_circular = true;
+                break;
+            }
+        }
+
+        if (is_circular) {
+            continue;
+        }
+
+        auto end = it.get();
+        while (!end->is_junction()) {
+            is_visited[end->id] = 1;
+            is_visited[end->pair->id] = 1;
+            if (end->outdegree() == 0 || end->outedges[0]->end->is_junction()) {
+                break;
+            }
+            end = end->outedges[0]->end;
+            ++extension;
+            if (end->id == it->id) {
+                is_circular = true;
+                break;
+            }
+        }
+
+        if (is_circular || begin == end || extension < 2 * epsilon + 2) {
+            continue;
+        }
+
+        // update begin_node
+        for (std::uint32_t i = 0; i < epsilon; ++i) {
+            begin = begin->outedges[0]->end;
+        }
+
+        // update end_node
+        for (std::uint32_t i = 0; i < epsilon; ++i) {
+            end = end->inedges[0]->begin;
+        }
+
+        // update node identifiers for transitive edges
+        auto node = begin;
+        while (node != end) {
+            node_updates[(node->id >> 1) << 1] = node_id;
+            node = node->outedges[0]->end;
+        }
+
+        std::unique_ptr<Node> u(new Node(node_id++, begin, end));
+        std::unique_ptr<Node> uc(new Node(node_id++, end->pair, begin->pair));
+
+        u->pair = uc.get();
+        uc->pair = u.get();
+
+        if (begin->indegree() != 0) {
+            const auto& edge = begin->inedges[0];
+
+            edge->state |= 1;
+            edge->pair->state |= 1;
+            marked_edges_.emplace(edge->id);
+            marked_edges_.emplace(edge->pair->id);
+
+            std::unique_ptr<Edge> e(new Edge(edge_id++, edge->begin, u.get(),
+                edge->length));
+            std::unique_ptr<Edge> ec(new Edge(edge_id++, uc.get(), edge->pair->end,
+                edge->pair->length + uc->length() - begin->pair->length()));
+
+            e->pair = ec.get();
+            ec->pair = e.get();
+
+            edge->begin->outedges.emplace_back(e.get());
+            edge->pair->end->inedges.emplace_back(ec.get());
+            u->inedges.emplace_back(e.get());
+            uc->outedges.emplace_back(ec.get());
+
+            unitig_edges.emplace_back(std::move(e));
+            unitig_edges.emplace_back(std::move(ec));
+        }
+        if (end->outdegree() != 0) {
+            const auto& edge = end->outedges[0];
+
+            edge->state |= 1;
+            edge->pair->state |= 1;
+            marked_edges_.emplace(edge->id);
+            marked_edges_.emplace(edge->pair->id);
+
+            std::unique_ptr<Edge> e(new Edge(edge_id++, u.get(), edge->end,
+                edge->length + u->length() - end->length()));
+            std::unique_ptr<Edge> ec(new Edge(edge_id++, edge->pair->begin, uc.get(),
+                edge->pair->length));
+
+            e->pair = ec.get();
+            ec->pair = e.get();
+
+            u->outedges.emplace_back(e.get());
+            uc->inedges.emplace_back(ec.get());
+            edge->end->inedges.emplace_back(e.get());
+            edge->pair->begin->outedges.emplace_back(ec.get());
+
+            unitig_edges.emplace_back(std::move(e));
+            unitig_edges.emplace_back(std::move(ec));
+        }
+
+        unitigs.emplace_back(std::move(u));
+        unitigs.emplace_back(std::move(uc));
+
+        ++num_unitigs_created;
+
+        // mark edges for deletion
+        node = begin;
+        while (true) {
+            const auto& edge = node->outedges[0];
+
+            edge->state |= 1;
+            edge->pair->state |= 1;
+            marked_edges_.emplace(edge->id);
+            marked_edges_.emplace(edge->pair->id);
+
+            node = edge->end;
+            if (node == end) {
+                break;
+            }
+        }
+    }
+
+    for (std::uint32_t i = 0; i < unitigs.size(); ++i) {
+        nodes_.emplace_back(std::move(unitigs[i]));
+    }
+    for (std::uint32_t i = 0; i < unitig_edges.size(); ++i) {
+        edges_.emplace_back(std::move(unitig_edges[i]));
+    }
+
+    remove_marked_objects(true);
+
+    // update transitive edges
+    for (auto& it: transitive_edges_) {
+        if (node_updates[it.first] != 0) {
+            it.first = node_updates[it.first];
+        }
+        if (node_updates[it.second] != 0) {
+            it.second = node_updates[it.second];
+        }
+    }
+    std::sort(transitive_edges_.begin(), transitive_edges_.end());
+
+    return num_unitigs_created;
 }
 
 std::uint32_t Graph::create_unitigs() {

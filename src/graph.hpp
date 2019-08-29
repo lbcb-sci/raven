@@ -62,6 +62,23 @@ public:
     std::uint32_t remove_bubbles();
 
     /*!
+     * @brief Removes long edges in the force directed layout.
+     */
+    std::uint32_t remove_long_edges();
+
+    /*!
+     * @brief Create a Fruchterman-Reingold layout (Fruchterman & Reingold 1991)
+     * (can be drawn with misc/plotter.py).
+     */
+    void create_force_directed_layout(const std::string& path);
+
+    /*!
+     * @brief Creates unitigs which are at least epsilon away from junction
+     * nodes. This can be used to speed up creation of the force directed layout.
+     */
+    std::uint32_t create_unitigs(std::uint32_t epsilon);
+
+    /*!
      * @brief Creates unitigs by merging chains of overlapping sequences.
      */
     std::uint32_t create_unitigs();
