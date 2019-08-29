@@ -329,18 +329,13 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
             if (!overlap_update(overlaps[i][j])) {
                 continue;
             }
-            switch (overlap_type(overlaps[i][j])) {
-                case 1:
-                    if (!piles_[overlaps[i][j].t_id]->has_chimeric_region()) {
-                        piles_[i]->set_contained();
-                    }
-                    break;
-                case 2:
-                    if (!piles_[i]->has_chimeric_region()) {
-                        piles_[overlaps[i][j].t_id]->set_contained();
-                    }
-                    break;
-                default: overlaps[i][k++] = overlaps[i][j]; break;
+            std::uint32_t type = overlap_type(overlaps[i][j]);
+            if (type == 1 && !piles_[overlaps[i][j].t_id]->has_chimeric_region()) {
+                piles_[i]->set_contained();
+            } else if (type == 2 && !piles_[i]->has_chimeric_region()) {
+                piles_[overlaps[i][j].t_id]->set_contained();
+            } else {
+                overlaps[i][k++] = overlaps[i][j];
             }
         }
         overlaps[i].resize(k, ram::Overlap(0, 0, 0, 0, 0, 0, 0, 0));
@@ -396,16 +391,13 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
         if (!is_changed) {
             for (const auto& it: overlaps) {
                 for (const auto& jt: it) {
-                    switch (overlap_type(jt)) {
-                        case 1:
-                            piles_[jt.q_id]->set_contained();
-                            piles_[jt.q_id]->set_invalid();
-                            break;
-                        case 2:
-                            piles_[jt.t_id]->set_contained();
-                            piles_[jt.t_id]->set_invalid();
-                            break;
-                        default: break;
+                    std::uint32_t type = overlap_type(jt);
+                    if (type == 1) {
+                        piles_[jt.q_id]->set_contained();
+                        piles_[jt.q_id]->set_invalid();
+                    } else if (type == 2) {
+                        piles_[jt.t_id]->set_contained();
+                        piles_[jt.t_id]->set_invalid();
                     }
                 }
             }
@@ -468,17 +460,26 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
                 it.wait();
                 auto overlaps_part = it.get();
                 for (auto& jt: overlaps_part) {
-                    if (!overlap_update(jt) || overlap_type(jt) < 3) {
+                    if (!overlap_update(jt)) {
                         continue;
                     }
-                    if (overlaps.front().size() &&
-                        overlaps.front().back().q_id == jt.q_id &&
-                        overlaps.front().back().t_id == jt.t_id) {
-                        if (overlap_length(overlaps.front().back()) < overlap_length(jt)) {
-                            overlaps.front().back() = jt;
-                        }
+                    std::uint32_t type = overlap_type(jt);
+                    if (type == 1) {
+                        continue;
+                    } else if (type == 1) {
+                        piles_[jt.q_id]->set_contained();
+                    } else if (type == 2) {
+                        piles_[jt.t_id]->set_contained();
                     } else {
-                        overlaps.front().emplace_back(jt);
+                        if (overlaps.front().size() &&
+                            overlaps.front().back().q_id == jt.q_id &&
+                            overlaps.front().back().t_id == jt.t_id) {
+                            if (overlap_length(overlaps.front().back()) < overlap_length(jt)) {
+                                overlaps.front().back() = jt;
+                            }
+                        } else {
+                            overlaps.front().emplace_back(jt);
+                        }
                     }
                 }
             }
@@ -523,6 +524,10 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
     }
 
     for (std::uint32_t i = 0; i < piles_.size(); ++i) {
+        if (piles_[i]->is_contained()) {
+            piles_[i]->set_invalid();
+            continue;
+        }
         if (piles_[i]->is_invalid()) {
             continue;
         }
@@ -537,6 +542,16 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
         it.wait();
     }
     thread_futures.clear();
+
+    {
+        std::uint32_t k = 0;
+        for (std::uint32_t i = 0; i < overlaps.front().size(); ++i) {
+            if (overlap_update(overlaps.front()[i])) {
+                overlaps.front()[k++] = overlaps.front()[i];
+            }
+        }
+        overlaps.front().resize(k, ram::Overlap(0,0,0,0,0,0,0,0));
+    }
 
     std::sort(sequences.begin(), sequences.end(),
         [&] (const std::unique_ptr<ram::Sequence>& lhs,
