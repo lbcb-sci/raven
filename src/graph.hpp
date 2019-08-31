@@ -18,7 +18,8 @@ namespace thread_pool {
 }
 
 namespace ram {
-    class Sequence;
+    struct Sequence;
+    class MinimizerEngine;
 }
 
 namespace raven {
@@ -41,13 +42,12 @@ public:
 
     /*!
      * @brief Simplify the assembly graph via transitive reduction, tip
-     * pruning and popping bubble-like structures.
+     * pruning and popping bubble-like structures, and return contigs afterwards.
      */
     void assemble(std::vector<std::unique_ptr<ram::Sequence>>& dst);
 
     /*!
-     * @brief Removes transitive edge (no information loss)
-     * (inspired by Myers 1995 & 2005).
+     * @brief Removes transitive edge (inspired by Myers 1995 & 2005).
      */
     std::uint32_t remove_transitive_edges();
 
@@ -62,15 +62,16 @@ public:
     std::uint32_t remove_bubbles();
 
     /*!
-     * @brief Removes long edges in the force directed layout.
+     * @brief Removes long edges in the force directed layout which function
+     * needs to be called before.
      */
     std::uint32_t remove_long_edges();
 
     /*!
-     * @brief Create a Fruchterman-Reingold layout (Fruchterman & Reingold 1991)
+     * @brief Calculate edge lengths in a force directed layout (Fruchterman & Reingold 1991)
      * (can be drawn with misc/plotter.py).
      */
-    void create_force_directed_layout(const std::string& path);
+    void create_force_directed_layout(const std::string& path = "");
 
     /*!
      * @brief Creates unitigs which are at least epsilon away from junction
@@ -107,6 +108,8 @@ private:
 
     void find_removable_edges(std::vector<std::uint32_t>& dst,
         const std::vector<std::uint32_t>& path);
+
+    std::unique_ptr<ram::MinimizerEngine> minimizer_engine_;
 
     std::shared_ptr<thread_pool::ThreadPool> thread_pool_;
 

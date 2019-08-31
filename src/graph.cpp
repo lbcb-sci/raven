@@ -90,7 +90,9 @@ std::unique_ptr<Graph> createGraph(std::shared_ptr<thread_pool::ThreadPool> thre
 }
 
 Graph::Graph(std::shared_ptr<thread_pool::ThreadPool> thread_pool)
-        : thread_pool_(thread_pool), piles_() {
+        : minimizer_engine_(ram::createMinimizerEngine(15, 5, thread_pool)),
+        thread_pool_(thread_pool), piles_(), nodes_(), edges_(),
+        marked_edges_(), transitive_edges_() {
 }
 
 Graph::~Graph() {
@@ -235,16 +237,14 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
         piles_.emplace_back(createPile(it->id, it->data.size()));
     }
 
-    auto minimizer_engine = ram::createMinimizerEngine(15, 5, thread_pool_);
-
     for (std::uint32_t i = 0, j = 0, bytes = 0; i < sequences.size(); ++i) {
         bytes += sequences[i]->data.size();
         if (i != sequences.size() - 1 && bytes < (1U << 30)) {
             continue;
         }
 
-        minimizer_engine->minimize(sequences.begin() + j, sequences.begin() + i + 1);
-        minimizer_engine->filter(0.001);
+        minimizer_engine_->minimize(sequences.begin() + j, sequences.begin() + i + 1);
+        minimizer_engine_->filter(0.001);
 
         std::vector<std::uint32_t> num_overlaps(overlaps.size());
         for (std::uint32_t k = 0; k < overlaps.size(); ++k) {
@@ -256,7 +256,7 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
             for (std::uint32_t k = 0; k < i + 1; ++k) {
                 thread_futures.emplace_back(thread_pool_->submit(
                     [&] (std::uint32_t i) -> std::vector<ram::Overlap> {
-                        return minimizer_engine->map(sequences[i], true, true);
+                        return minimizer_engine_->map(sequences[i], true, true);
                     }
                 , k));
             }
@@ -290,7 +290,7 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
                                 return overlap_length(lhs) > overlap_length(rhs);
                             }
                         );
-                        overlaps[i].resize(16, ram::Overlap(0, 0, 0, 0, 0, 0, 0, 0));
+                        overlaps[i].resize(16);
                     }
                 , k));
             }
@@ -339,7 +339,7 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
                 overlaps[i][k++] = overlaps[i][j];
             }
         }
-        overlaps[i].resize(k, ram::Overlap(0, 0, 0, 0, 0, 0, 0, 0));
+        overlaps[i].resize(k);
     }
     for (std::uint32_t i = 0; i < piles_.size(); ++i) {
         if (piles_[i]->is_contained()) {
@@ -386,7 +386,7 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
                     is_changed = true;
                 }
             }
-            overlaps[i].resize(k, ram::Overlap(0, 0, 0, 0, 0, 0, 0, 0));
+            overlaps[i].resize(k);
         }
 
         if (!is_changed) {
@@ -445,15 +445,15 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
             continue;
         }
 
-        minimizer_engine->minimize(sequences.begin() + j, sequences.begin() + i + 1);
+        minimizer_engine_->minimize(sequences.begin() + j, sequences.begin() + i + 1);
 
         { // map valid reads to each other
-            minimizer_engine->filter(0.001);
+            minimizer_engine_->filter(0.001);
             std::vector<std::future<std::vector<ram::Overlap>>> thread_futures;
             for (std::uint32_t k = 0; k < s; ++k) {
                 thread_futures.emplace_back(thread_pool_->submit(
                     [&] (std::uint32_t i) -> std::vector<ram::Overlap> {
-                        return minimizer_engine->map(sequences[i], true, true);
+                        return minimizer_engine_->map(sequences[i], true, true);
                     }
                 , k));
             }
@@ -487,12 +487,12 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
         }
 
         { // map invalid reads to valid reads
-            minimizer_engine->filter(0.00001);
+            minimizer_engine_->filter(0.00001);
             std::vector<std::future<std::vector<ram::Overlap>>> thread_futures;
             for (std::uint32_t k = s; k < sequences.size(); ++k) {
                 thread_futures.emplace_back(thread_pool_->submit(
                     [&] (std::uint32_t i) -> std::vector<ram::Overlap> {
-                        return minimizer_engine->map(sequences[i], true, false);
+                        return minimizer_engine_->map(sequences[i], true, false);
                     }
                 , k));
             }
@@ -551,7 +551,7 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
                 overlaps.front()[k++] = overlaps.front()[i];
             }
         }
-        overlaps.front().resize(k, ram::Overlap(0,0,0,0,0,0,0,0));
+        overlaps.front().resize(k);
     }
 
     std::sort(sequences.begin(), sequences.end(),
@@ -603,7 +603,7 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
                 overlaps.front()[j++] = it;
             }
         }
-        overlaps.front().resize(j, ram::Overlap(0, 0, 0, 0, 0, 0, 0, 0));
+        overlaps.front().resize(j);
 
         if (!is_changed) {
             break;
@@ -721,8 +721,12 @@ void Graph::assemble(std::vector<std::unique_ptr<ram::Sequence>>& dst) {
     }
 
     create_unitigs(42);
-    create_force_directed_layout("assembly.json");
-    remove_long_edges();
+    for (std::uint32_t i = 0; i < 5; ++i) {
+        create_force_directed_layout();
+        remove_long_edges();
+        remove_tips();
+    }
+
     while (true) {
         std::uint32_t num_changes = remove_tips();
         num_changes += remove_bubbles();
@@ -731,8 +735,6 @@ void Graph::assemble(std::vector<std::unique_ptr<ram::Sequence>>& dst) {
         }
     }
 
-    print_csv("assembly.csv");
-    print_json("piles.json");
     extract_unitigs(dst);
 }
 
@@ -869,9 +871,9 @@ std::uint32_t Graph::remove_bubbles() {
     std::vector<std::int32_t> predecessor(nodes_.size(), -1);
     std::deque<std::uint32_t> node_queue;
 
-    // path helper functions
-    auto extract_path = [&] (std::vector<std::uint32_t>& dst, std::uint32_t source,
-        std::uint32_t sink) -> void {
+    // helper functions
+    auto path_extract = [&] (std::vector<std::uint32_t>& dst,
+        std::uint32_t source, std::uint32_t sink) -> void {
 
         std::uint32_t curr_id = sink;
         while (curr_id != source) {
@@ -881,24 +883,18 @@ std::uint32_t Graph::remove_bubbles() {
         dst.emplace_back(source);
         std::reverse(dst.begin(), dst.end());
     };
-    auto calculate_path_length = [&] (const std::vector<std::uint32_t>& path) -> std::uint32_t {
-
+    auto path_type = [&] (const std::vector<std::uint32_t>& path) -> bool {
         if (path.empty()) {
-            return 0;
+            return false;
         }
-
-        std::uint32_t path_length = nodes_[path.back()]->length();
-        for (std::uint32_t i = 0; i < path.size() - 1; ++i) {
-            for (const auto& edge: nodes_[path[i]]->outedges) {
-                if (edge->end->id == (std::uint32_t) path[i + 1]) {
-                    path_length += edge->length;
-                    break;
-                }
+        for (std::uint32_t i = 1; i < path.size() - 1; ++i) {
+            if (nodes_[path[i]]->is_junction()) {
+                return false;
             }
         }
-        return path_length;
+        return true;
     };
-    auto is_valid_bubble = [&] (const std::vector<std::uint32_t>& path,
+    auto bubble_type = [&] (const std::vector<std::uint32_t>& path,
         const std::vector<std::uint32_t>& other_path) -> bool {
 
         if (path.empty() || other_path.empty()) {
@@ -921,23 +917,49 @@ std::uint32_t Graph::remove_bubbles() {
                 return false;
             }
         }
-        std::uint32_t path_length = calculate_path_length(path);
-        std::uint32_t other_path_length = calculate_path_length(other_path);
-        if (std::min(path_length, other_path_length) <
-            std::max(path_length, other_path_length) * 0.8) {
 
-            for (std::uint32_t i = 1; i < other_path.size() - 1; ++i) {
-                if (nodes_[other_path[i]]->is_junction()) {
-                    return false;
-                }
-            }
-            for (std::uint32_t i = 1; i < path.size() - 1; ++i) {
-                if (nodes_[path[i]]->is_junction()) {
-                    return false;
+        if (path_type(path) && path_type(other_path)) {
+            return true;
+        }
+
+        std::vector<std::unique_ptr<ram::Sequence>> paths;
+        paths.emplace_back(new ram::Sequence());
+        paths.emplace_back(new ram::Sequence());
+
+        for (std::uint32_t i = 0; i < path.size() - 1; ++i) {
+            for (const auto& it: nodes_[path[i]]->outedges) {
+                if (it->end->id == path[i + 1]) {
+                    paths.front()->data += it->label();
+                    break;
                 }
             }
         }
-        return true;
+        paths.front()->data += nodes_[path.back()]->data;
+
+        for (std::uint32_t i = 0; i < other_path.size() - 1; ++i) {
+            for (const auto& it: nodes_[other_path[i]]->outedges) {
+                if (it->end->id == other_path[i + 1]) {
+                    paths.back()->data += it->label();
+                    break;
+                }
+            }
+        }
+        paths.back()->data += nodes_[other_path.back()]->data;
+
+        minimizer_engine_->minimize(paths.end() - 1, paths.end());
+        minimizer_engine_->filter(0.001);
+        auto overlaps = minimizer_engine_->map(paths.front(), false, false);
+
+        std::uint32_t matches = 0, length = 0;
+        for (const auto& it: overlaps) {
+            std::uint32_t l = std::max(it.q_end - it.q_begin, it.t_end - it.t_begin);
+            if (length < l) {
+                length = l;
+                matches = it.matches;
+            }
+        }
+
+        return static_cast<double>(matches) / length > 0.5;
     };
 
     std::uint32_t num_bubbles_popped = 0;
@@ -966,7 +988,7 @@ std::uint32_t Graph::remove_bubbles() {
                     continue; // Cycle
                 }
 
-                if (distance[v] + edge->length > 5000000) {
+                if (distance[v] + edge->length > 500000) {
                     continue; // Out of reach
                 }
 
@@ -987,12 +1009,12 @@ std::uint32_t Graph::remove_bubbles() {
 
         if (found_sink) {
             std::vector<std::uint32_t> path;
-            extract_path(path, source, sink);
+            path_extract(path, source, sink);
 
             std::vector<std::uint32_t> other_path(1, sink);
-            extract_path(other_path, source, sink_other_predecesor);
+            path_extract(other_path, source, sink_other_predecesor);
 
-            if (is_valid_bubble(path, other_path)) {
+            if (bubble_type(path, other_path)) {
                 std::uint32_t path_num_reads = 0;
                 for (const auto& it: path) {
                     path_num_reads += nodes_[it]->sequences.size();
@@ -1006,21 +1028,13 @@ std::uint32_t Graph::remove_bubbles() {
                 std::vector<std::uint32_t> edges_for_removal;
                 if (path_num_reads > other_path_num_reads) {
                     find_removable_edges(edges_for_removal, other_path);
+                    if (edges_for_removal.empty()) {
+                        find_removable_edges(edges_for_removal, path);
+                    }
                 } else {
                     find_removable_edges(edges_for_removal, path);
-                }
-
-                if (edges_for_removal.empty()) {
-                    std::uint32_t path_length = calculate_path_length(path);
-                    std::uint32_t other_path_length = calculate_path_length(other_path);
-                    if (std::min(path_length, other_path_length) >=
-                        std::max(path_length, other_path_length) * 0.8) {
-
-                        if (path_num_reads > other_path_num_reads) {
-                            find_removable_edges(edges_for_removal, path);
-                        } else {
-                            find_removable_edges(edges_for_removal, other_path);
-                        }
+                    if (edges_for_removal.empty()) {
+                        find_removable_edges(edges_for_removal, other_path);
                     }
                 }
 
