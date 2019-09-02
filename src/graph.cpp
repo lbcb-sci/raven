@@ -951,9 +951,7 @@ std::uint32_t Graph::remove_bubbles() {
             return false;
         }
 
-        minimizer_engine_->minimize(paths.end() - 1, paths.end());
-        minimizer_engine_->filter(0.001);
-        auto overlaps = minimizer_engine_->map(paths.front(), false, false);
+        auto overlaps = minimizer_engine_->map(paths.front(), paths.back());
 
         std::uint32_t matches = 0, length = 0;
         for (const auto& it: overlaps) {

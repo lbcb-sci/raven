@@ -318,7 +318,8 @@ void Pile::find_median() {
     median_ = data[data.size() / 2];
 }
 
-void Pile::add_layers(std::vector<ram::Overlap>::const_iterator begin,
+void Pile::add_layers(
+    std::vector<ram::Overlap>::const_iterator begin,
     std::vector<ram::Overlap>::const_iterator end) {
 
     if (begin >= end) {

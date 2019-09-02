@@ -33,13 +33,6 @@ public:
     std::uint32_t end() const;
 
     /*!
-     * @brief Sets values of data_ outside the interval [begin, end> to zeroes,
-     * and updates begin_ and end_ accordingly. If the region is shorter than
-     * 1260 bp, the object is invalidated.
-     */
-    void set_valid_region(std::uint32_t begin, std::uint32_t end);
-
-    /*!
      * @brief Finds region in data_ with values greater or equal to coverage and
      * sets the valid region.
      */
@@ -67,7 +60,8 @@ public:
     /*!
      * @brief Adds coverage to data_ from a set of overlaps.
      */
-    void add_layers(std::vector<ram::Overlap>::const_iterator begin,
+    void add_layers(
+        std::vector<ram::Overlap>::const_iterator begin,
         std::vector<ram::Overlap>::const_iterator end);
 
     bool is_invalid() const {
@@ -133,6 +127,13 @@ private:
     const Pile& operator=(const Pile&) = delete;
 
     std::vector<std::pair<std::uint32_t, std::uint32_t>> find_slopes(double q);
+
+    /*!
+     * @brief Sets values of data_ outside the interval [begin, end> to zeroes,
+     * and updates begin_ and end_ accordingly. If the region is shorter than
+     * 1260 bp, the object is invalidated.
+     */
+    void set_valid_region(std::uint32_t begin, std::uint32_t end);
 
     std::uint32_t id_;
     std::vector<std::uint32_t> data_;
