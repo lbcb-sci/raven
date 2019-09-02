@@ -29,12 +29,8 @@ public:
         return id_;
     }
 
-    std::uint32_t begin() const {
-        return begin_;
-    }
-    std::uint32_t end() const {
-        return end_;
-    }
+    std::uint32_t begin() const;
+    std::uint32_t end() const;
 
     /*!
      * @brief Sets values of data_ outside the interval [begin, end> to zeroes,

@@ -46,6 +46,7 @@ class Plotter:
 
         ax.axhline(int(pile["median"]), label="median", color=scpb[1], linestyle=":")
         ax.set_title(title)
+        ax.set_ylim([0, int(pile["median"]) * 3])
 
         figure.text(0.5, 0.04, "base", ha="center")
         figure.text(0.04, 0.5, "coverage", va="center", rotation="vertical")

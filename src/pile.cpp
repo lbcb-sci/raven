@@ -17,6 +17,8 @@
 
 namespace raven {
 
+constexpr std::uint32_t kS = 4; // reduce memory 2^kS times
+
 void mergeRegions(std::vector<std::pair<std::uint32_t, std::uint32_t>>& regions) {
 
     std::vector<std::pair<std::uint32_t, std::uint32_t>> dst;
@@ -41,12 +43,20 @@ void mergeRegions(std::vector<std::pair<std::uint32_t, std::uint32_t>>& regions)
 }
 
 std::unique_ptr<Pile> createPile(std::uint32_t id, std::uint32_t size) {
-    return std::unique_ptr<Pile>(new Pile(id, size));
+    return std::unique_ptr<Pile>(new Pile(id, size >> kS));
 }
 
 Pile::Pile(std::uint32_t id, std::uint32_t size)
         : id_(id), data_(size, 0), begin_(0), end_(size), median_(0), state_(0),
         chimeric_regions_(), repetitive_regions_() {
+}
+
+std::uint32_t Pile::begin() const {
+    return begin_ << kS;
+}
+
+std::uint32_t Pile::end() const {
+    return end_ << kS;
 }
 
 std::vector<std::pair<std::uint32_t, std::uint32_t>> Pile::find_slopes(double q) {
@@ -68,7 +78,7 @@ std::vector<std::pair<std::uint32_t, std::uint32_t>> Pile::find_slopes(double q)
     // find slopes
     std::vector<std::pair<std::uint32_t, std::uint32_t>> dst;
 
-    std::int32_t w = 847;
+    std::int32_t w = 847 >> kS;
     std::int32_t data_size = data_.size();
 
     Subpile left_subpile;
@@ -276,7 +286,7 @@ void Pile::find_valid_region(std::uint32_t coverage) {
 
 void Pile::set_valid_region(std::uint32_t begin, std::uint32_t end) {
 
-    if (begin >= end || end - begin < 1260) {
+    if (begin >= end || end - begin < 1260 >> kS) {
         set_invalid();
         return;
     }
@@ -318,11 +328,11 @@ void Pile::add_layers(std::vector<ram::Overlap>::const_iterator begin,
     std::vector<std::uint32_t> boundaries;
     for (auto it = begin; it != end; ++it) {
         if (it->q_id == id_) {
-            boundaries.emplace_back((it->q_begin + 1) << 1);
-            boundaries.emplace_back((it->q_end - 1) << 1 | 1);
+            boundaries.emplace_back(((it->q_begin >> kS) + 1) << 1);
+            boundaries.emplace_back(((it->q_end >> kS) - 1) << 1 | 1);
         } else if (it->t_id == id_) {
-            boundaries.emplace_back((it->t_begin + 1) << 1);
-            boundaries.emplace_back((it->t_end - 1) << 1 | 1);
+            boundaries.emplace_back(((it->t_begin >> kS) + 1) << 1);
+            boundaries.emplace_back(((it->t_end >> kS) - 1) << 1 | 1);
         }
     }
     std::sort(boundaries.begin(), boundaries.end());
@@ -405,7 +415,7 @@ void Pile::find_repetitive_regions(std::uint32_t median) {
         return;
     }
 
-    auto is_repetitive_reagion = [&] (
+    auto is_repetitive_region = [&] (
         const std::pair<std::uint32_t, std::uint32_t>& begin,
         const std::pair<std::uint32_t, std::uint32_t>& end) -> bool {
 
@@ -442,7 +452,7 @@ void Pile::find_repetitive_regions(std::uint32_t median) {
                 continue;
             }
 
-            if (is_repetitive_reagion(slopes[i], slopes[j])) {
+            if (is_repetitive_region(slopes[i], slopes[j])) {
                 repetitive_regions_.emplace_back(
                     slopes[i].second - 0.336 * (slopes[i].second - (slopes[i].first >> 1)),
                     (slopes[j].first >> 1) + 0.336 * (slopes[j].second - (slopes[j].first >> 1)));
@@ -466,9 +476,9 @@ void Pile::resolve_repetitive_regions(const ram::Overlap& o) {
         return;
     }
 
-    std::uint32_t begin = id_ == o.q_id ? o.q_begin : o.t_begin;
-    std::uint32_t end = id_ == o.q_id ? o.q_end : o.t_end;
-    std::uint32_t fuzz = 420;
+    std::uint32_t begin = (id_ == o.q_id ? o.q_begin : o.t_begin) >> kS;
+    std::uint32_t end = (id_ == o.q_id ? o.q_end : o.t_end) >> kS;
+    std::uint32_t fuzz = 420 >> kS;
     std::uint32_t offset = 0.1 * (end_ - begin_);
 
     for (auto& it: repetitive_regions_) {
@@ -495,9 +505,9 @@ bool Pile::is_false_overlap(const ram::Overlap& o) {
         return false;
     }
 
-    std::uint32_t begin = id_ == o.q_id ? o.q_begin : o.t_begin;
-    std::uint32_t end = id_ == o.q_id ? o.q_end : o.t_end;
-    std::uint32_t fuzz = 420;
+    std::uint32_t begin = (id_ == o.q_id ? o.q_begin : o.t_begin) >> kS;
+    std::uint32_t end = (id_ == o.q_id ? o.q_end : o.t_end) >> kS;
+    std::uint32_t fuzz = 420 >> kS;
     std::uint32_t offset = 0.1 * (end_ - begin_);
 
     for (const auto& it: repetitive_regions_) {
