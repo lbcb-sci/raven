@@ -7,6 +7,7 @@
 
 #include "bioparser/bioparser.hpp"
 #include "thread_pool/thread_pool.hpp"
+#include "logger/logger.hpp"
 #include "ram/sequence.hpp"
 
 #include "graph.hpp"
@@ -49,8 +50,14 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    logger::Logger logger;
+    logger.log();
+
     std::vector<std::unique_ptr<ram::Sequence>> sequences;
     sparser->parse(sequences, -1);
+
+    logger.log("[raven::] loaded sequences");
+    logger.log();
 
     std::shared_ptr<thread_pool::ThreadPool> thread_pool;
     try {
@@ -70,6 +77,8 @@ int main(int argc, char** argv) {
         std::cout << ">" << it->name << std::endl;
         std::cout << it->data << std::endl;
     }
+
+    logger.log("[raven::]");
 
     return 0;
 }

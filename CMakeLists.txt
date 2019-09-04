@@ -22,11 +22,14 @@ add_executable(raven
 if (NOT TARGET bioparser)
     add_subdirectory(vendor/bioparser EXCLUDE_FROM_ALL)
 endif()
+if (NOT TARGET logger)
+    add_subdirectory(vendor/logger EXCLUDE_FROM_ALL)
+endif()
 if (NOT TARGET ram)
     add_subdirectory(vendor/ram EXCLUDE_FROM_ALL)
 endif()
 
-target_link_libraries(raven bioparser ram)
+target_link_libraries(raven bioparser logger ram)
 
 install(TARGETS raven DESTINATION ${CMAKE_INSTALL_BINDIR})
 

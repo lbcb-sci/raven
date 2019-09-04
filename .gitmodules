@@ -4,3 +4,6 @@
 [submodule "vendor/ram"]
 	path = vendor/ram
 	url = https://github.com/lbcb-sci/ram
+[submodule "vendor/logger"]
+	path = vendor/logger
+	url = https://github.com/rvaser/logger
