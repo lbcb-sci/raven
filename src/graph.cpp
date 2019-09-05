@@ -296,7 +296,7 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
                         piles_[i]->add_layers(overlaps[i].begin() + num_overlaps[i],
                             overlaps[i].end());
 
-                        if (overlaps.size() < 16) {
+                        if (overlaps[i].size() < 16) {
                             return;
                         }
 
@@ -305,7 +305,10 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
                                 return overlap_length(lhs) > overlap_length(rhs);
                             }
                         );
-                        overlaps[i].resize(16);
+
+                        std::vector<ram::Overlap> o;
+                        o.insert(o.end(), overlaps[i].begin(), overlaps[i].begin() + 16);
+                        o.swap(overlaps[i]);
                     }
                 , it->id()));
             }
@@ -537,7 +540,7 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
             , k));
 
             bytes += sequences[k]->data.size();
-            if (k != i && bytes < (1U << 30)) {
+            if (k != sequences.size() - 1 && bytes < (1U << 30)) {
                 continue;
             }
             bytes = 0;
