@@ -245,6 +245,7 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
         if (i != sequences.size() - 1 && bytes < (1U << 30)) {
             continue;
         }
+        bytes = 0;
 
         logger.log();
 
@@ -261,15 +262,21 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
             num_overlaps[k] = overlaps[k].size();
         }
 
-        {
-            std::vector<std::future<std::vector<ram::Overlap>>> thread_futures;
-            for (std::uint32_t k = 0; k < i + 1; ++k) {
-                thread_futures.emplace_back(thread_pool_->submit(
-                    [&] (std::uint32_t i) -> std::vector<ram::Overlap> {
-                        return minimizer_engine_->map(sequences[i], true, true);
-                    }
-                , k));
+        std::vector<std::future<std::vector<ram::Overlap>>> thread_futures;
+
+        for (std::uint32_t k = 0; k < i + 1; ++k) {
+            thread_futures.emplace_back(thread_pool_->submit(
+                [&] (std::uint32_t i) -> std::vector<ram::Overlap> {
+                    return minimizer_engine_->map(sequences[i], true, true);
+                }
+            , k));
+
+            bytes += sequences[k]->data.size();
+            if (k != i && bytes < (1U << 30)) {
+                continue;
             }
+            bytes = 0;
+
             for (auto& it: thread_futures) {
                 it.wait();
                 for (const auto& jt: it.get()) {
@@ -277,41 +284,39 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
                     overlaps[jt.t_id].emplace_back(overlap_reverse(jt));
                 }
             }
+            thread_futures.clear();
+
+            std::vector<std::future<void>> void_futures;
+            for (const auto& it: piles_) {
+                if (overlaps[it->id()].empty()) {
+                    continue;
+                }
+                void_futures.emplace_back(thread_pool_->submit(
+                    [&] (std::uint32_t i) -> void {
+                        piles_[i]->add_layers(overlaps[i].begin() + num_overlaps[i],
+                            overlaps[i].end());
+
+                        if (overlaps.size() < 16) {
+                            return;
+                        }
+
+                        std::sort(overlaps[i].begin(), overlaps[i].end(),
+                            [&] (const ram::Overlap& lhs, const ram::Overlap& rhs) -> bool {
+                                return overlap_length(lhs) > overlap_length(rhs);
+                            }
+                        );
+                        overlaps[i].resize(16);
+                    }
+                , it->id()));
+            }
+            for (const auto& it: void_futures) {
+                it.wait();
+            }
         }
 
         logger.log("[raven::Graph::construct] mapped sequences");
         logger.log();
 
-        std::vector<std::future<void>> thread_futures;
-        for (std::uint32_t k = 0; k < piles_.size(); ++k) {
-            if (overlaps[k].empty()) {
-                continue;
-            }
-            thread_futures.emplace_back(thread_pool_->submit(
-                [&] (std::uint32_t i) -> void {
-                    piles_[i]->add_layers(overlaps[i].begin() + num_overlaps[i],
-                        overlaps[i].end());
-
-                    if (overlaps.size() < 16) {
-                        return;
-                    }
-
-                    std::sort(overlaps[i].begin(), overlaps[i].end(),
-                        [&] (const ram::Overlap& lhs, const ram::Overlap& rhs) -> bool {
-                            return overlap_length(lhs) > overlap_length(rhs);
-                        }
-                    );
-                    overlaps[i].resize(16);
-                }
-            , k));
-        }
-        for (const auto& it: thread_futures) {
-            it.wait();
-        }
-
-        logger.log("[raven::Graph::construct] stored overlaps");
-
-        bytes = 0;
         j = i + 1;
     }
 
@@ -452,7 +457,8 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
     std::sort(sequences.begin(), sequences.end(),
         [&] (const std::unique_ptr<ram::Sequence>& lhs,
             const std::unique_ptr<ram::Sequence>& rhs) -> bool {
-            return piles_[lhs->id]->is_invalid() < piles_[rhs->id]->is_invalid();
+            return piles_[lhs->id]->is_invalid() < piles_[rhs->id]->is_invalid() ||
+                (piles_[lhs->id]->is_invalid() == piles_[rhs->id]->is_invalid() && lhs->id < rhs->id);
         }
     );
     std::uint32_t s = 0;
@@ -471,6 +477,7 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
         if (i != s - 1 && bytes < (1U << 30)) {
             continue;
         }
+        bytes = 0;
 
         minimizer_engine_->minimize(sequences.begin() + j, sequences.begin() + i + 1);
 
@@ -479,89 +486,89 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
             " / " + std::to_string(s));
         logger.log();
 
-        { // map valid reads to each other
-            minimizer_engine_->filter(0.001);
-            std::vector<std::future<std::vector<ram::Overlap>>> thread_futures;
-            for (std::uint32_t k = 0; k < s; ++k) {
-                thread_futures.emplace_back(thread_pool_->submit(
-                    [&] (std::uint32_t i) -> std::vector<ram::Overlap> {
-                        return minimizer_engine_->map(sequences[i], true, true);
-                    }
-                , k));
-            }
-            for (auto& it: thread_futures) {
-                it.wait();
-                for (auto& jt: it.get()) {
-                    if (!overlap_update(jt)) {
-                        continue;
-                    }
-                    std::uint32_t type = overlap_type(jt);
-                    if (type == 1) {
-                        continue;
-                    } else if (type == 1) {
-                        piles_[jt.q_id]->set_contained();
-                    } else if (type == 2) {
-                        piles_[jt.t_id]->set_contained();
-                    } else {
-                        if (overlaps.back().size() &&
-                            overlaps.back().back().q_id == jt.q_id &&
-                            overlaps.back().back().t_id == jt.t_id) {
-                            if (overlap_length(overlaps.back().back()) < overlap_length(jt)) {
-                                overlaps.back().back() = jt;
-                            }
-                        } else {
-                            overlaps.back().emplace_back(jt);
+        // map valid reads to each other
+        std::vector<std::future<std::vector<ram::Overlap>>> thread_futures;
+        minimizer_engine_->filter(0.001);
+        for (std::uint32_t k = 0; k < i + 1; ++k) {
+            thread_futures.emplace_back(thread_pool_->submit(
+                [&] (std::uint32_t i) -> std::vector<ram::Overlap> {
+                    return minimizer_engine_->map(sequences[i], true, true);
+                }
+            , k));
+        }
+        for (auto& it: thread_futures) {
+            it.wait();
+            for (auto& jt: it.get()) {
+                if (!overlap_update(jt)) {
+                    continue;
+                }
+                std::uint32_t type = overlap_type(jt);
+                if (type == 1) {
+                    continue;
+                } else if (type == 1) {
+                    piles_[jt.q_id]->set_contained();
+                } else if (type == 2) {
+                    piles_[jt.t_id]->set_contained();
+                } else {
+                    if (overlaps.back().size() &&
+                        overlaps.back().back().q_id == jt.q_id &&
+                        overlaps.back().back().t_id == jt.t_id) {
+                        if (overlap_length(overlaps.back().back()) < overlap_length(jt)) {
+                            overlaps.back().back() = jt;
                         }
+                    } else {
+                        overlaps.back().emplace_back(jt);
                     }
                 }
             }
         }
+        thread_futures.clear();
 
         logger.log("[raven::Graph::construct] mapped valid sequences");
         logger.log();
 
-        { // map invalid reads to valid reads
-            minimizer_engine_->filter(0.00001);
-            std::vector<std::future<std::vector<ram::Overlap>>> thread_futures;
-            for (std::uint32_t k = s; k < sequences.size(); ++k) {
-                thread_futures.emplace_back(thread_pool_->submit(
-                    [&] (std::uint32_t i) -> std::vector<ram::Overlap> {
-                        return minimizer_engine_->map(sequences[i], true, false);
-                    }
-                , k));
+        // map invalid reads to valid reads
+        minimizer_engine_->filter(0.00001);
+        for (std::uint32_t k = s; k < sequences.size(); ++k) {
+            thread_futures.emplace_back(thread_pool_->submit(
+                [&] (std::uint32_t i) -> std::vector<ram::Overlap> {
+                    return minimizer_engine_->map(sequences[i], true, false);
+                }
+            , k));
+
+            bytes += sequences[k]->data.size();
+            if (k != i && bytes < (1U << 30)) {
+                continue;
             }
+            bytes = 0;
+
             for (auto& it: thread_futures) {
                 it.wait();
                 for (const auto& jt: it.get()) {
                     overlaps[jt.t_id].emplace_back(jt);
                 }
             }
-        }
+            thread_futures.clear();
 
-        logger.log("[raven::Graph::construct] mapped invalid sequences");
-        logger.log();
-
-        {
-            std::vector<std::future<void>> thread_futures;
-            for (std::uint32_t k = 0; k < s; ++k) {
+            std::vector<std::future<void>> void_futures;
+            for (std::uint32_t k = j; k < i + 1; ++k) {
                 if (overlaps[sequences[k]->id].empty()) {
                     continue;
                 }
-                thread_futures.emplace_back(thread_pool_->submit(
+                void_futures.emplace_back(thread_pool_->submit(
                     [&] (std::uint32_t i) -> void {
                         piles_[i]->add_layers(overlaps[i].begin(), overlaps[i].end());
                         std::vector<ram::Overlap>().swap(overlaps[i]);
                     }
                 , sequences[k]->id));
             }
-            for (const auto& it: thread_futures) {
+            for (const auto& it: void_futures) {
                 it.wait();
             }
         }
 
-        logger.log("[raven::Graph::construct] stored overlaps");
+        logger.log("[raven::Graph::construct] mapped invalid sequences");
 
-        bytes = 0;
         j = i + 1;
     }
 
