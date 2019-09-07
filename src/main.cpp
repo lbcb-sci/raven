@@ -85,7 +85,7 @@ int main(int argc, char** argv) {
 
 std::unique_ptr<bioparser::Parser<ram::Sequence>> createParser(const std::string& path) {
 
-    auto is_suffix = [](const std::string& src, const std::string& suffix) {
+    auto is_suffix = [] (const std::string& src, const std::string& suffix) {
         return src.size() < suffix.size() ? false :
             src.compare(src.size() - suffix.size(), suffix.size(), suffix) == 0;
     };
