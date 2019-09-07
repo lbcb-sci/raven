@@ -318,7 +318,6 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
         }
 
         logger.log("[raven::Graph::construct] mapped sequences");
-        logger.log();
 
         j = i + 1;
     }
@@ -481,6 +480,8 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
             continue;
         }
         bytes = 0;
+
+        logger.log();
 
         minimizer_engine_->minimize(sequences.begin() + j, sequences.begin() + i + 1);
 
