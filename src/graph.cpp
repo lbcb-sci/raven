@@ -278,7 +278,6 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
             bytes = 0;
 
             for (auto& it: thread_futures) {
-                it.wait();
                 for (const auto& jt: it.get()) {
                     overlaps[jt.q_id].emplace_back(jt);
                     overlaps[jt.t_id].emplace_back(overlap_reverse(jt));
@@ -501,7 +500,6 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
             , k));
         }
         for (auto& it: thread_futures) {
-            it.wait();
             for (auto& jt: it.get()) {
                 if (!overlap_update(jt)) {
                     continue;
@@ -547,7 +545,6 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
             bytes = 0;
 
             for (auto& it: thread_futures) {
-                it.wait();
                 for (const auto& jt: it.get()) {
                     overlaps[jt.t_id].emplace_back(jt);
                 }
