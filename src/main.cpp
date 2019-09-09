@@ -45,7 +45,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    std::unique_ptr<bioparser::Parser<ram::Sequence>> sparser = createParser(argv[optind]);
+    auto sparser = createParser(argv[optind]);
     if (sparser == nullptr) {
         return 1;
     }
@@ -54,7 +54,12 @@ int main(int argc, char** argv) {
     logger.log();
 
     std::vector<std::unique_ptr<ram::Sequence>> sequences;
-    sparser->parse(sequences, -1);
+    try {
+        sparser->parse(sequences, -1);
+    } catch (const std::invalid_argument& exception) {
+        std::cerr << exception.what() << std::endl;
+        return 1;
+    }
 
     logger.log("[raven::] loaded sequences");
     logger.log();
@@ -62,7 +67,7 @@ int main(int argc, char** argv) {
     std::shared_ptr<thread_pool::ThreadPool> thread_pool;
     try {
         thread_pool = thread_pool::createThreadPool(num_threads);
-    } catch (std::invalid_argument& exception) {
+    } catch (const std::invalid_argument& exception) {
         std::cerr << exception.what() << std::endl;
         return 1;
     }
@@ -92,11 +97,21 @@ std::unique_ptr<bioparser::Parser<ram::Sequence>> createParser(const std::string
 
     if (is_suffix(path, ".fasta")    || is_suffix(path, ".fa") ||
         is_suffix(path, ".fasta.gz") || is_suffix(path, ".fa.gz")) {
-        return bioparser::createParser<bioparser::FastaParser, ram::Sequence>(path);
+        try {
+            return bioparser::createParser<bioparser::FastaParser, ram::Sequence>(path);
+        } catch (const std::invalid_argument& exception) {
+            std::cerr << exception.what() << std::endl;
+            return nullptr;
+        }
     }
     if (is_suffix(path, ".fastq")    || is_suffix(path, ".fq") ||
         is_suffix(path, ".fastq.gz") || is_suffix(path, ".fq.gz")) {
-        return bioparser::createParser<bioparser::FastqParser, ram::Sequence>(path);
+        try {
+            return bioparser::createParser<bioparser::FastqParser, ram::Sequence>(path);
+        } catch (const std::invalid_argument& exception) {
+            std::cerr << exception.what() << std::endl;
+            return nullptr;
+        }
     }
 
     std::cerr << "[raven::] error: file " << path
