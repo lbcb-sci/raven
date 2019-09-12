@@ -1779,6 +1779,8 @@ void Graph::extract_unitigs(std::vector<std::unique_ptr<ram::Sequence>>& dst) {
 
     create_unitigs();
 
+    ram::Sequence::num_objects = 0;
+
     std::uint32_t contig_id = 0;
     for (const auto& node: nodes_) {
         if (node == nullptr || node->is_rc()) {

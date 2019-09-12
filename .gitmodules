@@ -7,3 +7,6 @@
 [submodule "vendor/logger"]
 	path = vendor/logger
 	url = https://github.com/rvaser/logger
+[submodule "vendor/racon"]
+	path = vendor/racon
+	url = https://github.com/lbcb-sci/racon

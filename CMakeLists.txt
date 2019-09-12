@@ -28,8 +28,14 @@ endif()
 if (NOT TARGET ram)
     add_subdirectory(vendor/ram EXCLUDE_FROM_ALL)
 endif()
+if (NOT TARGET racon)
+    add_subdirectory(vendor/racon EXCLUDE_FROM_ALL)
+endif()
 
-target_link_libraries(raven bioparser logger ram)
+target_link_libraries(raven bioparser logger ram racon)
+if (racon_enable_cuda)
+    target_compile_definitions(raven PRIVATE CUDA_ENABLED)
+endif()
 
 install(TARGETS raven DESTINATION ${CMAKE_INSTALL_BINDIR})
 
