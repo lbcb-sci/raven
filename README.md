@@ -49,6 +49,13 @@ cmake -DCMAKE_BUILD_TYPE=Release -Dracon_enable_cuda=ON ..
 make
 ```
 
+### Other options
+Install [Linuxbrew](https://docs.brew.sh/Homebrew-on-Linux) and run the following command:
+
+```bash
+brew install brewsci/bio/raven-assember
+```
+
 ## Usage
 Usage of `raven` is as following:
 
