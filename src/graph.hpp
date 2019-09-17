@@ -8,8 +8,8 @@
 
 #include <cstdint>
 #include <string>
-#include <vector>
 #include <memory>
+#include <vector>
 #include <utility>
 #include <unordered_set>
 
@@ -77,12 +77,7 @@ public:
      * @brief Creates unitigs which are at least epsilon away from junction
      * nodes. This can be used to speed up creation of the force directed layout.
      */
-    std::uint32_t create_unitigs(std::uint32_t epsilon);
-
-    /*!
-     * @brief Creates unitigs by merging chains of overlapping sequences.
-     */
-    std::uint32_t create_unitigs();
+    std::uint32_t create_unitigs(std::uint32_t epsilon = 0);
 
     void extract_unitigs(std::vector<std::unique_ptr<ram::Sequence>>& dst);
 
@@ -121,8 +116,6 @@ private:
     struct Edge;
     std::vector<std::unique_ptr<Edge>> edges_;
     std::unordered_set<std::uint32_t> marked_edges_;
-
-    std::vector<std::pair<std::uint32_t, std::uint32_t>> transitive_edges_;
 };
 
 }

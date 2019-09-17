@@ -57,6 +57,7 @@ struct Graph::Node {
     std::vector<std::uint32_t> sequences;
     std::vector<Edge*> inedges;
     std::vector<Edge*> outedges;
+    std::unordered_set<std::uint32_t> transitive;
     Node* pair;
 };
 
@@ -93,7 +94,7 @@ std::unique_ptr<Graph> createGraph(std::shared_ptr<thread_pool::ThreadPool> thre
 Graph::Graph(std::shared_ptr<thread_pool::ThreadPool> thread_pool)
         : minimizer_engine_(ram::createMinimizerEngine(15, 5, thread_pool)),
         thread_pool_(thread_pool), piles_(), nodes_(), edges_(),
-        marked_edges_(), transitive_edges_() {
+        marked_edges_() {
 }
 
 Graph::~Graph() {
@@ -867,15 +868,12 @@ std::uint32_t Graph::remove_transitive_edges() {
 
     for (const auto& it: marked_edges_) {
         if (it & 1) {
-            transitive_edges_.emplace_back(
-                (edges_[it]->begin->id >> 1) << 1,
+            nodes_[(edges_[it]->begin->id >> 1) << 1]->transitive.emplace(
                 (edges_[it]->end->id >> 1) << 1);
-            transitive_edges_.emplace_back(
-                transitive_edges_.back().second,
-                transitive_edges_.back().first);
+            nodes_[(edges_[it]->end->id >> 1) << 1]->transitive.emplace(
+                (edges_[it]->begin->id >> 1) << 1);
         }
     }
-    std::sort(transitive_edges_.begin(), transitive_edges_.end());
 
     remove_marked_objects();
 
@@ -1187,25 +1185,6 @@ void Graph::create_force_directed_layout(const std::string& path) {
         os << "  \"assembly\": {" << std::endl;
     }
 
-    if (transitive_edges_.empty() == false) {
-        std::vector<std::pair<std::uint32_t, std::uint32_t>> valid = {
-            transitive_edges_[0]
-        };
-
-        for (std::uint32_t i = 1; i < transitive_edges_.size(); ++i) {
-            if (nodes_[transitive_edges_[i].first] == nullptr ||
-                nodes_[transitive_edges_[i].second] == nullptr) {
-                continue;
-            }
-            if (transitive_edges_[i].first != transitive_edges_[i].second &&
-                transitive_edges_[i] != transitive_edges_[i - 1]) {
-                valid.emplace_back(transitive_edges_[i]);
-            }
-        }
-
-        valid.swap(transitive_edges_);
-    }
-
     std::vector<std::unordered_set<std::uint32_t>> components;
     std::vector<char> is_visited(piles_.size(), 0);
     for (std::uint32_t i = 0; i < nodes_.size(); ++i) {
@@ -1281,6 +1260,17 @@ void Graph::create_force_directed_layout(const std::string& path) {
             continue;
         }
 
+        // update transitive edges
+        for (const auto& n: component) {
+            std::unordered_set<std::uint32_t> valid;
+            for (const auto& m: nodes_[n]->transitive) {
+                if (component.find(m) != component.end()) {
+                    valid.emplace(m);
+                }
+            }
+            nodes_[n]->transitive.swap(valid);
+        }
+
         std::uint32_t num_iterations = 100;
         double k = sqrt(1. / static_cast<double>(component.size()));
         double t = 0.1;
@@ -1330,14 +1320,7 @@ void Graph::create_force_directed_layout(const std::string& path) {
                     displacement = point_add(displacement,
                         point_multiply(delta, -1. * distance / k));
                 }
-                bool found = false;
-                for (const auto& e: transitive_edges_) {
-                    if (e.first != n) {
-                        if (found) break;
-                        continue;
-                    }
-                    found = true;
-                    auto m = e.second;
+                for (const auto& m: nodes_[n]->transitive) {
                     auto delta = point_substract(points[n], points[m]);
                     auto distance = point_norm(delta);
                     if (distance < 0.01) {
@@ -1431,16 +1414,15 @@ void Graph::create_force_directed_layout(const std::string& path) {
                     is_first_edge = false;
                     os << "        [\"" << it << "\", \"" << o << "\", 0]";
                 }
-            }
-            for (const auto& e: transitive_edges_) {
-                if (e.first < e.second &&
-                    component.find(e.first) != component.end() &&
-                    component.find(e.second) != component.end()) {
+                for (const auto& o: nodes_[it]->transitive) {
+                    if (it < o) {
+                        continue;
+                    }
                     if (!is_first_edge) {
                         os << "," << std::endl;
                     }
                     is_first_edge = false;
-                    os << "        [\"" << e.first << "\", \"" << e.second << "\", 1]";
+                    os << "        [\"" << it << "\", \"" << o << "\", 1]";
                 }
             }
             os << std::endl << "      ]" << std::endl;
@@ -1493,10 +1475,6 @@ std::uint32_t Graph::create_unitigs(std::uint32_t epsilon) {
             }
         }
 
-        if (is_circular) {
-            continue;
-        }
-
         auto end = it.get();
         while (!end->is_junction()) {
             is_visited[end->id] = 1;
@@ -1512,182 +1490,39 @@ std::uint32_t Graph::create_unitigs(std::uint32_t epsilon) {
             }
         }
 
-        if (is_circular || begin == end || extension < 2 * epsilon + 2) {
+        if (!is_circular && begin == end) {
+            continue;
+        }
+        if (!is_circular && extension < 2 * epsilon + 2) {
             continue;
         }
 
-        // update begin_node
-        for (std::uint32_t i = 0; i < epsilon; ++i) {
-            begin = begin->outedges[0]->end;
+        if (begin != end) {
+            // update begin_node
+            for (std::uint32_t i = 0; i < epsilon; ++i) {
+                begin = begin->outedges[0]->end;
+            }
+            // update end_node
+            for (std::uint32_t i = 0; i < epsilon; ++i) {
+                end = end->inedges[0]->begin;
+            }
         }
 
-        // update end_node
-        for (std::uint32_t i = 0; i < epsilon; ++i) {
-            end = end->inedges[0]->begin;
-        }
+        std::unique_ptr<Node> u(new Node(node_id++, begin, end));
+        std::unique_ptr<Node> uc(new Node(node_id++, end->pair, begin->pair));
+
+        u->pair = uc.get();
+        uc->pair = u.get();
 
         // update node identifiers for transitive edges
         auto node = begin;
         while (node != end) {
-            node_updates[(node->id >> 1) << 1] = node_id;
+            node_updates[(node->id >> 1) << 1] = node_id - 2;
+            u->transitive.insert(
+                nodes_[(node->id >> 1) << 1]->transitive.begin(),
+                nodes_[(node->id >> 1) << 1]->transitive.end());
             node = node->outedges[0]->end;
         }
-
-        std::unique_ptr<Node> u(new Node(node_id++, begin, end));
-        std::unique_ptr<Node> uc(new Node(node_id++, end->pair, begin->pair));
-
-        u->pair = uc.get();
-        uc->pair = u.get();
-
-        if (begin->indegree() != 0) {
-            const auto& edge = begin->inedges[0];
-
-            edge->state |= 1;
-            edge->pair->state |= 1;
-            marked_edges_.emplace(edge->id);
-            marked_edges_.emplace(edge->pair->id);
-
-            std::unique_ptr<Edge> e(new Edge(edge_id++, edge->begin, u.get(),
-                edge->length));
-            std::unique_ptr<Edge> ec(new Edge(edge_id++, uc.get(), edge->pair->end,
-                edge->pair->length + uc->length() - begin->pair->length()));
-
-            e->pair = ec.get();
-            ec->pair = e.get();
-
-            edge->begin->outedges.emplace_back(e.get());
-            edge->pair->end->inedges.emplace_back(ec.get());
-            u->inedges.emplace_back(e.get());
-            uc->outedges.emplace_back(ec.get());
-
-            unitig_edges.emplace_back(std::move(e));
-            unitig_edges.emplace_back(std::move(ec));
-        }
-        if (end->outdegree() != 0) {
-            const auto& edge = end->outedges[0];
-
-            edge->state |= 1;
-            edge->pair->state |= 1;
-            marked_edges_.emplace(edge->id);
-            marked_edges_.emplace(edge->pair->id);
-
-            std::unique_ptr<Edge> e(new Edge(edge_id++, u.get(), edge->end,
-                edge->length + u->length() - end->length()));
-            std::unique_ptr<Edge> ec(new Edge(edge_id++, edge->pair->begin, uc.get(),
-                edge->pair->length));
-
-            e->pair = ec.get();
-            ec->pair = e.get();
-
-            u->outedges.emplace_back(e.get());
-            uc->inedges.emplace_back(ec.get());
-            edge->end->inedges.emplace_back(e.get());
-            edge->pair->begin->outedges.emplace_back(ec.get());
-
-            unitig_edges.emplace_back(std::move(e));
-            unitig_edges.emplace_back(std::move(ec));
-        }
-
-        unitigs.emplace_back(std::move(u));
-        unitigs.emplace_back(std::move(uc));
-
-        ++num_unitigs_created;
-
-        // mark edges for deletion
-        node = begin;
-        while (true) {
-            const auto& edge = node->outedges[0];
-
-            edge->state |= 1;
-            edge->pair->state |= 1;
-            marked_edges_.emplace(edge->id);
-            marked_edges_.emplace(edge->pair->id);
-
-            node = edge->end;
-            if (node == end) {
-                break;
-            }
-        }
-    }
-
-    for (std::uint32_t i = 0; i < unitigs.size(); ++i) {
-        nodes_.emplace_back(std::move(unitigs[i]));
-    }
-    for (std::uint32_t i = 0; i < unitig_edges.size(); ++i) {
-        edges_.emplace_back(std::move(unitig_edges[i]));
-    }
-
-    remove_marked_objects(true);
-
-    // update transitive edges
-    for (auto& it: transitive_edges_) {
-        if (node_updates[it.first] != 0) {
-            it.first = node_updates[it.first];
-        }
-        if (node_updates[it.second] != 0) {
-            it.second = node_updates[it.second];
-        }
-    }
-    std::sort(transitive_edges_.begin(), transitive_edges_.end());
-
-    return num_unitigs_created;
-}
-
-std::uint32_t Graph::create_unitigs() {
-
-    std::vector<char> is_visited(nodes_.size(), 0);
-
-    std::uint32_t node_id = nodes_.size();
-    std::vector<std::unique_ptr<Node>> unitigs;
-
-    std::uint32_t edge_id = edges_.size();
-    std::vector<std::unique_ptr<Edge>> unitig_edges;
-
-    std::uint32_t num_unitigs_created = 0;
-
-    for (const auto& it: nodes_) {
-        if (it == nullptr || is_visited[it->id] || it->is_junction()) {
-            continue;
-        }
-
-        bool is_circular = false;
-        auto begin = it.get();
-        while (!begin->is_junction()) {
-            is_visited[begin->id] = 1;
-            is_visited[begin->pair->id] = 1;
-            if (begin->indegree() == 0 || begin->inedges[0]->begin->is_junction()) {
-                break;
-            }
-            begin = begin->inedges[0]->begin;
-            if (begin->id == it->id) {
-                is_circular = true;
-                break;
-            }
-        }
-
-        auto end = it.get();
-        while (!end->is_junction()) {
-            is_visited[end->id] = 1;
-            is_visited[end->pair->id] = 1;
-            if (end->outdegree() == 0 || end->outedges[0]->end->is_junction()) {
-                break;
-            }
-            end = end->outedges[0]->end;
-            if (end->id == it->id) {
-                is_circular = true;
-                break;
-            }
-        }
-
-        if (!is_circular && begin == end) {
-            continue;
-        }
-
-        std::unique_ptr<Node> u(new Node(node_id++, begin, end));
-        std::unique_ptr<Node> uc(new Node(node_id++, end->pair, begin->pair));
-
-        u->pair = uc.get();
-        uc->pair = u.get();
 
         if (begin != end) {
             if (begin->indegree() != 0) {
@@ -1747,7 +1582,7 @@ std::uint32_t Graph::create_unitigs() {
         ++num_unitigs_created;
 
         // mark edges for deletion
-        auto node = begin;
+        node = begin;
         while (true) {
             const auto& edge = node->outedges[0];
 
@@ -1771,6 +1606,18 @@ std::uint32_t Graph::create_unitigs() {
     }
 
     remove_marked_objects(true);
+
+    // update transitive edges
+    for (const auto& it: nodes_) {
+        if (it == nullptr) {
+            continue;
+        }
+        std::unordered_set<std::uint32_t> valid;
+        for (const auto& jt: it->transitive) {
+            valid.emplace(node_updates[jt] == 0 ? jt : node_updates[jt]);
+        }
+        it->transitive.swap(valid);
+    }
 
     return num_unitigs_created;
 }
@@ -1978,7 +1825,7 @@ Graph::Node::Node(std::uint32_t id, std::uint32_t sequence, const std::string& n
 
 Graph::Node::Node(std::uint32_t id, Node* begin, Node* end)
         : id(id), name(), data(), state(0), sequences(), inedges(), outedges(),
-        pair(nullptr) {
+        transitive(), pair(nullptr) {
 
     if (begin == nullptr) {
         throw std::invalid_argument("[raven::Graph::Node::Node] error: "
