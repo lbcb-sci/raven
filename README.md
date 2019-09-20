@@ -50,11 +50,20 @@ make
 ```
 
 ### Other options
+
+#### Brew
 Install [Linuxbrew](https://docs.brew.sh/Homebrew-on-Linux) and run the following command:
 
 ```bash
 brew install brewsci/bio/raven-assember
 ```
+#### Conda
+Install [conda](https://conda.io/en/latest/miniconda.html) and run the following command:
+
+```
+conda install -c bioconda raven-assembler
+```
+
 
 ## Usage
 Usage of `raven` is as following:
