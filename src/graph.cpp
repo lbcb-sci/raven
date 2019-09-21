@@ -1227,19 +1227,114 @@ void Graph::create_force_directed_layout(const std::string& path) {
     std::mt19937 generator(std::random_device{}());
     std::uniform_real_distribution<> distribution(0., 1.);
 
-    using Point = std::pair<double, double>;
+    struct Point {
+        Point() = default;
+        Point(double x, double y)
+                : x(x), y(y) {
+        }
 
-    auto point_add = [] (const Point& x, const Point& y) -> Point {
-        return std::make_pair(x.first + y.first, x.second + y.second);
+        bool operator==(const Point& other) const {
+            return x == other.x && y == other.y;
+        }
+
+        Point operator+(const Point& other) const {
+            return Point(x + other.x, y + other.y);
+        }
+
+        Point& operator+=(const Point& other) {
+            x += other.x;
+            y += other.y;
+            return *this;
+        }
+
+        Point operator-(const Point& other) const {
+            return Point(x - other.x, y - other.y);
+        }
+
+        Point operator*(double c) const {
+            return Point(x * c, y * c);
+        }
+
+        Point& operator/=(double c) {
+            x /= c;
+            y /= c;
+            return *this;
+        }
+
+        double norm() const {
+            return sqrt(x * x + y * y);
+        }
+
+        double x;
+        double y;
     };
-    auto point_substract = [] (const Point& x, const Point& y) -> Point {
-       return std::make_pair(x.first - y.first, x.second - y.second);
-    };
-    auto point_multiply = [] (const Point& x, double s) -> Point {
-        return std::make_pair(x.first * s, x.second * s);
-    };
-    auto point_norm = [] (const Point& x) -> double {
-        return std::sqrt(x.first * x.first + x.second * x.second);
+
+    struct Quadtree {
+        Quadtree(Point nucleus, double width)
+            : nucleus(nucleus), width(width), center(0, 0), mass(0), subtrees() {
+        }
+
+        bool add(const Point& p) {
+            if (nucleus.x - width > p.x || p.x > nucleus.x + width ||
+                nucleus.y - width > p.y || p.y > nucleus.y + width) {
+                return false;
+            }
+            ++mass;
+            if (mass == 1) {
+                center = p;
+            } else if (subtrees.empty()) {
+                if (center == p) {
+                    return true;
+                }
+                double w = width / 2;
+                subtrees.emplace_back(Point(nucleus.x + w, nucleus.y + w), w);
+                subtrees.emplace_back(Point(nucleus.x - w, nucleus.y + w), w);
+                subtrees.emplace_back(Point(nucleus.x - w, nucleus.y - w), w);
+                subtrees.emplace_back(Point(nucleus.x + w, nucleus.y - w), w);
+                for (auto& it: subtrees) {
+                    if (it.add(center)) {
+                        break;
+                    }
+                }
+            }
+            for (auto& it: subtrees) {
+                if (it.add(p)) {
+                    break;
+                }
+            }
+            return true;
+        }
+
+        void centre() {
+            if (subtrees.empty()) {
+                return;
+            }
+            center = Point(0, 0);
+            for (auto& it: subtrees) {
+                it.centre();
+                center += it.center * it.mass;
+            }
+            center /= mass;
+        }
+
+        Point force(const Point& p, double k) const {
+            auto delta = p - center;
+            auto distance = delta.norm();
+            if (width * 2 / distance < 1) {
+                return delta * (mass * (k * k) / (distance * distance));
+            }
+            delta = Point(0, 0);
+            for (const auto& it: subtrees) {
+                delta += it.force(p, k);
+            }
+            return delta;
+        }
+
+        Point nucleus;
+        double width;
+        Point center;
+        std::uint32_t mass;
+        std::vector<Quadtree> subtrees;
     };
 
     std::uint32_t c = 0;
@@ -1278,63 +1373,63 @@ void Graph::create_force_directed_layout(const std::string& path) {
 
         std::vector<Point> points(nodes_.size());
         for (const auto& it: component) {
-            points[it].first = distribution(generator);
-            points[it].second = distribution(generator);
+            points[it].x = distribution(generator);
+            points[it].y = distribution(generator);
         }
 
         for (std::uint32_t i = 0; i < num_iterations; ++i) {
+            Point x = {0, 0}, y = {0, 0};
+            for (const auto& n: component) {
+                x.x = std::min(x.x, points[n].x);
+                x.y = std::max(x.y, points[n].x);
+                y.x = std::min(y.x, points[n].y);
+                y.y = std::max(y.y, points[n].y);
+            }
+            double w = (x.y - x.x) / 2, h = (y.y - y.x) / 2;
+
+            Quadtree tree(Point(x.x + w, y.x + h), std::max(w, h) + 0.01);
+            for (const auto& n: component) {
+                tree.add(points[n]);
+            }
+            tree.centre();
+
             std::vector<std::future<void>> thread_futures;
-            std::vector<Point> displacements(nodes_.size());
+            std::vector<Point> displacements(nodes_.size(), Point(0, 0));
 
             auto thread_task = [&](std::uint32_t n) -> void {
-                Point displacement = {0., 0.};
-                for (const auto& m: component) {
-                    if (n == m) {
-                        continue;
-                    }
-                    auto delta = point_substract(points[n], points[m]);
-                    auto distance = point_norm(delta);
-                    if (distance < 0.01) {
-                        distance = 0.01;
-                    }
-                    displacement = point_add(displacement,
-                        point_multiply(delta, (k * k) / (distance * distance)));
-                }
+                auto displacement = tree.force(points[n], k);
                 for (const auto& e: nodes_[n]->inedges) {
                     auto m = (e->begin->id >> 1) << 1;
-                    auto delta = point_substract(points[n], points[m]);
-                    auto distance = point_norm(delta);
+                    auto delta = points[n] - points[m];
+                    auto distance = delta.norm();
                     if (distance < 0.01) {
                         distance = 0.01;
                     }
-                    displacement = point_add(displacement,
-                        point_multiply(delta, -1. * distance / k));
+                    displacement += delta * (-1. * distance / k);
                 }
                 for (const auto& e: nodes_[n]->outedges) {
                     auto m = (e->end->id >> 1) << 1;
-                    auto delta = point_substract(points[n], points[m]);
-                    auto distance = point_norm(delta);
+                    auto delta = points[n] - points[m];
+                    auto distance = delta.norm();
                     if (distance < 0.01) {
                         distance = 0.01;
                     }
-                    displacement = point_add(displacement,
-                        point_multiply(delta, -1. * distance / k));
+                    displacement += delta * (-1. * distance / k);
+
                 }
                 for (const auto& m: nodes_[n]->transitive) {
-                    auto delta = point_substract(points[n], points[m]);
-                    auto distance = point_norm(delta);
+                    auto delta = points[n] - points[m];
+                    auto distance = delta.norm();
                     if (distance < 0.01) {
                         distance = 0.01;
                     }
-                    displacement = point_add(displacement,
-                        point_multiply(delta, -1. * distance / k));
+                    displacement += delta * (-1. * distance / k);
                 }
-                auto length = point_norm(displacement);
+                auto length = displacement.norm();
                 if (length < 0.01) {
                     length = 0.1;
                 }
-                displacements[n] = point_add(displacements[n],
-                    point_multiply(displacement, t / length));
+                displacements[n] = displacement * (t / length);
                 return;
             };
 
@@ -1345,11 +1440,10 @@ void Graph::create_force_directed_layout(const std::string& path) {
                 it.wait();
             }
             for (const auto& n: component) {
-                points[n] = point_add(points[n], displacements[n]);
+                points[n] += displacements[n];
             }
 
             t -= dt;
-            ++i;
         }
 
         for (const auto& it: edges_) {
@@ -1361,7 +1455,7 @@ void Graph::create_force_directed_layout(const std::string& path) {
 
             if (component.find(n) != component.end() &&
                 component.find(m) != component.end()) {
-                it->weight = point_norm(point_substract(points[n], points[m]));
+                it->weight = (points[n] - points[m]).norm();
                 it->pair->weight = it->weight;
             }
         }
@@ -1382,8 +1476,8 @@ void Graph::create_force_directed_layout(const std::string& path) {
                 }
                 is_first_node = false;
                 os << "        \"" << it << "\": [";
-                os << points[it].first << ", ";
-                os << points[it].second << ", ";
+                os << points[it].x << ", ";
+                os << points[it].y << ", ";
                 os << (nodes_[it]->is_junction() ? 1 : 0) << ", ";
                 os << nodes_[it]->sequences.size() << "]";
             }

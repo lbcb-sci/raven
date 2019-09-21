@@ -69,7 +69,7 @@ public:
 
     /*!
      * @brief Calculate edge lengths in a force directed layout (Fruchterman & Reingold 1991)
-     * (can be drawn with misc/plotter.py).
+     * by applying (Barnes & Hut 1986) approximation (can be drawn with misc/plotter.py).
      */
     void create_force_directed_layout(const std::string& path = "");
 
