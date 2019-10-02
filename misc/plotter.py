@@ -51,7 +51,7 @@ class Plotter:
         figure.text(0.5, 0.04, "base", ha="center")
         figure.text(0.04, 0.5, "coverage", va="center", rotation="vertical")
         matplotlib.pyplot.legend(loc="best")
-        matplotlib.pyplot.savefig(str(title) + ".svg", format='svg', dpi=1200)
+        matplotlib.pyplot.savefig(str(title) + ".pdf", format='pdf', dpi=1200)
         matplotlib.pyplot.close(figure)
 
     def draw_assembly(self, title, component):
@@ -62,7 +62,7 @@ class Plotter:
         scpg = seaborn.cubehelix_palette(rot=-.4)
         scpr = seaborn.color_palette("Reds")
 
-        matplotlib.pyplot.figure(figsize=(16,16))
+        matplotlib.pyplot.figure(figsize=(16,16), frameon=False)
 
         for edge in component["edges"]:
             x = component["nodes"][edge[0]]
@@ -75,11 +75,12 @@ class Plotter:
 
         for node in component["nodes"]:
             x = component["nodes"][node]
-            matplotlib.pyplot.plot(x[0], x[1], '.', c=scpg[4], markersize=(5 if x[3] == 1 else 25))
+            matplotlib.pyplot.plot(x[0], x[1], '.', c=scpg[4], markersize=(5 if x[3] == 1 else 15))
 
         matplotlib.pyplot.xticks([])
         matplotlib.pyplot.yticks([])
-        matplotlib.pyplot.savefig(title + '.svg', format='svg', dpi=1200)
+        matplotlib.pyplot.axis('off')
+        matplotlib.pyplot.savefig(title + '.pdf', format='pdf', dpi=1200)
 
     def run(self):
         try:

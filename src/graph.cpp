@@ -801,7 +801,7 @@ void Graph::assemble(std::vector<std::unique_ptr<ram::Sequence>>& dst) {
     logger.log();
 
     create_unitigs(42);
-    for (std::uint32_t i = 0; i < 5; ++i) {
+    for (std::uint32_t i = 0; i < 14; ++i) {
         create_force_directed_layout();
         remove_long_edges();
         remove_tips();
