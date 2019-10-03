@@ -13,7 +13,7 @@
 
 #include "graph.hpp"
 
-static const std::string version = "v0.0.2";
+static const std::string version = "v0.0.3";
 
 static struct option options[] = {
     {"polishing-rounds", required_argument, nullptr, 'p'},
