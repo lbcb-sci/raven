@@ -506,7 +506,7 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
                     continue;
                 }
                 std::uint32_t type = overlap_type(jt);
-                if (type == 1) {
+                if (type == 0) {
                     continue;
                 } else if (type == 1) {
                     piles_[jt.q_id]->set_contained();
