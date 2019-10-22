@@ -1033,16 +1033,15 @@ std::uint32_t Graph::remove_bubbles() {
 
         auto overlaps = minimizer_engine_->map(sequence, other_sequence);
 
-        std::uint32_t matches = 0, length = 0;
+        std::uint32_t matches = 0;
         for (const auto& it: overlaps) {
             std::uint32_t l = std::max(it.q_end - it.q_begin, it.t_end - it.t_begin);
-            if (length < l) {
-                length = l;
+            if (matches < it.matches) {
                 matches = it.matches;
             }
         }
 
-        return static_cast<double>(matches) / length > 0.5;
+        return matches > 0.5 * std::min(sequence->data.size(), other_sequence->data.size());
     };
 
     std::uint32_t num_bubbles_popped = 0;
