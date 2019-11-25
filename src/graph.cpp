@@ -296,6 +296,9 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
                         piles_[i]->add_layers(overlaps[i].begin() + num_overlaps[i],
                             overlaps[i].end());
 
+                        num_overlaps[i] = std::min(overlaps[i].size(),
+                            static_cast<std::size_t>(16));
+
                         if (overlaps[i].size() < 16) {
                             return;
                         }
@@ -1035,7 +1038,6 @@ std::uint32_t Graph::remove_bubbles() {
 
         std::uint32_t matches = 0;
         for (const auto& it: overlaps) {
-            std::uint32_t l = std::max(it.q_end - it.q_begin, it.t_end - it.t_begin);
             if (matches < it.matches) {
                 matches = it.matches;
             }
