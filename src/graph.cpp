@@ -13,6 +13,7 @@
 #include "thread_pool/thread_pool.hpp"
 #include "logger/logger.hpp"
 #include "ram/ram.hpp"
+#include "racon/racon.hpp"
 
 #include "pile.hpp"
 #include "graph.hpp"
@@ -782,7 +783,7 @@ void Graph::construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences) {
     logger.total("[raven::Graph::construct]");
 }
 
-void Graph::assemble(std::vector<std::unique_ptr<ram::Sequence>>& dst) {
+void Graph::assemble() {
 
     logger::Logger logger;
     logger.log();
@@ -809,6 +810,7 @@ void Graph::assemble(std::vector<std::unique_ptr<ram::Sequence>>& dst) {
         remove_long_edges();
         remove_tips();
     }
+    create_unitigs();
 
     logger.log("[raven::Graph::assemble] removed long edges");
 
@@ -819,8 +821,6 @@ void Graph::assemble(std::vector<std::unique_ptr<ram::Sequence>>& dst) {
             break;
         }
     }
-
-    extract_unitigs(dst);
 
     logger.total("[raven::Graph::assemble]");
 }
@@ -1537,6 +1537,70 @@ void Graph::create_force_directed_layout(const std::string& path) {
     }
 }
 
+void Graph::polish(const std::vector<std::unique_ptr<ram::Sequence>>& sequences,
+    std::uint8_t match, std::uint8_t mismatch, std::uint8_t gap,
+    std::uint32_t cuda_poa_batches, bool cuda_banded_alignment,
+    std::uint32_t cuda_alignment_batches, std::uint32_t num_rounds) {
+
+    if (sequences.empty() || num_rounds == 0) {
+        return;
+    }
+
+    double q = 0;
+    for (const auto& it: sequences) {
+        if (it->quality.empty()) {
+            continue;
+        }
+        double p = 0;
+        for (const auto& jt: it->quality) {
+            p += jt - 33;
+        }
+        q += p / it->quality.size();
+    }
+    q /= sequences.size();
+
+    auto polisher = racon::createPolisher(q, 0.3, 500, true, match, mismatch,
+        gap, thread_pool_, cuda_poa_batches, cuda_banded_alignment,
+        cuda_alignment_batches);
+
+    std::vector<std::unique_ptr<ram::Sequence>> unitigs;
+    get_unitigs(unitigs);
+
+    for (std::uint32_t i = 0; i < num_rounds; ++i) {
+        std::vector<std::unique_ptr<ram::Sequence>> polished;
+        polisher->initialize(unitigs, sequences);
+        polisher->polish(polished, true);
+        unitigs.swap(polished);
+    }
+
+    auto reverse_complement = [] (const std::string& src) -> std::string {
+        std::string dst;
+        for (const auto& it: src) {
+            switch (it) {
+                case 'A': case 'a': dst += 'T'; break;
+                case 'T': case 't': dst += 'A'; break;
+                case 'G': case 'g': dst += 'C'; break;
+                case 'C': case 'c': dst += 'G'; break;
+                default: dst += it; break;
+            }
+        }
+        std::reverse(dst.begin(), dst.end());
+        return dst;
+    };
+
+    std::uint32_t unitig_id = 0;
+    for (const auto& it: nodes_) {
+        if (it == nullptr || it->is_rc()) {
+            continue;
+        }
+        if (it->sequences.size() < 6 || it->length() < 10000) {
+            continue;
+        }
+        it->data = unitigs[unitig_id++]->data;
+        it->pair->data = reverse_complement(it->data);
+    }
+}
+
 std::uint32_t Graph::create_unitigs(std::uint32_t epsilon) {
 
     std::vector<char> is_visited(nodes_.size(), 0);
@@ -1717,30 +1781,40 @@ std::uint32_t Graph::create_unitigs(std::uint32_t epsilon) {
         it->transitive.swap(valid);
     }
 
+    // update unitig names
+    std::uint32_t unitig_id = 0, contig_id = 0;
+    for (const auto& it: nodes_) {
+        if (it == nullptr || it->is_rc() || it->sequences.size() == 1) {
+            continue;
+        }
+        it->name = (it->sequences.size() < 6 || it->length() < 10000) ?
+            "Ctg" + std::to_string(contig_id++) :
+            "Utg" + std::to_string(unitig_id++);
+        it->pair->name = it->name;
+    }
+
     return num_unitigs_created;
 }
 
-void Graph::extract_unitigs(std::vector<std::unique_ptr<ram::Sequence>>& dst) {
+void Graph::get_unitigs(std::vector<std::unique_ptr<ram::Sequence>>& dst) {
 
     create_unitigs();
 
     ram::Sequence::num_objects = 0;
-
-    std::uint32_t contig_id = 0;
-    for (const auto& node: nodes_) {
-        if (node == nullptr || node->is_rc()) {
+    for (const auto& it: nodes_) {
+        if (it == nullptr || it->is_rc()) {
             continue;
         }
-        if (node->sequences.size() < 6 || node->length() < 10000) {
+        if (it->sequences.size() < 6 || it->length() < 10000) {
             continue;
         }
 
-        std::string name = "Ctg" + std::to_string(contig_id);
-        name += " RC:i:" + std::to_string(node->sequences.size());
-        name += " LN:i:" + std::to_string(node->data.size());
+        std::string name = it->name +
+            " LN:i:" + std::to_string(it->data.size()) +
+            " RC:i:" + std::to_string(it->sequences.size());
 
-        dst.emplace_back(std::unique_ptr<ram::Sequence>(new ram::Sequence(name, node->data)));
-        ++contig_id;
+        dst.emplace_back(std::unique_ptr<ram::Sequence>(new ram::Sequence(
+            name, it->data)));
     }
 }
 
@@ -1859,6 +1933,10 @@ void Graph::find_removable_edges(std::vector<std::uint32_t>& dst,
 
 void Graph::print_json(const std::string& path) const {
 
+    if (path.empty()) {
+        return;
+    }
+
     std::ofstream os(path);
     os << "{\"piles\":{";
     bool is_first = true;
@@ -1879,6 +1957,10 @@ void Graph::print_json(const std::string& path) const {
 }
 
 void Graph::print_csv(const std::string& path) const {
+
+    if (path.empty()) {
+        return;
+    }
 
     std::ofstream os(path);
 
@@ -1910,6 +1992,32 @@ void Graph::print_csv(const std::string& path) const {
         os << std::endl;
     }
 
+    os.close();
+}
+
+void Graph::print_gfa(const std::string& path) const {
+
+    if (path.empty()) {
+        return;
+    }
+
+    std::ofstream os(path);
+    for (const auto& it: nodes_) {
+        if (it == nullptr || it->is_rc() || (it->sequences.size() < 2 &&
+            it->outdegree() == 0 && it->indegree() == 0)) {
+            continue;
+        }
+        os << "S\t" << it->name << "\t" << it->data << "\tLN:i:" << it->data.size()
+           << "\tRC:i:" << it->sequences.size() << std::endl;
+    }
+    for (const auto& it: edges_) {
+        if (it == nullptr || it->id & 1) {
+            continue;
+        }
+        os << "L\t" << it->begin->name << "\t" << (it->begin->is_rc() ? '-' : '+')
+           << "\t" << it->end->name << "\t" << (it->end->is_rc() ? '-' : '+')
+           << "\t" << it->begin->data.size() - it->length << 'M' << std::endl;
+    }
     os.close();
 }
 

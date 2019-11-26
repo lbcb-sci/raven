@@ -42,9 +42,9 @@ public:
 
     /*!
      * @brief Simplify the assembly graph via transitive reduction, tip
-     * pruning and popping bubble-like structures, and return contigs afterwards.
+     * pruning and popping bubble-like structures.
      */
-    void assemble(std::vector<std::unique_ptr<ram::Sequence>>& dst);
+    void assemble();
 
     /*!
      * @brief Removes transitive edge (inspired by Myers 1995 & 2005).
@@ -74,12 +74,20 @@ public:
     void create_force_directed_layout(const std::string& path = "");
 
     /*!
+     * @brief Employs Racon module on all eligible unitigs (Vaser et al 2017).
+     */
+    void polish(const std::vector<std::unique_ptr<ram::Sequence>>& sequences,
+        std::uint8_t match, std::uint8_t mismatch, std::uint8_t gap,
+        std::uint32_t cuda_poa_batches, bool cuda_banded_alignment,
+        std::uint32_t cuda_alignment_batches, std::uint32_t num_rounds);
+
+    /*!
      * @brief Creates unitigs which are at least epsilon away from junction
      * nodes. This can be used to speed up creation of the force directed layout.
      */
     std::uint32_t create_unitigs(std::uint32_t epsilon = 0);
 
-    void extract_unitigs(std::vector<std::unique_ptr<ram::Sequence>>& dst);
+    void get_unitigs(std::vector<std::unique_ptr<ram::Sequence>>& dst);
 
     /*!
      * @brief Prints all valid read piles in JSON format (can be drawn
@@ -91,6 +99,11 @@ public:
      * @brief Prints the assembly graph in csv format.
      */
     void print_csv(const std::string& path) const;
+
+    /*!
+     * @brief Prints the assembly graph in gfa format.
+     */
+    void print_gfa(const std::string& path) const;
 
     friend std::unique_ptr<Graph> createGraph(
         std::shared_ptr<thread_pool::ThreadPool> thread_pool);
