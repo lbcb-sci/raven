@@ -78,6 +78,17 @@ Usage of `raven` is as following:
             -p, --polishing-rounds <int>
                 default: 2
                 number of times racon is invoked
+            -m, --match <int>
+                default: 3
+                score for matching bases
+            -n, --mismatch <int>
+                default: -5
+                score for mismatching bases
+            -g, --gap <int>
+                default: -4
+                gap penalty (must be negative)
+            --graphical-fragment-assembly <string>
+                prints the assemblg graph in GFA format
             -t, --threads <int>
                 default: 1
                 number of threads
@@ -86,13 +97,13 @@ Usage of `raven` is as following:
             -h, --help
                 prints the usage
         (only available when built with CUDA)
-            -c, --cudapoa-batches
+            -c, --cuda-poa-batches
                 default: 1
                 number of batches for CUDA accelerated polishing
             -b, --cuda-banded-alignment
                 use banding approximation for polishing on GPU
                 (only applicable when -c is used)
-            -a, --cudaaligner-batches
+            -a, --cuda-alignment-batches
                 number of batches for CUDA accelerated alignment
 
 ## Contact information
