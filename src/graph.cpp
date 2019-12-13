@@ -1546,18 +1546,24 @@ void Graph::polish(const std::vector<std::unique_ptr<ram::Sequence>>& sequences,
         return;
     }
 
-    double q = 0;
+    double q = 0.;
     for (const auto& it: sequences) {
         if (it->quality.empty()) {
             continue;
         }
-        double p = 0;
+        double p = 0.;
         for (const auto& jt: it->quality) {
             p += jt - 33;
         }
         q += p / it->quality.size();
     }
-    q /= sequences.size();
+    if (q == 0.) { // when all reads have quality values equal to zero
+        for (const auto& it: sequences) {
+            it->quality.clear();
+        }
+    } else {
+        q /= sequences.size();
+    }
 
     auto polisher = racon::createPolisher(q, 0.3, 500, true, match, mismatch,
         gap, thread_pool_, cuda_poa_batches, cuda_banded_alignment,
