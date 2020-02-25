@@ -33,6 +33,10 @@ struct Graph::Node {
         return id & 1;
     }
 
+    bool is_polished() const {
+        return state & 1;
+    }
+
     std::uint32_t length() const {
         return data.size();
     }
@@ -1575,7 +1579,7 @@ void Graph::polish(const std::vector<std::unique_ptr<ram::Sequence>>& sequences,
     for (std::uint32_t i = 0; i < num_rounds; ++i) {
         std::vector<std::unique_ptr<ram::Sequence>> polished;
         polisher->initialize(unitigs, sequences);
-        polisher->polish(polished, true);
+        polisher->polish(polished, false);
         unitigs.swap(polished);
     }
 
@@ -1601,6 +1605,13 @@ void Graph::polish(const std::vector<std::unique_ptr<ram::Sequence>>& sequences,
         }
         if (it->sequences.size() < 6 || it->length() < 10000) {
             continue;
+        }
+
+        std::size_t tag;
+        if ((tag = unitigs[unitig_id]->name.rfind(':')) != std::string::npos) {
+            if (std::atof(&unitigs[unitig_id]->name[tag + 1]) > 0) {
+                it->state |= 1;
+            }
         }
         it->data = unitigs[unitig_id++]->data;
         it->pair->data = reverse_complement(it->data);
@@ -1802,7 +1813,8 @@ std::uint32_t Graph::create_unitigs(std::uint32_t epsilon) {
     return num_unitigs_created;
 }
 
-void Graph::get_unitigs(std::vector<std::unique_ptr<ram::Sequence>>& dst) {
+void Graph::get_unitigs(std::vector<std::unique_ptr<ram::Sequence>>& dst,
+    bool drop_unpolished) {
 
     create_unitigs();
 
@@ -1812,6 +1824,9 @@ void Graph::get_unitigs(std::vector<std::unique_ptr<ram::Sequence>>& dst) {
             continue;
         }
         if (it->sequences.size() < 6 || it->length() < 10000) {
+            continue;
+        }
+        if (drop_unpolished && !it->is_polished()) {
             continue;
         }
 
@@ -2031,8 +2046,6 @@ Graph::Node::Node(std::uint32_t id, std::uint32_t sequence, const std::string& n
     const std::string& data)
         : id(id), name(name), data(data), state(0), sequences(1, sequence),
         inedges(), outedges(), pair(nullptr) {
-    state |= (id & 1) << 1;
-    state |= (id & 1) << 2;
 }
 
 Graph::Node::Node(std::uint32_t id, Node* begin, Node* end)
@@ -2048,8 +2061,6 @@ Graph::Node::Node(std::uint32_t id, Node* begin, Node* end)
             "end node is nullptr!");
     }
 
-    state |= (begin->state & (1U << 1));
-
     auto node = begin;
     while (true) {
         auto edge = node->outedges[0];
@@ -2057,7 +2068,6 @@ Graph::Node::Node(std::uint32_t id, Node* begin, Node* end)
         data += edge->label();
         sequences.insert(sequences.end(), node->sequences.begin(),
             node->sequences.end());
-        state |= (node->state & (1U << 2));
 
         node = edge->end;
         if (node == end) {
@@ -2069,7 +2079,6 @@ Graph::Node::Node(std::uint32_t id, Node* begin, Node* end)
         data += end->data;
         sequences.insert(sequences.end(), end->sequences.begin(),
             end->sequences.end());
-        state |= (end->state & (1U << 2));
     }
 }
 

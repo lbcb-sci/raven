@@ -135,7 +135,7 @@ int main(int argc, char** argv) {
     graph->print_gfa(gfa_path);
 
     std::vector<std::unique_ptr<ram::Sequence>> unitigs;
-    graph->get_unitigs(unitigs);
+    graph->get_unitigs(unitigs, num_polishing_rounds > 0);
     for (const auto& it: unitigs) {
         std::cout << ">" << it->name << std::endl;
         std::cout << it->data << std::endl;

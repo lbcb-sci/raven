@@ -87,7 +87,8 @@ public:
      */
     std::uint32_t create_unitigs(std::uint32_t epsilon = 0);
 
-    void get_unitigs(std::vector<std::unique_ptr<ram::Sequence>>& dst);
+    void get_unitigs(std::vector<std::unique_ptr<ram::Sequence>>& dst,
+        bool drop_unpolished = false);
 
     /*!
      * @brief Prints all valid read piles in JSON format (can be drawn
