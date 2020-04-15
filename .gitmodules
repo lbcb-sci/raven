@@ -1,12 +1,3 @@
-[submodule "vendor/bioparser"]
-	path = vendor/bioparser
-	url = https://github.com/rvaser/bioparser
-[submodule "vendor/ram"]
-	path = vendor/ram
-	url = https://github.com/lbcb-sci/ram
-[submodule "vendor/logger"]
-	path = vendor/logger
-	url = https://github.com/rvaser/logger
 [submodule "vendor/racon"]
 	path = vendor/racon
 	url = https://github.com/lbcb-sci/racon

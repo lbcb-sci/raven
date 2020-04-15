@@ -11,8 +11,6 @@
 
 #include <iostream>
 
-#include "ram/overlap.hpp"
-
 #include "pile.hpp"
 
 namespace raven {
@@ -319,8 +317,8 @@ void Pile::find_median() {
 }
 
 void Pile::add_layers(
-    std::vector<ram::Overlap>::const_iterator begin,
-    std::vector<ram::Overlap>::const_iterator end) {
+    std::vector<biosoup::Overlap>::const_iterator begin,
+    std::vector<biosoup::Overlap>::const_iterator end) {
 
     if (begin >= end) {
         return;
@@ -328,12 +326,12 @@ void Pile::add_layers(
 
     std::vector<std::uint32_t> boundaries;
     for (auto it = begin; it != end; ++it) {
-        if (it->q_id == id_) {
-            boundaries.emplace_back(((it->q_begin >> kS) + 1) << 1);
-            boundaries.emplace_back(((it->q_end >> kS) - 1) << 1 | 1);
-        } else if (it->t_id == id_) {
-            boundaries.emplace_back(((it->t_begin >> kS) + 1) << 1);
-            boundaries.emplace_back(((it->t_end >> kS) - 1) << 1 | 1);
+        if (it->lhs_id == id_) {
+            boundaries.emplace_back(((it->lhs_begin >> kS) + 1) << 1);
+            boundaries.emplace_back(((it->lhs_end >> kS) - 1) << 1 | 1);
+        } else if (it->rhs_id == id_) {
+            boundaries.emplace_back(((it->rhs_begin >> kS) + 1) << 1);
+            boundaries.emplace_back(((it->rhs_end >> kS) - 1) << 1 | 1);
         }
     }
     std::sort(boundaries.begin(), boundaries.end());
@@ -468,17 +466,17 @@ void Pile::find_repetitive_regions(std::uint32_t median) {
     }
 }
 
-void Pile::resolve_repetitive_regions(const ram::Overlap& o) {
+void Pile::resolve_repetitive_regions(const biosoup::Overlap& o) {
 
     if (repetitive_regions_.empty()) {
         return;
     }
-    if (id_ != o.q_id && id_ != o.t_id) {
+    if (id_ != o.lhs_id && id_ != o.rhs_id) {
         return;
     }
 
-    std::uint32_t begin = (id_ == o.q_id ? o.q_begin : o.t_begin) >> kS;
-    std::uint32_t end = (id_ == o.q_id ? o.q_end : o.t_end) >> kS;
+    std::uint32_t begin = (id_ == o.lhs_id ? o.lhs_begin : o.rhs_begin) >> kS;
+    std::uint32_t end = (id_ == o.lhs_id ? o.lhs_end : o.rhs_end) >> kS;
     std::uint32_t fuzz = 420 >> kS;
     std::uint32_t offset = 0.1 * (end_ - begin_);
 
@@ -497,17 +495,17 @@ void Pile::resolve_repetitive_regions(const ram::Overlap& o) {
     }
 }
 
-bool Pile::is_false_overlap(const ram::Overlap& o) {
+bool Pile::is_false_overlap(const biosoup::Overlap& o) {
 
     if (repetitive_regions_.empty()) {
         return false;
     }
-    if (id_ != o.q_id && id_ != o.t_id) {
+    if (id_ != o.lhs_id && id_ != o.rhs_id) {
         return false;
     }
 
-    std::uint32_t begin = (id_ == o.q_id ? o.q_begin : o.t_begin) >> kS;
-    std::uint32_t end = (id_ == o.q_id ? o.q_end : o.t_end) >> kS;
+    std::uint32_t begin = (id_ == o.lhs_id ? o.lhs_begin : o.rhs_begin) >> kS;
+    std::uint32_t end = (id_ == o.lhs_id ? o.lhs_end : o.rhs_end) >> kS;
     std::uint32_t fuzz = 420 >> kS;
     std::uint32_t offset = 0.1 * (end_ - begin_);
 

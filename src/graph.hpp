@@ -1,10 +1,7 @@
-/*!
- * @file graph.hpp
- *
- * @brief Graph class header file
- */
+// Copyright (c) 2020 Robert Vaser
 
-#pragma once
+#ifndef RAVEN_GRAPH_HPP_
+#define RAVEN_GRAPH_HPP_
 
 #include <cstdint>
 #include <string>
@@ -13,123 +10,118 @@
 #include <utility>
 #include <unordered_set>
 
-namespace thread_pool {
-    class ThreadPool;
-}
+#include "biosoup/sequence.hpp"
+#include "ram/minimizer_engine.hpp"
+#include "thread_pool/thread_pool.hpp"
 
-namespace ram {
-    struct Sequence;
-    class MinimizerEngine;
-}
+#include "pile.hpp"
 
 namespace raven {
 
-class Pile;
-
-class Graph;
-std::unique_ptr<Graph> createGraph(std::shared_ptr<thread_pool::ThreadPool> thread_pool);
-
 class Graph {
-public:
-    ~Graph();
+ public:
+  explicit Graph(std::shared_ptr<thread_pool::ThreadPool> thread_pool = nullptr);  // NOLINT
 
-    /*!
-     * @brief Constructs the assembly graph by breaking chimeric sequences,
-     * removing contained sequences and removing overlaps between repetitive
-     * sequences.
-     */
-    void construct(std::vector<std::unique_ptr<ram::Sequence>>& sequences);
+  Graph(const Graph&) = delete;
+  Graph& operator=(const Graph&) = delete;
 
-    /*!
-     * @brief Simplify the assembly graph via transitive reduction, tip
-     * pruning and popping bubble-like structures.
-     */
-    void assemble();
+  Graph(Graph&&) = default;
+  Graph& operator=(Graph&&) = default;
 
-    /*!
-     * @brief Removes transitive edge (inspired by Myers 1995 & 2005).
-     */
-    std::uint32_t remove_transitive_edges();
+  ~Graph();
 
-    /*!
-     * @brief Removes nodes which are dead ends in graph.
-     */
-    std::uint32_t remove_tips();
+  /*!
+   * @brief Constructs the assembly graph by breaking chimeric sequences,
+   * removing contained sequences and removing overlaps between repetitive
+   * sequences.
+   */
+  void Construct(std::vector<std::unique_ptr<biosoup::Sequence>>& sequences);
 
-    /*!
-     * @brief Removes bubble-like strucutres.
-     */
-    std::uint32_t remove_bubbles();
+  /*!
+   * @brief Simplify the assembly graph via transitive reduction, tip
+   * pruning and popping bubble-like structures.
+   */
+  void Assemble();
 
-    /*!
-     * @brief Removes long edges in the force directed layout which function
-     * needs to be called before.
-     */
-    std::uint32_t remove_long_edges();
+  /*!
+   * @brief Removes transitive edge (inspired by Myers 1995 & 2005).
+   */
+  std::uint32_t RemoveTransitiveEdges();
 
-    /*!
-     * @brief Calculate edge lengths in a force directed layout (Fruchterman & Reingold 1991)
-     * by applying (Barnes & Hut 1986) approximation (can be drawn with misc/plotter.py).
-     */
-    void create_force_directed_layout(const std::string& path = "");
+  /*!
+   * @brief Removes nodes which are dead ends in graph.
+   */
+  std::uint32_t RemoveTips();
 
-    /*!
-     * @brief Employs Racon module on all eligible unitigs (Vaser et al 2017).
-     */
-    void polish(const std::vector<std::unique_ptr<ram::Sequence>>& sequences,
-        std::uint8_t match, std::uint8_t mismatch, std::uint8_t gap,
-        std::uint32_t cuda_poa_batches, bool cuda_banded_alignment,
-        std::uint32_t cuda_alignment_batches, std::uint32_t num_rounds);
+  /*!
+   * @brief Removes bubble-like strucutres.
+   */
+  std::uint32_t RemoveBubbles();
 
-    /*!
-     * @brief Creates unitigs which are at least epsilon away from junction
-     * nodes. This can be used to speed up creation of the force directed layout.
-     */
-    std::uint32_t create_unitigs(std::uint32_t epsilon = 0);
+  /*!
+   * @brief Removes long edges in the force directed layout which function
+   * needs to be called before.
+   */
+  std::uint32_t RemoveLongEdges();
 
-    void get_unitigs(std::vector<std::unique_ptr<ram::Sequence>>& dst,
-        bool drop_unpolished = false);
+  /*!
+   * @brief Calculate edge lengths in a force directed layout (Fruchterman & Reingold 1991)
+   * by applying (Barnes & Hut 1986) approximation (can be drawn with misc/plotter.py).
+   */
+  void CreateForceDirectedLayout(const std::string& path = "");
 
-    /*!
-     * @brief Prints all valid read piles in JSON format (can be drawn
-     * with misc/plotter.py).
-     */
-    void print_json(const std::string& path) const;
+  /*!
+   * @brief Employs Racon module on all eligible unitigs (Vaser et al 2017).
+   */
+  void Polish(const std::vector<std::unique_ptr<biosoup::Sequence>>& sequences,
+      std::uint8_t match, std::uint8_t mismatch, std::uint8_t gap,
+      std::uint32_t cuda_poa_batches, bool cuda_banded_alignment,
+      std::uint32_t cuda_alignment_batches, std::uint32_t num_rounds);
 
-    /*!
-     * @brief Prints the assembly graph in csv format.
-     */
-    void print_csv(const std::string& path) const;
+  /*!
+   * @brief Creates unitigs which are at least epsilon away from junction
+   * nodes. This can be used to speed up creation of the force directed layout.
+   */
+  std::uint32_t CreateUnitigs(std::uint32_t epsilon = 0);
 
-    /*!
-     * @brief Prints the assembly graph in gfa format.
-     */
-    void print_gfa(const std::string& path) const;
+  void GetUnitigs(std::vector<std::unique_ptr<biosoup::Sequence>>& dst,
+      bool drop_unpolished = false);
 
-    friend std::unique_ptr<Graph> createGraph(
-        std::shared_ptr<thread_pool::ThreadPool> thread_pool);
-private:
-    Graph(std::shared_ptr<thread_pool::ThreadPool> thread_pool);
-    Graph(const Graph&) = delete;
-    const Graph& operator=(const Graph&) = delete;
+  /*!
+   * @brief Prints all valid read piles in JSON format (can be drawn
+   * with misc/plotter.py).
+   */
+  void PrintJson(const std::string& path) const;
 
-    void remove_marked_objects(bool remove_nodes = false);
+  /*!
+   * @brief Prints the assembly graph in csv format.
+   */
+  void PrintCsv(const std::string& path) const;
 
-    void find_removable_edges(std::vector<std::uint32_t>& dst,
-        const std::vector<std::uint32_t>& path);
+  /*!
+   * @brief Prints the assembly graph in gfa format.
+   */
+  void PrintGfa(const std::string& path) const;
 
-    std::unique_ptr<ram::MinimizerEngine> minimizer_engine_;
+ private:
+  void RemoveMarkedObjects(bool remove_nodes = false);
 
-    std::shared_ptr<thread_pool::ThreadPool> thread_pool_;
+  void FindRemovableEdges(std::vector<std::uint32_t>& dst,
+      const std::vector<std::uint32_t>& path);
 
-    std::vector<std::unique_ptr<Pile>> piles_;
+  std::shared_ptr<thread_pool::ThreadPool> thread_pool_;
+  ram::MinimizerEngine minimizer_engine_;
 
-    struct Node;
-    std::vector<std::unique_ptr<Node>> nodes_;
+  std::vector<std::unique_ptr<Pile>> piles_;
 
-    struct Edge;
-    std::vector<std::unique_ptr<Edge>> edges_;
-    std::unordered_set<std::uint32_t> marked_edges_;
+  struct Node;
+  std::vector<std::unique_ptr<Node>> nodes_;
+
+  struct Edge;
+  std::vector<std::unique_ptr<Edge>> edges_;
+  std::unordered_set<std::uint32_t> marked_edges_;
 };
 
-}
+}  // namespace raven
+
+#endif  // RAVEN_GRAPH_HPP_

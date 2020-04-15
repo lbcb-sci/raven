@@ -1,43 +1,39 @@
-cmake_minimum_required(VERSION 3.2)
-project(raven)
+cmake_minimum_required(VERSION 3.9)
 
-include(GNUInstallDirs)
-
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin)
+project(raven VERSION 1.0.0
+              LANGUAGES CXX
+              DESCRIPTION "Raven is a de novo genome assembler for long uncorrected reads.")
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic")
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(raven_build_tests "Build raven unit tests" OFF)
-
-add_executable(raven
-    src/graph.cpp
-    src/main.cpp
-    src/pile.cpp)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin)
 
 if (NOT TARGET bioparser)
-    add_subdirectory(vendor/bioparser EXCLUDE_FROM_ALL)
-endif()
-if (NOT TARGET logger)
-    add_subdirectory(vendor/logger EXCLUDE_FROM_ALL)
-endif()
-if (NOT TARGET ram)
-    add_subdirectory(vendor/ram EXCLUDE_FROM_ALL)
-endif()
+    add_subdirectory(vendor/racon/vendor/ram/vendor/bioparser EXCLUDE_FROM_ALL)
+endif ()
 if (NOT TARGET racon)
     add_subdirectory(vendor/racon EXCLUDE_FROM_ALL)
-endif()
+endif ()
 
-target_link_libraries(raven bioparser logger ram racon)
+add_executable(${PROJECT_NAME}
+  src/graph.cpp
+  src/main.cpp
+  src/pile.cpp)
+target_link_libraries(${PROJECT_NAME} bioparser racon)
+target_compile_definitions(${PROJECT_NAME}
+  PRIVATE RAVEN_VERSION="v${PROJECT_VERSION}")
 if (racon_enable_cuda)
-    target_compile_definitions(raven PRIVATE CUDA_ENABLED)
-endif()
+  target_compile_definitions(${PROJECT_NAME} PRIVATE CUDA_ENABLED)
+endif ()
 
-install(TARGETS raven DESTINATION ${CMAKE_INSTALL_BINDIR})
+include(GNUInstallDirs)
+install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_BINDIR})
 
+option(raven_build_tests "Build raven unit tests" OFF)
 if (raven_build_tests)
-endif()
+endif ()
