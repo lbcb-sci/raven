@@ -906,8 +906,6 @@ void Graph::Assemble() {
 
   timer.Start();
 
-  PrintGfa("test.gfa");
-
   CreateUnitigs(42);
   for (std::uint32_t i = 0; i < 16; ++i) {
     CreateForceDirectedLayout();
