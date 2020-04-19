@@ -1,123 +1,101 @@
 #!/usr/bin/env python
-
-from __future__ import print_function
-import os, sys, argparse, json, matplotlib.pyplot, seaborn
+import os, sys, argparse, json, seaborn
+from matplotlib import pyplot
 
 seaborn.set()
 seaborn.set_style("white")
-
-def eprint(*args, **kwargs):
-    print(*args, file=sys.stderr, **kwargs)
-
-#*******************************************************************************
+seaborn.despine()
+scpb = seaborn.color_palette("Blues")
+scpr = seaborn.color_palette("Reds")
+scpg = seaborn.cubehelix_palette(rot=-.4)
 
 class Plotter:
-    def __init__(self, path):
-        self.path = path
+  def __init__(self, mode, path, type):
+    self.mode = mode
+    self.path = path
+    self.type = type
 
-    def __enter__(self):
-        pass
+  def DrawPile(self, pile):
+    if ((self.type == "regular" and (pile["is_chimeric_"] or pile["is_repetitive_"])) or
+        (self.type == "chimeric" and not pile["is_chimeric_"]) or
+        (self.type == "repetitive" and not pile["is_repetitive_"])):
+      return
 
-    def __exit__(self, exception_type, exception_value, traceback):
-        pass
+    figure, ax = pyplot.subplots(1, 1, figsize = (7.5, 5))
 
-    def draw_pile(self, title, pile):
-        if ("data" not in pile or "begin" not in pile or "end" not in pile or
-            "chimeric" not in pile or "repetitive" not in pile or
-            "median" not in pile):
-            eprint("[raven::Plotter::plot_pile] error: incomplete pile!")
-            return
+    ax.plot(range(len(pile["data_"])), pile["data_"], label = "data", color = scpb[2])
 
-        figure, ax = matplotlib.pyplot.subplots(1, 1, figsize=(7.5, 5))
+    ax.axhline(int(pile["median_"]), label = "median", color = scpb[1], linestyle = ":")
 
-        scpb = seaborn.color_palette("Blues")
-        scpr = seaborn.color_palette("Reds")
+    for slope in pile["chimeric_regions_"]:
+      ax.axvline(slope["first"], color = scpr[2], linestyle = ":")
+      ax.axvline(slope["second"], color = scpr[2], linestyle = ":")
 
-        x = range(len(pile["data"]))
-        seaborn.despine()
+    for slope in pile["repetitive_regions_"]:
+      c = scpg[3] if slope["first"] & 1 else scpr[3]
+      ax.axvline(slope["first"] >> 1, color = c, linestyle = ":")
+      ax.axvline(slope["second"], color = c, linestyle = ":")
 
-        ax.plot(x, pile["data"], label="data", color=scpb[2])
-        for slope in pile["chimeric"]:
-            ax.axvline(slope, color=scpr[2], linestyle=":")
-        for slope in pile["repetitive"]:
-            ax.axvline(slope, color=scpr[3], linestyle=":")
-        begin = pile["begin"]
-        end = pile["end"]
+    ax.set_title(pile["id_"])
+    ax.set_ylim([0, int(pile["median_"]) * 3])
+    figure.text(0.5, 0.05, "base", ha = "center")
+    figure.text(0.05, 0.5, "coverage", va = "center", rotation = "vertical")
+    pyplot.legend(loc="best")
+    pyplot.savefig(str(pile["id_"]) + ".png", format = 'png')
+    pyplot.close(figure)
 
-        ax.axhline(int(pile["median"]), label="median", color=scpb[1], linestyle=":")
-        ax.set_title(title)
-        ax.set_ylim([0, int(pile["median"]) * 3])
+  def DrawGraph(self, title, graph):
+    pyplot.figure(figsize = (16,16), frameon = False)
 
-        figure.text(0.5, 0.04, "base", ha="center")
-        figure.text(0.04, 0.5, "coverage", va="center", rotation="vertical")
-        matplotlib.pyplot.legend(loc="best")
-        matplotlib.pyplot.savefig(str(title) + ".pdf", format='pdf', dpi=1200)
-        matplotlib.pyplot.close(figure)
+    for edge in graph["edges"]:
+      x = graph["nodes"][edge[0]]
+      y = graph["nodes"][edge[1]]
+      if (x[2] == 1 or y[2] == 1):
+        c = scpr[3]
+      else:
+        c = scpg[2] if edge[2] == 0 else scpg[1]
+      pyplot.plot([x[0], y[0]], [x[1], y[1]], '-' if edge[2] == 0 else ':', color = c)
 
-    def draw_assembly(self, title, component):
-        if ("nodes" not in component or "edges" not in component):
-            eprint("[raven::Plotter::plot_assembly] error: incomplete component!")
-            return
+    for node in graph["nodes"]:
+      x = graph["nodes"][node]
+      pyplot.plot(x[0], x[1], '.', color = scpg[4], markersize = (5 if x[3] == 1 else 15))
 
-        scpg = seaborn.cubehelix_palette(rot=-.4)
-        scpr = seaborn.color_palette("Reds")
+    pyplot.xticks([])
+    pyplot.yticks([])
+    pyplot.axis('off')
+    pyplot.savefig(title + '.pdf', format = 'pdf')
 
-        matplotlib.pyplot.figure(figsize=(16,16), frameon=False)
+  def Run(self):
+    try:
+      f = open(self.path)
+    except Exception:
+      print("[raven::Plotter::Run] error: unable to open file {}".format(self.path))
+      return
+    try:
+      data = json.load(f)
+    except Exception:
+      print("[raven::Plotter::Run] error: file is not in JSON format")
+      return
 
-        for edge in component["edges"]:
-            x = component["nodes"][edge[0]]
-            y = component["nodes"][edge[1]]
-            if (x[2] == 1 or y[2] == 1):
-                clr = scpr[3]
-            else:
-                clr = scpg[2] if edge[2] == 0 else scpg[1]
-            matplotlib.pyplot.plot([x[0], y[0]], [x[1], y[1]], '-' if edge[2] == 0 else ':', c=clr)
-
-        for node in component["nodes"]:
-            x = component["nodes"][node]
-            matplotlib.pyplot.plot(x[0], x[1], '.', c=scpg[4], markersize=(5 if x[3] == 1 else 15))
-
-        matplotlib.pyplot.xticks([])
-        matplotlib.pyplot.yticks([])
-        matplotlib.pyplot.axis('off')
-        matplotlib.pyplot.savefig(title + '.pdf', format='pdf', dpi=1200)
-
-    def run(self):
-        try:
-            d = open(self.path)
-        except Exception:
-            eprint("[raven::Plotter::run] error: unable to open file {}!".format(self.path))
-            return
-
-        try:
-            data = json.load(d)
-        except Exception:
-            eprint("[raven::Plotter::run] error: file is not in JSON format!")
-            return
-
-        if (("piles" not in data or not data["piles"]) and
-            ("assembly" not in data or not data["assembly"])):
-            eprint("[raven::Plotter::run] error: incomplete input file!")
-            return
-
-        if ("piles" in data):
-            for pile in data["piles"]:
-                self.draw_pile(pile, data["piles"][pile])
-        else:
-            for component in data["assembly"]:
-                self.draw_assembly(component, data["assembly"][component])
-
-#*******************************************************************************
+    if (self.mode == "graph"):
+      for component in data:
+        self.DrawGraph(component, data[component])
+    elif (self.mode == "pile"):
+      for pile in data:
+        self.DrawPile(data[pile])
+    return
 
 if __name__ == "__main__":
+  parser = argparse.ArgumentParser(
+      description = "Plotter is a tool for drawing the assembly graph and pile-o-grams",
+      formatter_class = argparse.ArgumentDefaultsHelpFormatter)
+  parser.add_argument("mode",
+      help = "draw either the assembly [graph] or [pile]-o-grams")
+  parser.add_argument("path",
+      help = "input file in JSON format")
+  parser.add_argument("-t", "--type", default = "all",
+      help = "pile type selection [regular, chimeric, repetitive]")
 
-    parser = argparse.ArgumentParser(description="""Plot is a tool for drawing
-        different stages of the raven assembler""",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("path", help="""Input file in JSON format""")
-
-    args = parser.parse_args()
-    plotter = Plotter(args.path)
-
-    with plotter:
-        plotter.run()
+  args = parser.parse_args()
+  plotter = Plotter(args.mode, args.path, args.type)
+  plotter.Run()

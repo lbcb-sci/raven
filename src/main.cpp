@@ -27,6 +27,7 @@ static struct option options[] = {
   {"cuda-alignment-batches", required_argument, nullptr, 'a'},
 #endif
   {"graphical-fragment-assembly", required_argument, nullptr, 'f'},
+  {"resume", no_argument, nullptr, 'r'},
   {"threads", required_argument, nullptr, 't'},
   {"version", no_argument, nullptr, 'v'},
   {"help", no_argument, nullptr, 'h'},
@@ -87,8 +88,6 @@ void Help() {
       "    -g, --gap <int>\n"
       "      default: -4\n"
       "      gap penalty (must be negative)\n"
-      "    --graphical-fragment-assembly <string>\n"
-      "      prints the assemblg graph in GFA format\n"
 #ifdef CUDA_ENABLED
       "    -c, --cuda-poa-batches\n"
       "       default: 1\n"
@@ -99,6 +98,10 @@ void Help() {
       "    -a, --cuda-alignment-batches\n"
       "       number of batches for CUDA accelerated alignment\n"
 #endif
+      "    --graphical-fragment-assembly <string>\n"
+      "      prints the assemblg graph in GFA format\n"
+      "    --resume\n"
+      "      resume previous run from last checkpoint\n"
       "    -t, --threads <int>\n"
       "      default: 1\n"
       "      number of threads\n"
@@ -111,12 +114,13 @@ void Help() {
 }  // namespace
 
 int main(int argc, char** argv) {
-  std::uint32_t num_polishing_rounds = 2;
+  std::int32_t num_polishing_rounds = 2;
   std::int8_t m = 3;
   std::int8_t n = -5;
   std::int8_t g = -4;
 
   std::string gfa_path = "";
+  bool resume = false;
 
   std::uint32_t num_threads = 1;
 
@@ -128,7 +132,7 @@ int main(int argc, char** argv) {
 #ifdef CUDA_ENABLED
   optstr += "c:b:a:";
 #endif
-  char arg;
+  int arg;
   while ((arg = getopt_long(argc, argv, optstr.c_str(), options, nullptr)) != -1) {  // NOLINT
     switch (arg) {
       case 'p': num_polishing_rounds = atoi(optarg); break;
@@ -155,6 +159,7 @@ int main(int argc, char** argv) {
         break;
 #endif
       case 'f': gfa_path = optarg; break;
+      case 'r': resume = true; break;
       case 't': num_threads = atoi(optarg); break;
       case 'v': std::cout << raven_version << std::endl; return 0;
       case 'h': Help(); return 0;
@@ -180,37 +185,52 @@ int main(int argc, char** argv) {
   biosoup::Timer timer{};
   timer.Start();
 
-  std::vector<std::unique_ptr<biosoup::Sequence>> sequences;
-  try {
-    sequences = sparser->Parse(-1);
-  } catch (const std::invalid_argument& exception) {
-    std::cerr << exception.what() << std::endl;
-    return 1;
-  }
-
-  if (sequences.empty()) {
-    std::cerr << "[raven::] error: empty sequences set" << std::endl;
-    return 1;
-  }
-
-  std::cerr << "[raven::] loaded " << sequences.size() << " sequences "
-            << std::fixed << timer.Stop() << "s"
-            << std::endl;
-
-  timer.Start();
-
   auto thread_pool = std::make_shared<thread_pool::ThreadPool>(num_threads);
 
   raven::Graph graph{thread_pool};
+  if (resume) {
+    try {
+      graph.Load();
+    } catch (std::exception& exception) {
+      std::cerr << exception.what() << std::endl;
+      return 1;
+    }
+
+    std::cerr << "[raven::] loaded previous run "
+              << std::fixed << timer.Stop() << "s"
+              << std::endl;
+
+    timer.Start();
+  }
+
+  std::vector<std::unique_ptr<biosoup::Sequence>> sequences;
+  if (graph.stage() < -3 || graph.stage() < num_polishing_rounds) {
+    try {
+      sequences = sparser->Parse(-1);
+    } catch (const std::invalid_argument& exception) {
+      std::cerr << exception.what() << std::endl;
+      return 1;
+    }
+
+    if (sequences.empty()) {
+      std::cerr << "[raven::] error: empty sequences set" << std::endl;
+      return 1;
+    }
+
+    std::cerr << "[raven::] loaded " << sequences.size() << " sequences "
+              << std::fixed << timer.Stop() << "s"
+              << std::endl;
+
+    timer.Start();
+  }
+
   graph.Construct(sequences);
   graph.Assemble();
   graph.Polish(sequences, m, n, g, cuda_poa_batches, cuda_banded_alignment,
       cuda_alignment_batches, num_polishing_rounds);
-  graph.PrintGfa(gfa_path);
+  graph.PrintGFA(gfa_path);
 
-  std::vector<std::unique_ptr<biosoup::Sequence>> unitigs;
-  graph.GetUnitigs(unitigs, num_polishing_rounds > 0);
-  for (const auto& it : unitigs) {
+  for (const auto& it : graph.GetUnitigs(num_polishing_rounds > 0)) {
     std::cout << ">" << it->name << std::endl;
     std::cout << it->data << std::endl;
   }
