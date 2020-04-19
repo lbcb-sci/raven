@@ -204,7 +204,8 @@ int main(int argc, char** argv) {
   }
 
   std::vector<std::unique_ptr<biosoup::Sequence>> sequences;
-  if (graph.stage() < -3 || graph.stage() < num_polishing_rounds) {
+  if ((graph.stage() < -3) ||
+      (graph.stage() >= 0 && graph.stage() < num_polishing_rounds)) {
     try {
       sequences = sparser->Parse(-1);
     } catch (const std::invalid_argument& exception) {

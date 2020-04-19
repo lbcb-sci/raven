@@ -70,7 +70,7 @@ class Pile {
   }
 
   bool is_maybe_chimeric() const {
-    return chimeric_regions_.empty();
+    return !chimeric_regions_.empty();
   }
 
   void set_is_chimeric() {
