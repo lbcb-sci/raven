@@ -10,11 +10,49 @@
 #include <numeric>
 #include <random>
 #include <stdexcept>
+#include <unordered_map>
 
+#include "bioparser/paf_parser.hpp"
 #include "biosoup/timer.hpp"
 #include "cereal/archives/binary.hpp"
 #include "cereal/archives/json.hpp"
 #include "racon/polisher.hpp"
+
+namespace {
+
+static std::unordered_map<std::string, std::uint32_t> name_to_id;
+
+struct PafOverlap: public biosoup::Overlap {
+ public:
+  PafOverlap(
+      const char* q_name, std::uint32_t q_name_len,
+      std::uint32_t,
+      std::uint32_t q_begin,
+      std::uint32_t q_end,
+      char orientation,
+      const char* t_name, std::uint32_t t_name_len,
+      std::uint32_t,
+      std::uint32_t t_begin,
+      std::uint32_t t_end,
+      std::uint32_t score,
+      std::uint32_t,
+      std::uint32_t)
+      : biosoup::Overlap(
+          name_to_id[std::string(q_name, q_name_len)], q_begin, q_end,
+          name_to_id[std::string(t_name, t_name_len)], t_begin, t_end,
+          score,
+          orientation == '+') {}
+
+  biosoup::Overlap ToBase() const {
+    return biosoup::Overlap(
+        lhs_id, lhs_begin, lhs_end,
+        rhs_id, rhs_begin, rhs_end,
+        score,
+        strand);
+  }
+};
+
+}  // namespace
 
 namespace raven {
 
@@ -85,6 +123,10 @@ Graph::Graph(std::shared_ptr<thread_pool::ThreadPool> thread_pool)
 void Graph::Construct(std::vector<std::unique_ptr<biosoup::Sequence>>& sequences) {  // NOLINT
   if (sequences.empty() || stage_ > -4) {
     return;
+  }
+
+  for (const auto& it : sequences) {
+    name_to_id[it->name] = it->id;
   }
 
   std::vector<std::vector<biosoup::Overlap>> overlaps(sequences.size());
@@ -263,103 +305,71 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::Sequence>>& sequences
 
   biosoup::Timer timer{};
 
-  if (stage_ == -5) {  // find overlaps and create piles
+  if (stage_ == -5) {  // load overlaps and create piles
+    timer.Start();
+
     for (const auto& it : sequences) {
       piles_.emplace_back(new Pile(it->id, it->data.size()));
     }
-    for (std::uint32_t i = 0, j = 0, bytes = 0; i < sequences.size(); ++i) {
-      bytes += sequences[i]->data.size();
-      if (i != sequences.size() - 1 && bytes < (1U << 30)) {
-        continue;
-      }
-      bytes = 0;
 
-      timer.Start();
-
-      minimizer_engine_.Minimize(
-          sequences.begin() + j,
-          sequences.begin() + i + 1);
-      minimizer_engine_.Filter(0.001);
-
-      std::cerr << "[raven::Graph::Construct] minimized "
-                << j << " - " << i + 1 << " / " << sequences.size() << " "
-                << std::fixed << timer.Stop() << "s"
-                << std::endl;
-
-      timer.Start();
-
+    auto parser = bioparser::Parser<PafOverlap>::Create<bioparser::PafParser>("cuda.1.paf");  // NOLINT
+    while (true) {
       std::vector<std::uint32_t> num_overlaps(overlaps.size());
-      for (std::uint32_t k = 0; k < overlaps.size(); ++k) {
-        num_overlaps[k] = overlaps[k].size();
+      for (std::uint32_t i = 0; i < overlaps.size(); ++i) {
+        num_overlaps[i] = overlaps[i].size();
       }
 
-      std::vector<std::future<std::vector<biosoup::Overlap>>> thread_futures;
+      auto cuda_overlaps = parser->Parse(1UL << 31);
 
-      for (std::uint32_t k = 0; k < i + 1; ++k) {
-        thread_futures.emplace_back(thread_pool_->Submit(
-            [&] (std::uint32_t i) -> std::vector<biosoup::Overlap> {
-              return minimizer_engine_.Map(sequences[i], true, true, true);
-            },
-            k));
+      if (cuda_overlaps.empty()) {
+        break;
+      }
 
-        bytes += sequences[k]->data.size();
-        if (k != i && bytes < (1U << 30)) {
+      for (const auto& it : cuda_overlaps) {
+        overlaps[it->lhs_id].emplace_back(it->ToBase());
+        overlaps[it->rhs_id].emplace_back(overlap_reverse(overlaps[it->lhs_id].back()));  // NOLINT
+      }
+
+      std::vector<std::future<void>> void_futures;
+      for (const auto& it : piles_) {
+        if (overlaps[it->id()].empty() ||
+            overlaps[it->id()].size() == num_overlaps[it->id()]) {
           continue;
         }
-        bytes = 0;
+        void_futures.emplace_back(thread_pool_->Submit(
+            [&] (std::uint32_t i) -> void {
+              piles_[i]->AddLayers(
+                  overlaps[i].begin() + num_overlaps[i],
+                  overlaps[i].end());
 
-        for (auto& it : thread_futures) {
-          for (const auto& jt : it.get()) {
-            overlaps[jt.lhs_id].emplace_back(jt);
-            overlaps[jt.rhs_id].emplace_back(overlap_reverse(jt));
-          }
-        }
-        thread_futures.clear();
+              num_overlaps[i] = std::min(
+                  overlaps[i].size(),
+                  static_cast<std::size_t>(16));
 
-        std::vector<std::future<void>> void_futures;
-        for (const auto& it : piles_) {
-          if (overlaps[it->id()].empty() ||
-              overlaps[it->id()].size() == num_overlaps[it->id()]) {
-            continue;
-          }
+              if (overlaps[i].size() < 16) {
+                return;
+              }
 
-          void_futures.emplace_back(thread_pool_->Submit(
-              [&] (std::uint32_t i) -> void {
-                piles_[i]->AddLayers(
-                    overlaps[i].begin() + num_overlaps[i],
-                    overlaps[i].end());
+              std::sort(overlaps[i].begin(), overlaps[i].end(),
+                  [&] (const biosoup::Overlap& lhs,
+                       const biosoup::Overlap& rhs) -> bool {
+                    return overlap_length(lhs) > overlap_length(rhs);
+                  });
 
-                num_overlaps[i] = std::min(
-                    overlaps[i].size(),
-                    static_cast<std::size_t>(16));
-
-                if (overlaps[i].size() < 16) {
-                  return;
-                }
-
-                std::sort(overlaps[i].begin(), overlaps[i].end(),
-                    [&] (const biosoup::Overlap& lhs,
-                         const biosoup::Overlap& rhs) -> bool {
-                      return overlap_length(lhs) > overlap_length(rhs);
-                    });
-
-                std::vector<biosoup::Overlap> tmp;
-                tmp.insert(tmp.end(), overlaps[i].begin(), overlaps[i].begin() + 16);  // NOLINT
-                tmp.swap(overlaps[i]);
-              },
-              it->id()));
-        }
-        for (const auto& it : void_futures) {
-          it.wait();
-        }
+              std::vector<biosoup::Overlap> tmp;
+              tmp.insert(tmp.end(), overlaps[i].begin(), overlaps[i].begin() + 16);  // NOLINT
+              tmp.swap(overlaps[i]);
+            },
+            it->id()));
       }
-
-      std::cerr << "[raven::Graph::Construct] mapped sequences "
-                << std::fixed << timer.Stop() << "s"
-                << std::endl;
-
-      j = i + 1;
+      for (const auto& it : void_futures) {
+        it.wait();
+      }
     }
+
+    std::cerr << "[raven::Graph::Construct] constructed piles "
+          << std::fixed << timer.Stop() << "s"
+          << std::endl;
   }
 
   if (stage_ == -5) {  // trim and annotate piles
@@ -501,6 +511,19 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::Sequence>>& sequences
     std::cerr << "[raven::Graph::Construct] reached checkpoint "
                 << std::fixed << timer.Stop() << "s"
                 << std::endl;
+
+    std::ofstream c("contained.fasta"), uc("uncontained.fasta");
+    for (const auto& it : piles_) {
+      if (it->is_invalid()) {
+        c << ">" << sequences[it->id()]->name << std::endl
+          << sequences[it->id()]->data << std::endl;
+      } else {
+        uc << ">" << sequences[it->id()]->name << std::endl
+          << sequences[it->id()]->data << std::endl;
+      }
+    }
+
+    return;
   }
 
   if (stage_ == -4) {  // clear piles for sensitive overlaps
@@ -528,130 +551,81 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::Sequence>>& sequences
   }
 
   if (stage_ == -4) {  // find overlaps and update piles with repetitive regions
-    std::sort(sequences.begin(), sequences.end(),
-        [&] (const std::unique_ptr<biosoup::Sequence>& lhs,
-             const std::unique_ptr<biosoup::Sequence>& rhs) -> bool {
-          return piles_[lhs->id]->is_invalid() <  piles_[rhs->id]->is_invalid() ||  // NOLINT
-                (piles_[lhs->id]->is_invalid() == piles_[rhs->id]->is_invalid() && lhs->id < rhs->id);  // NOLINT
-        });
-
-    std::uint32_t s = 0;
-    for (std::uint32_t i = 0; i < sequences.size(); ++i) {
-      if (piles_[sequences[i]->id]->is_invalid()) {
-        s = i;
-        break;
-      }
-    }
+    timer.Start();
 
     overlaps.resize(sequences.size() + 1);
-    for (std::uint32_t i = 0, j = 0, bytes = 0; i < s; ++i) {
-      bytes += sequences[i]->data.size();
-      if (i != s - 1 && bytes < (1U << 30)) {
-        continue;
+    auto parser = bioparser::Parser<PafOverlap>::Create<bioparser::PafParser>("cuda.2.paf");  // NOLINT
+    while (true) {
+      auto cuda_overlaps = parser->Parse(1UL << 31);
+
+      if (cuda_overlaps.empty()) {
+        break;
       }
-      bytes = 0;
 
-      timer.Start();
-
-      minimizer_engine_.Minimize(
-          sequences.begin() + j,
-          sequences.begin() + i + 1);
-
-      std::cerr << "[raven::Graph::Construct] minimized "
-                << j << " - " << i + 1 << " / " << s << " "
-                << std::fixed << timer.Stop() << "s"
-                << std::endl;
-
-      timer.Start();
-
-      // map valid reads to each other
-      std::vector<std::future<std::vector<biosoup::Overlap>>> thread_futures;
-      minimizer_engine_.Filter(0.001);
-      for (std::uint32_t k = 0; k < i + 1; ++k) {
-        thread_futures.emplace_back(thread_pool_->Submit(
-            [&] (std::uint32_t i) -> std::vector<biosoup::Overlap> {
-              return minimizer_engine_.Map(sequences[i], true, true);
-            },
-            k));
-      }
-      for (auto& it : thread_futures) {
-        for (auto& jt : it.get()) {
-          if (!overlap_update(jt)) {
-            continue;
-          }
-          std::uint32_t type = overlap_type(jt);
-          if (type == 0) {
-            continue;
-          } else if (type == 1) {
-            piles_[jt.lhs_id]->set_is_contained();
-          } else if (type == 2) {
-            piles_[jt.rhs_id]->set_is_contained();
-          } else {
-            if (overlaps.back().size() &&
-                overlaps.back().back().lhs_id == jt.lhs_id &&
-                overlaps.back().back().rhs_id == jt.rhs_id) {
-              if (overlap_length(overlaps.back().back()) < overlap_length(jt)) {
-                overlaps.back().back() = jt;
-              }
-            } else {
-              overlaps.back().emplace_back(jt);
-            }
-          }
-        }
-      }
-      thread_futures.clear();
-
-      std::cerr << "[raven::Graph::Construct] mapped valid sequences "
-                << std::fixed << timer.Stop() << "s"
-                << std::endl;
-
-      timer.Start();
-
-      // map invalid reads to valid reads
-      minimizer_engine_.Filter(0.00001);
-      for (std::uint32_t k = s; k < sequences.size(); ++k) {
-        thread_futures.emplace_back(thread_pool_->Submit(
-            [&] (std::uint32_t i) -> std::vector<biosoup::Overlap> {
-              return minimizer_engine_.Map(sequences[i], true, false, true);
-            },
-            k));
-
-        bytes += sequences[k]->data.size();
-        if (k != sequences.size() - 1 && bytes < (1U << 30)) {
+      for (const auto& it : cuda_overlaps) {
+        auto jt = it->ToBase();
+        if (!overlap_update(jt)) {
           continue;
         }
-        bytes = 0;
-
-        for (auto& it : thread_futures) {
-          for (const auto& jt : it.get()) {
-            overlaps[jt.rhs_id].emplace_back(jt);
+        std::uint32_t type = overlap_type(jt);
+        if (type == 0) {
+          continue;
+        } else if (type == 1) {
+          piles_[jt.lhs_id]->set_is_contained();
+        } else if (type == 2) {
+          piles_[jt.rhs_id]->set_is_contained();
+        } else {
+          if (overlaps.back().size() &&
+              overlaps.back().back().lhs_id == jt.lhs_id &&
+              overlaps.back().back().rhs_id == jt.rhs_id) {
+            if (overlap_length(overlaps.back().back()) < overlap_length(jt)) {
+              overlaps.back().back() = jt;
+            }
+          } else {
+            overlaps.back().emplace_back(jt);
           }
-        }
-        thread_futures.clear();
-
-        std::vector<std::future<void>> void_futures;
-        for (std::uint32_t k = j; k < i + 1; ++k) {
-          if (overlaps[sequences[k]->id].empty()) {
-            continue;
-          }
-          void_futures.emplace_back(thread_pool_->Submit(
-              [&] (std::uint32_t i) -> void {
-                piles_[i]->AddLayers(overlaps[i].begin(), overlaps[i].end());
-                std::vector<biosoup::Overlap>().swap(overlaps[i]);
-              },
-              sequences[k]->id));
-        }
-        for (const auto& it : void_futures) {
-          it.wait();
         }
       }
-
-      std::cerr << "[raven::Graph::Construct] mapped invalid sequences "
-                << std::fixed << timer.Stop() << "s"
-                << std::endl;
-
-      j = i + 1;
     }
+
+    std::cerr << "[raven::Graph::Construct] loaded overlaps between valid sequences "  // NOLINT
+              << std::fixed << timer.Stop() << "s"
+              << std::endl;
+
+    timer.Start();
+
+    parser = bioparser::Parser<PafOverlap>::Create<bioparser::PafParser>("cuda.3.paf");  // NOLINT
+    while (true) {
+      auto cuda_overlaps = parser->Parse(1UL << 31);
+
+      if (cuda_overlaps.empty()) {
+        break;
+      }
+
+      for (const auto& it : cuda_overlaps) {
+        overlaps[it->rhs_id].emplace_back(it->ToBase());
+      }
+
+      std::vector<std::future<void>> void_futures;
+      for (std::uint32_t i = 0; i < overlaps.size() - 1; ++i) {
+        if (overlaps[i].empty()) {
+          continue;
+        }
+        void_futures.emplace_back(thread_pool_->Submit(
+            [&] (std::uint32_t i) -> void {
+              piles_[i]->AddLayers(overlaps[i].begin(), overlaps[i].end());
+              std::vector<biosoup::Overlap>().swap(overlaps[i]);
+            },
+            i));
+      }
+      for (const auto& it : void_futures) {
+        it.wait();
+      }
+    }
+
+    std::cerr << "[raven::Graph::Construct] loaded overlaps between invalid sequences "  // NOLINT
+              << std::fixed << timer.Stop() << "s"
+              << std::endl;
 
     timer.Start();
 
@@ -695,12 +669,6 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::Sequence>>& sequences
     std::cerr << "[raven::Graph::Construct] updated overlaps "
               << std::fixed << timer.Stop() << "s"
               << std::endl;
-
-    std::sort(sequences.begin(), sequences.end(),
-        [&] (const std::unique_ptr<biosoup::Sequence>& lhs,
-             const std::unique_ptr<biosoup::Sequence>& rhs) -> bool {
-          return lhs->id < rhs->id;
-        });
   }
 
   if (stage_ == -4) {  // resolve repeat induced overlaps
