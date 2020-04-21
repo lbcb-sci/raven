@@ -48,16 +48,6 @@ class Graph {
   // simplify with transitive reduction, tip prunning and bubble popping
   void Assemble();
 
-  // inspired by (Myers 1995) & (Myers 2005)
-  std::uint32_t RemoveTransitiveEdges();
-
-  std::uint32_t RemoveTips();
-
-  std::uint32_t RemoveBubbles();
-
-  // remove long edges in force directed layout
-  std::uint32_t RemoveLongEdges(std::uint32_t num_round);
-
   // Racon wrapper
   void Polish(
       const std::vector<std::unique_ptr<biosoup::Sequence>>& sequences,
@@ -91,6 +81,16 @@ class Graph {
   void Store() const;
 
  private:
+  // inspired by (Myers 1995) & (Myers 2005)
+  std::uint32_t RemoveTransitiveEdges();
+
+  std::uint32_t RemoveTips();
+
+  std::uint32_t RemoveBubbles();
+
+  // remove long edges in force directed layout
+  std::uint32_t RemoveLongEdges(std::uint32_t num_round);
+
   friend cereal::access;
 
   Graph() = default;  // needed for cereal

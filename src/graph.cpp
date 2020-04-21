@@ -843,7 +843,7 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::Sequence>>& sequences
 }  // NOLINT
 
 void Graph::Assemble() {
-  if (stage_ > -1) {
+  if (stage_ < -3 || stage_ > -1) {
     return;
   }
 
@@ -1581,6 +1581,11 @@ void Graph::Polish(
     return;
   }
 
+  auto unitigs = GetUnitigs();
+  if (unitigs.empty()) {
+    return;
+  }
+
   double q = 0.;
   for (const auto& it : sequences) {
     if (it->quality.empty()) {
@@ -1607,8 +1612,6 @@ void Graph::Polish(
       cuda_poa_batches,
       cuda_banded_alignment,
       cuda_alignment_batches);
-
-  auto unitigs = GetUnitigs();
 
   while (stage_ < static_cast<std::int32_t>(num_rounds)) {
     polisher->Initialize(unitigs, sequences);
