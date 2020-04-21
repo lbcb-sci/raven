@@ -48,13 +48,13 @@ usage: raven [options ...] <sequences>
 
   only available when built with CUDA:
     -c, --cuda-poa-batches <int>
-       default: 1
+       default: 0
        number of batches for CUDA accelerated polishing
     -b, --cuda-banded-alignment
        use banding approximation for polishing on GPU
        (only applicable when -c is used)
     -a, --cuda-alignment-batches <int>
-       default: 1
+       default: 0
        number of batches for CUDA accelerated alignment
 ```
 
