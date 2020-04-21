@@ -89,13 +89,14 @@ void Help() {
       "      default: -4\n"
       "      gap penalty (must be negative)\n"
 #ifdef CUDA_ENABLED
-      "    -c, --cuda-poa-batches\n"
+      "    -c, --cuda-poa-batches <int>\n"
       "       default: 1\n"
       "       number of batches for CUDA accelerated polishing\n"
       "    -b, --cuda-banded-alignment\n"
       "       use banding approximation for polishing on GPU\n"
       "       (only applicable when -c is used)\n"
-      "    -a, --cuda-alignment-batches\n"
+      "    -a, --cuda-alignment-batches <int>\n"
+      "       default: 1\n"
       "       number of batches for CUDA accelerated alignment\n"
 #endif
       "    --graphical-fragment-assembly <string>\n"
@@ -124,8 +125,8 @@ int main(int argc, char** argv) {
 
   std::uint32_t num_threads = 1;
 
-  std::uint32_t cuda_poa_batches = 0;
-  std::uint32_t cuda_alignment_batches = 0;
+  std::uint32_t cuda_poa_batches = 1;
+  std::uint32_t cuda_alignment_batches = 1;
   bool cuda_banded_alignment = false;
 
   std::string optstr = "p:m:n:g:t:h";
