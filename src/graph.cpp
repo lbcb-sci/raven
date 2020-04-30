@@ -1954,7 +1954,7 @@ void Graph::PrintCSV(const std::string& path) const {
        << ","
        << it->head->id << " [" << it->head->id / 2 << "]"
        << " LN:i:" << it->head->data.size()
-       << " RC:i:" << it->tail->count
+       << " RC:i:" << it->head->count
        << ",1,"
        << it->id << " " << it->length << " " << it->weight
        << std::endl;

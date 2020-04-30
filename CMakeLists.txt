@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.9)
 
-project(raven VERSION 1.1.5
+project(raven VERSION 1.1.6
               LANGUAGES CXX
               DESCRIPTION "Raven is a de novo genome assembler for long uncorrected reads.")
 
