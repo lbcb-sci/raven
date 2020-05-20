@@ -1224,7 +1224,7 @@ void Graph::CreateForceDirectedLayout(const std::string& path) {
   }
 
   std::vector<std::unordered_set<std::uint32_t>> components;
-  std::vector<char> is_visited(piles_.size(), 0);
+  std::vector<char> is_visited(nodes_.size(), 0);
   for (std::uint32_t i = 0; i < nodes_.size(); ++i) {
     if (nodes_[i] == nullptr || is_visited[i]) {
       continue;
