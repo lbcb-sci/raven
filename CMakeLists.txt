@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.9)
 
-project(raven VERSION 1.1.7
+project(raven VERSION 1.1.8
               LANGUAGES CXX
               DESCRIPTION "Raven is a de novo genome assembler for long uncorrected reads.")
 
@@ -14,10 +14,10 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin)
 
 if (NOT TARGET bioparser)
-    add_subdirectory(vendor/racon/vendor/ram/vendor/bioparser EXCLUDE_FROM_ALL)
+  add_subdirectory(vendor/racon/vendor/ram/vendor/bioparser EXCLUDE_FROM_ALL)
 endif ()
 if (NOT TARGET racon)
-    add_subdirectory(vendor/racon EXCLUDE_FROM_ALL)
+  add_subdirectory(vendor/racon EXCLUDE_FROM_ALL)
 endif ()
 include_directories(vendor/cereal/include)
 

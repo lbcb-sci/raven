@@ -22,6 +22,8 @@ usage: raven [options ...] <sequences>
     input file in FASTA/FASTQ format (can be compressed with gzip)
 
   options:
+    --weaken
+      use larger (k, w) when assembling highly accurate sequences
     -p, --polishing-rounds <int>
       default: 2
       number of times racon is invoked

@@ -72,11 +72,11 @@ Graph::Edge::Edge(Node* tail, Node* head, std::uint32_t length)
 std::atomic<std::uint32_t> Graph::Node::num_objects{0};
 std::atomic<std::uint32_t> Graph::Edge::num_objects{0};
 
-Graph::Graph(std::shared_ptr<thread_pool::ThreadPool> thread_pool)
+Graph::Graph(bool weaken, std::shared_ptr<thread_pool::ThreadPool> thread_pool)
     : thread_pool_(thread_pool ?
           thread_pool :
           std::make_shared<thread_pool::ThreadPool>(1)),
-      minimizer_engine_(15, 5, thread_pool_),
+      minimizer_engine_(weaken ? 29 : 15, weaken ? 9 : 5, thread_pool_),
       stage_(-5),
       piles_(),
       nodes_(),

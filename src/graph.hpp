@@ -27,7 +27,7 @@ namespace raven {
 
 class Graph {
  public:
-  explicit Graph(std::shared_ptr<thread_pool::ThreadPool> thread_pool = nullptr);  // NOLINT
+  Graph(bool weaken, std::shared_ptr<thread_pool::ThreadPool> thread_pool = nullptr);  // NOLINT
 
   Graph(const Graph&) = delete;
   Graph& operator=(const Graph&) = delete;

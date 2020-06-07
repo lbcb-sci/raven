@@ -17,6 +17,7 @@ namespace {
 const char* raven_version = RAVEN_VERSION;
 
 static struct option options[] = {
+  {"weaken", no_argument, nullptr, 'w'},
   {"polishing-rounds", required_argument, nullptr, 'p'},
   {"match", required_argument, nullptr, 'm'},
   {"mismatch", required_argument, nullptr, 'n'},
@@ -76,6 +77,8 @@ void Help() {
       "    input file in FASTA/FASTQ format (can be compressed with gzip)\n"
       "\n"
       "  options:\n"
+      "    --weaken\n"
+      "      use larger (k, w) when assembling highly accurate sequences\n"
       "    -p, --polishing-rounds <int>\n"
       "      default: 2\n"
       "      number of times racon is invoked\n"
@@ -115,6 +118,8 @@ void Help() {
 }  // namespace
 
 int main(int argc, char** argv) {
+  bool weaken = false;
+
   std::int32_t num_polishing_rounds = 2;
   std::int8_t m = 3;
   std::int8_t n = -5;
@@ -136,6 +141,7 @@ int main(int argc, char** argv) {
   int arg;
   while ((arg = getopt_long(argc, argv, optstr.c_str(), options, nullptr)) != -1) {  // NOLINT
     switch (arg) {
+      case 'w': weaken = true; break;
       case 'p': num_polishing_rounds = atoi(optarg); break;
       case 'm': m = atoi(optarg); break;
       case 'n': n = atoi(optarg); break;
@@ -188,7 +194,7 @@ int main(int argc, char** argv) {
 
   auto thread_pool = std::make_shared<thread_pool::ThreadPool>(num_threads);
 
-  raven::Graph graph{thread_pool};
+  raven::Graph graph{weaken, thread_pool};
   if (resume) {
     try {
       graph.Load();
