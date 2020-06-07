@@ -136,7 +136,7 @@ int main(int argc, char** argv) {
 
   std::string optstr = "p:m:n:g:t:h";
 #ifdef CUDA_ENABLED
-  optstr += "c:b:a:";
+  optstr += "c:ba:";
 #endif
   int arg;
   while ((arg = getopt_long(argc, argv, optstr.c_str(), options, nullptr)) != -1) {  // NOLINT
