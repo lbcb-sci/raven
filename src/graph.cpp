@@ -267,9 +267,10 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::Sequence>>& sequences
     for (const auto& it : sequences) {
       piles_.emplace_back(new Pile(it->id, it->data.size()));
     }
-    for (std::uint32_t i = 0, j = 0, bytes = 0; i < sequences.size(); ++i) {
+    std::size_t bytes = 0;
+    for (std::uint32_t i = 0, j = 0; i < sequences.size(); ++i) {
       bytes += sequences[i]->data.size();
-      if (i != sequences.size() - 1 && bytes < (1U << 30)) {
+      if (i != sequences.size() - 1 && bytes < (1ULL << 32)) {
         continue;
       }
       bytes = 0;
@@ -278,7 +279,8 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::Sequence>>& sequences
 
       minimizer_engine_.Minimize(
           sequences.begin() + j,
-          sequences.begin() + i + 1);
+          sequences.begin() + i + 1,
+          true);
       minimizer_engine_.Filter(0.001);
 
       std::cerr << "[raven::Graph::Construct] minimized "
@@ -543,10 +545,12 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::Sequence>>& sequences
       }
     }
 
+    // map invalid reads to valid reads
     overlaps.resize(sequences.size() + 1);
-    for (std::uint32_t i = 0, j = 0, bytes = 0; i < s; ++i) {
+    std::size_t bytes = 0;
+    for (std::uint32_t i = 0, j = 0; i < s; ++i) {
       bytes += sequences[i]->data.size();
-      if (i != s - 1 && bytes < (1U << 30)) {
+      if (i != s - 1 && bytes < (1ULL << 32)) {
         continue;
       }
       bytes = 0;
@@ -555,7 +559,8 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::Sequence>>& sequences
 
       minimizer_engine_.Minimize(
           sequences.begin() + j,
-          sequences.begin() + i + 1);
+          sequences.begin() + i + 1,
+          true);
 
       std::cerr << "[raven::Graph::Construct] minimized "
                 << j << " - " << i + 1 << " / " << s << " "
@@ -564,51 +569,8 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::Sequence>>& sequences
 
       timer.Start();
 
-      // map valid reads to each other
-      std::vector<std::future<std::vector<biosoup::Overlap>>> thread_futures;
-      minimizer_engine_.Filter(0.001);
-      for (std::uint32_t k = 0; k < i + 1; ++k) {
-        thread_futures.emplace_back(thread_pool_->Submit(
-            [&] (std::uint32_t i) -> std::vector<biosoup::Overlap> {
-              return minimizer_engine_.Map(sequences[i], true, true);
-            },
-            k));
-      }
-      for (auto& it : thread_futures) {
-        for (auto& jt : it.get()) {
-          if (!overlap_update(jt)) {
-            continue;
-          }
-          std::uint32_t type = overlap_type(jt);
-          if (type == 0) {
-            continue;
-          } else if (type == 1) {
-            piles_[jt.lhs_id]->set_is_contained();
-          } else if (type == 2) {
-            piles_[jt.rhs_id]->set_is_contained();
-          } else {
-            if (overlaps.back().size() &&
-                overlaps.back().back().lhs_id == jt.lhs_id &&
-                overlaps.back().back().rhs_id == jt.rhs_id) {
-              if (overlap_length(overlaps.back().back()) < overlap_length(jt)) {
-                overlaps.back().back() = jt;
-              }
-            } else {
-              overlaps.back().emplace_back(jt);
-            }
-          }
-        }
-      }
-      thread_futures.clear();
-
-      std::cerr << "[raven::Graph::Construct] mapped valid sequences "
-                << std::fixed << timer.Stop() << "s"
-                << std::endl;
-
-      timer.Start();
-
-      // map invalid reads to valid reads
       minimizer_engine_.Filter(0.00001);
+      std::vector<std::future<std::vector<biosoup::Overlap>>> thread_futures;
       for (std::uint32_t k = s; k < sequences.size(); ++k) {
         thread_futures.emplace_back(thread_pool_->Submit(
             [&] (std::uint32_t i) -> std::vector<biosoup::Overlap> {
@@ -647,6 +609,71 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::Sequence>>& sequences
       }
 
       std::cerr << "[raven::Graph::Construct] mapped invalid sequences "
+                << std::fixed << timer.Stop() << "s"
+                << std::endl;
+
+      j = i + 1;
+    }
+
+    // map valid reads to each other
+    bytes = 0;
+    for (std::uint32_t i = 0, j = 0; i < s; ++i) {
+      bytes += sequences[i]->data.size();
+      if (i != s - 1 && bytes < (1U << 30)) {
+        continue;
+      }
+      bytes = 0;
+
+      timer.Start();
+
+      minimizer_engine_.Minimize(
+          sequences.begin() + j,
+          sequences.begin() + i + 1);
+
+      std::cerr << "[raven::Graph::Construct] minimized "
+                << j << " - " << i + 1 << " / " << s << " "
+                << std::fixed << timer.Stop() << "s"
+                << std::endl;
+
+      timer.Start();
+
+      std::vector<std::future<std::vector<biosoup::Overlap>>> thread_futures;
+      minimizer_engine_.Filter(0.001);
+      for (std::uint32_t k = 0; k < i + 1; ++k) {
+        thread_futures.emplace_back(thread_pool_->Submit(
+            [&] (std::uint32_t i) -> std::vector<biosoup::Overlap> {
+              return minimizer_engine_.Map(sequences[i], true, true);
+            },
+            k));
+      }
+      for (auto& it : thread_futures) {
+        for (auto& jt : it.get()) {
+          if (!overlap_update(jt)) {
+            continue;
+          }
+          std::uint32_t type = overlap_type(jt);
+          if (type == 0) {
+            continue;
+          } else if (type == 1) {
+            piles_[jt.lhs_id]->set_is_contained();
+          } else if (type == 2) {
+            piles_[jt.rhs_id]->set_is_contained();
+          } else {
+            if (overlaps.back().size() &&
+                overlaps.back().back().lhs_id == jt.lhs_id &&
+                overlaps.back().back().rhs_id == jt.rhs_id) {
+              if (overlap_length(overlaps.back().back()) < overlap_length(jt)) {
+                overlaps.back().back() = jt;
+              }
+            } else {
+              overlaps.back().emplace_back(jt);
+            }
+          }
+        }
+      }
+      thread_futures.clear();
+
+      std::cerr << "[raven::Graph::Construct] mapped valid sequences "
                 << std::fixed << timer.Stop() << "s"
                 << std::endl;
 
