@@ -937,6 +937,7 @@ void Graph::Assemble() {
               << std::fixed << timer.Stop() << "s"
               << std::endl;
 
+    CreateUnitigs(7);
     std::unordered_set<std::uint32_t> valid_piles;
     for (const auto& it : nodes_) {
       if (it) {
