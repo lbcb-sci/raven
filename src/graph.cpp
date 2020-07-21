@@ -20,6 +20,7 @@ namespace raven {
 
 Graph::Node::Node(const biosoup::Sequence& sequence)
     : id(num_objects++),
+      pid(sequence.id),
       name(sequence.name),
       data(sequence.data),
       count(1),
@@ -32,6 +33,7 @@ Graph::Node::Node(const biosoup::Sequence& sequence)
 
 Graph::Node::Node(Node* begin, Node* end)
     : id(num_objects++),
+      pid(begin->pid),
       name(),
       data(),
       count(),
@@ -805,6 +807,7 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::Sequence>>& sequences
       auto sequence = biosoup::Sequence{
           sequences[it->id()]->name,
           sequences[it->id()]->data.substr(it->begin(), it->end() - it->begin())};  // NOLINT
+      sequence.id = it->id();
 
       sequence_to_node[it->id()] = Node::num_objects;
 
@@ -933,6 +936,19 @@ void Graph::Assemble() {
     std::cerr << "[raven::Graph::Assemble] removed long edges "
               << std::fixed << timer.Stop() << "s"
               << std::endl;
+
+    std::unordered_set<std::uint32_t> valid_piles;
+    for (const auto& it : nodes_) {
+      if (it) {
+        valid_piles.emplace(it->pid);
+      }
+    }
+    for (const auto& it : piles_) {
+      if (valid_piles.count(it->id()) == 0) {
+        it->set_is_invalid();
+      }
+    }
+    PrintJSON("leftovers.json");
   }
 
   if (stage_ == -1) {  // checkpoint

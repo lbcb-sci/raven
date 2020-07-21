@@ -188,6 +188,7 @@ class Graph {
     static std::atomic<std::uint32_t> num_objects;
 
     std::uint32_t id;
+    std::uint32_t pid;
     std::string name;
     std::string data;
     std::uint32_t count;
