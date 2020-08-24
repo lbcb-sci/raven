@@ -950,6 +950,21 @@ void Graph::Assemble() {
       }
     }
     PrintJSON("leftovers.json");
+
+    std::ofstream os("neighbors.json");
+    cereal::JSONOutputArchive archive(os);
+    for (const auto& it : nodes_) {
+      if (it && it->id % 2) {
+        std::vector<std::uint32_t> neighbors;
+        for (const auto& jt : it->outedges) {
+          neighbors.emplace_back(jt->head->pid);
+        }
+        for (const auto& jt : it->inedges) {
+          neighbors.emplace_back(jt->tail->pid);
+        }
+        archive(cereal::make_nvp(std::to_string(it->pid), neighbors));
+      }
+    }
   }
 
   if (stage_ == -1) {  // checkpoint
