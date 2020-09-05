@@ -27,7 +27,10 @@ namespace raven {
 
 class Graph {
  public:
-  Graph(bool weaken, std::shared_ptr<thread_pool::ThreadPool> thread_pool = nullptr);  // NOLINT
+  Graph(
+      bool weaken,
+      bool checkpoints,
+      std::shared_ptr<thread_pool::ThreadPool> thread_pool = nullptr);
 
   Graph(const Graph&) = delete;
   Graph& operator=(const Graph&) = delete;
@@ -66,13 +69,13 @@ class Graph {
       bool drop_unpolished = false);
 
   // draw with misc/plotter.py
-  void PrintJSON(const std::string& path) const;
+  void PrintJson(const std::string& path) const;
 
   // draw with Cytoscape
-  void PrintCSV(const std::string& path) const;
+  void PrintCsv(const std::string& path) const;
 
   // draw with Bandage
-  void PrintGFA(const std::string& path) const;
+  void PrintGfa(const std::string& path) const;
 
   // cereal load wrapper
   void Load();
@@ -247,6 +250,7 @@ class Graph {
   ram::MinimizerEngine minimizer_engine_;
 
   int stage_;
+  bool checkpoints_;
   std::vector<std::unique_ptr<Pile>> piles_;
   std::vector<std::shared_ptr<Node>> nodes_;
   std::vector<std::shared_ptr<Edge>> edges_;

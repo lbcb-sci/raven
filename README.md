@@ -37,27 +37,29 @@ usage: raven [options ...] <sequences>
       default: -4
       gap penalty (must be negative)
     --graphical-fragment-assembly <string>
-      prints the assemblg graph in GFA format
+      prints the assembly graph in GFA format
     --resume
       resume previous run from last checkpoint
+    --disable-checkpoints
+      disable checkpoint file creation
     -t, --threads <int>
       default: 1
       number of threads
     --version
       prints the version number
     -h, --help
-       prints the usage
+      prints the usage
 
   only available when built with CUDA:
     -c, --cuda-poa-batches <int>
-       default: 0
-       number of batches for CUDA accelerated polishing
+      default: 0
+      number of batches for CUDA accelerated polishing
     -b, --cuda-banded-alignment
-       use banding approximation for polishing on GPU
-       (only applicable when -c is used)
+      use banding approximation for polishing on GPU
+      (only applicable when -c is used)
     -a, --cuda-alignment-batches <int>
-       default: 0
-       number of batches for CUDA accelerated alignment
+      default: 0
+      number of batches for CUDA accelerated alignment
 ```
 
 #### Dependencies

@@ -29,6 +29,7 @@ static struct option options[] = {
 #endif
   {"graphical-fragment-assembly", required_argument, nullptr, 'f'},
   {"resume", no_argument, nullptr, 'r'},
+  {"disable-checkpoints", no_argument, nullptr, 'd'},
   {"threads", required_argument, nullptr, 't'},
   {"version", no_argument, nullptr, 'v'},
   {"help", no_argument, nullptr, 'h'},
@@ -93,26 +94,28 @@ void Help() {
       "      gap penalty (must be negative)\n"
 #ifdef CUDA_ENABLED
       "    -c, --cuda-poa-batches <int>\n"
-      "       default: 0\n"
-      "       number of batches for CUDA accelerated polishing\n"
+      "      default: 0\n"
+      "      number of batches for CUDA accelerated polishing\n"
       "    -b, --cuda-banded-alignment\n"
-      "       use banding approximation for polishing on GPU\n"
-      "       (only applicable when -c is used)\n"
+      "      use banding approximation for polishing on GPU\n"
+      "      (only applicable when -c is used)\n"
       "    -a, --cuda-alignment-batches <int>\n"
-      "       default: 0\n"
-      "       number of batches for CUDA accelerated alignment\n"
+      "      default: 0\n"
+      "      number of batches for CUDA accelerated alignment\n"
 #endif
       "    --graphical-fragment-assembly <string>\n"
-      "      prints the assemblg graph in GFA format\n"
+      "      prints the assembly graph in GFA format\n"
       "    --resume\n"
       "      resume previous run from last checkpoint\n"
+      "    --disable-checkpoints\n"
+      "      disable checkpoint file creation\n"
       "    -t, --threads <int>\n"
       "      default: 1\n"
       "      number of threads\n"
       "    --version\n"
       "      prints the version number\n"
       "    -h, --help\n"
-      "       prints the usage\n";
+      "      prints the usage\n";
 }
 
 }  // namespace
@@ -127,6 +130,7 @@ int main(int argc, char** argv) {
 
   std::string gfa_path = "";
   bool resume = false;
+  bool checkpoints = true;
 
   std::uint32_t num_threads = 1;
 
@@ -167,6 +171,7 @@ int main(int argc, char** argv) {
 #endif
       case 'f': gfa_path = optarg; break;
       case 'r': resume = true; break;
+      case 'd': checkpoints = false; break;
       case 't': num_threads = atoi(optarg); break;
       case 'v': std::cout << raven_version << std::endl; return 0;
       case 'h': Help(); return 0;
@@ -194,7 +199,7 @@ int main(int argc, char** argv) {
 
   auto thread_pool = std::make_shared<thread_pool::ThreadPool>(num_threads);
 
-  raven::Graph graph{weaken, thread_pool};
+  raven::Graph graph{weaken, checkpoints, thread_pool};
   if (resume) {
     try {
       graph.Load();
@@ -235,7 +240,7 @@ int main(int argc, char** argv) {
   graph.Assemble();
   graph.Polish(sequences, m, n, g, cuda_poa_batches, cuda_banded_alignment,
       cuda_alignment_batches, num_polishing_rounds);
-  graph.PrintGFA(gfa_path);
+  graph.PrintGfa(gfa_path);
 
   for (const auto& it : graph.GetUnitigs(num_polishing_rounds > 0)) {
     std::cout << ">" << it->name << std::endl;

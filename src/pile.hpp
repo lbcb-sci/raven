@@ -123,8 +123,6 @@ class Pile {
  private:
   Pile() = default;
 
-  friend cereal::access;
-
   template<class Archive>
   void serialize(Archive& archive) {  // NOLINT
     archive(
@@ -140,6 +138,8 @@ class Pile {
         CEREAL_NVP(chimeric_regions_),
         CEREAL_NVP(repetitive_regions_));
   }
+
+  friend cereal::access;
 
   using Region = std::pair<std::uint32_t, std::uint32_t>;
 

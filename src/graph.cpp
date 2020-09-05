@@ -72,12 +72,16 @@ Graph::Edge::Edge(Node* tail, Node* head, std::uint32_t length)
 std::atomic<std::uint32_t> Graph::Node::num_objects{0};
 std::atomic<std::uint32_t> Graph::Edge::num_objects{0};
 
-Graph::Graph(bool weaken, std::shared_ptr<thread_pool::ThreadPool> thread_pool)
+Graph::Graph(
+    bool weaken,
+    bool checkpoints,
+    std::shared_ptr<thread_pool::ThreadPool> thread_pool)
     : thread_pool_(thread_pool ?
           thread_pool :
           std::make_shared<thread_pool::ThreadPool>(1)),
       minimizer_engine_(weaken ? 29 : 15, weaken ? 9 : 5, thread_pool_),
       stage_(-5),
+      checkpoints_(checkpoints),
       piles_(),
       nodes_(),
       edges_() {}
@@ -257,7 +261,7 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::Sequence>>& sequences
   };
   // biosoup::Overlap helper functions
 
-  if (stage_ == -5) {  // checkpoint test
+  if (stage_ == -5 && checkpoints_) {  // checkpoint test
     Store();
   }
 
@@ -495,14 +499,14 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::Sequence>>& sequences
   }
 
   if (stage_ == -5) {  // checkpoint
-    timer.Start();
-
     ++stage_;
-    Store();
-
-    std::cerr << "[raven::Graph::Construct] reached checkpoint "
+    if (checkpoints_) {
+      timer.Start();
+      Store();
+      std::cerr << "[raven::Graph::Construct] reached checkpoint "
                 << std::fixed << timer.Stop() << "s"
                 << std::endl;
+    }
   }
 
   if (stage_ == -4) {  // clear piles for sensitive overlaps
@@ -854,14 +858,14 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::Sequence>>& sequences
   }
 
   if (stage_ == -4) {  // checkpoint
-    timer.Start();
-
     ++stage_;
-    Store();
-
-    std::cerr << "[raven::Graph::Construct] reached checkpoint "
+    if (checkpoints_) {
+      timer.Start();
+      Store();
+      std::cerr << "[raven::Graph::Construct] reached checkpoint "
                 << std::fixed << timer.Stop() << "s"
                 << std::endl;
+    }
   }
 
   std::cerr << "[raven::Graph::Construct] "
@@ -887,14 +891,14 @@ void Graph::Assemble() {
   }
 
   if (stage_ == -3) {  // checkpoint
-    timer.Start();
-
     ++stage_;
-    Store();
-
-    std::cerr << "[raven::Graph::Assemble] reached checkpoint "
-              << std::fixed << timer.Stop() << "s"
-              << std::endl;
+    if (checkpoints_) {
+      timer.Start();
+      Store();
+      std::cerr << "[raven::Graph::Assemble] reached checkpoint "
+                << std::fixed << timer.Stop() << "s"
+                << std::endl;
+    }
   }
 
   if (stage_ == -2) {  // remove tips and bubbles
@@ -914,14 +918,14 @@ void Graph::Assemble() {
   }
 
   if (stage_ == -2) {  // checkpoint
-    timer.Start();
-
     ++stage_;
-    Store();
-
-    std::cerr << "[raven::Graph::Assemble] reached checkpoint "
-              << std::fixed << timer.Stop() << "s"
-              << std::endl;
+    if (checkpoints_) {
+      timer.Start();
+      Store();
+      std::cerr << "[raven::Graph::Assemble] reached checkpoint "
+                << std::fixed << timer.Stop() << "s"
+                << std::endl;
+    }
   }
 
   if (stage_ == -1) {  // remove long edges
@@ -936,14 +940,14 @@ void Graph::Assemble() {
   }
 
   if (stage_ == -1) {  // checkpoint
-    timer.Start();
-
     ++stage_;
-    Store();
-
-    std::cerr << "[raven::Graph::Assemble] reached checkpoint "
-              << std::fixed << timer.Stop() << "s"
-              << std::endl;
+    if (checkpoints_) {
+      timer.Start();
+      Store();
+      std::cerr << "[raven::Graph::Assemble] reached checkpoint "
+                << std::fixed << timer.Stop() << "s"
+                << std::endl;
+    }
   }
 
   timer.Start();
@@ -1603,7 +1607,6 @@ void Graph::Polish(
     bool cuda_banded_alignment,
     std::uint32_t cuda_alignment_batches,
     std::uint32_t num_rounds) {
-
   if (sequences.empty() || num_rounds == 0) {
     return;
   }
@@ -1658,15 +1661,15 @@ void Graph::Polish(
       }
     }
 
-    biosoup::Timer timer{};
-    timer.Start();
-
     ++stage_;
-    Store();
-
-    std::cerr << "[raven::Graph::Polish] reached checkpoint "
-              << std::fixed << timer.Stop() << "s"
-              << std::endl;
+    if (checkpoints_) {
+      biosoup::Timer timer{};
+      timer.Start();
+      Store();
+      std::cerr << "[raven::Graph::Polish] reached checkpoint "
+                << std::fixed << timer.Stop() << "s"
+                << std::endl;
+    }
   }
 }
 
@@ -1935,7 +1938,7 @@ std::unordered_set<std::uint32_t> Graph::FindRemovableEdges(
   return dst;  // empty
 }
 
-void Graph::PrintJSON(const std::string& path) const {
+void Graph::PrintJson(const std::string& path) const {
   if (path.empty()) {
     return;
   }
@@ -1950,7 +1953,7 @@ void Graph::PrintJSON(const std::string& path) const {
   }
 }
 
-void Graph::PrintCSV(const std::string& path) const {
+void Graph::PrintCsv(const std::string& path) const {
   if (path.empty()) {
     return;
   }
@@ -2003,7 +2006,7 @@ void Graph::PrintCSV(const std::string& path) const {
   os.close();
 }
 
-void Graph::PrintGFA(const std::string& path) const {
+void Graph::PrintGfa(const std::string& path) const {
   if (path.empty()) {
     return;
   }
