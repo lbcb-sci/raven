@@ -33,7 +33,7 @@ Graph::Node::Node(const biosoup::Sequence& sequence)
 
 Graph::Node::Node(Node* begin, Node* end)
     : id(num_objects++),
-      pid(begin->pid),
+      pid(id % 2 ? end->pid : begin->pid),
       name(),
       data(),
       count(),
