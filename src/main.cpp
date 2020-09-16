@@ -73,7 +73,7 @@ void Help() {
   std::cout <<
       "usage: raven [options ...] <sequences>\n"
       "\n"
-      "  # default output is stdout\n"
+      "  # default output is to stdout in FASTA format\n"
       "  <sequences>\n"
       "    input file in FASTA/FASTQ format (can be compressed with gzip)\n"
       "\n"

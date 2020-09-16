@@ -2,11 +2,12 @@
 
 [![Latest GitHub release](https://img.shields.io/github/release/lbcb-sci/raven.svg)](https://github.com/lbcb-sci/raven/releases/latest)
 [![Build status for c++/clang++](https://travis-ci.org/lbcb-sci/raven.svg?branch=master)](https://travis-ci.org/lbcb-sci/raven)
+[![Preprint at bioRxiv](https://img.shields.io/badge/preprint-bioRxiv-orange)](https://doi.org/10.1101/2020.08.07.242461)
 
 Raven is a de novo genome assembler for long uncorrected reads.
 
 ## Usage
-To build raven run the following commands:
+To build raven run the following commands (< 30s):
 ```bash
 git clone --recursive https://github.com/lbcb-sci/raven.git raven
 cd raven && mkdir build && cd build
@@ -17,7 +18,7 @@ which will display the following usage:
 ```bash
 usage: raven [options ...] <sequences>
 
-# default output is stdout
+  # default output is to stdout in FASTA format
   <sequences>
     input file in FASTA/FASTQ format (can be compressed with gzip)
 
@@ -70,7 +71,7 @@ usage: raven [options ...] <sequences>
 ### CUDA Support
 To build submodule racon with CUDA support, add `-Dracon_enable_cuda=ON` while running `cmake`. For more information see [this](https://github.com/lbcb-sci/racon).
 
-#### Dependnecies
+#### Dependencies
 - gcc 5.0+
 - cmake 3.10+
 - CUDA 9.0+
@@ -89,6 +90,19 @@ Install [conda](https://conda.io/en/latest/miniconda.html) and run the following
 ```bash
 conda install -c bioconda raven-assembler
 ```
+
+## Unit tests
+
+To build and run raven unit tests run the following commands (< 30s):
+```bash
+git clone --recursive https://github.com/lbcb-sci/raven.git raven
+cd raven && mkdir build && cd build
+cmake -Draven_build_tests=ON -DCMAKE_BUILD_TYPE=Release .. && make
+./bin/raven_test
+```
+
+#### Dependencies
+- gtest
 
 ## Acknowledgment
 

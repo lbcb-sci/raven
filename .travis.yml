@@ -37,10 +37,11 @@ before_install:
 
 install:
   - mkdir build && cd build
-  - cmake -DCMAKE_BUILD_TYPE=Release .. && make
+  - cmake -Draven_build_tests=ON -DCMAKE_BUILD_TYPE=Release .. && make
 
 script:
   - ./bin/raven --version
+  - ./bin/raven_test
 
 notifications:
   email:

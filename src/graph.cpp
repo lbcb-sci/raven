@@ -800,6 +800,9 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::Sequence>>& sequences
   }
 
   if (stage_ == -4) {  // construct assembly graph
+    Node::num_objects = 0;
+    Edge::num_objects = 0;
+
     std::vector<std::int32_t> sequence_to_node(piles_.size(), -1);
     for (const auto& it : piles_) {  // create nodes
       if (it->is_invalid()) {
@@ -1657,6 +1660,7 @@ void Graph::Polish(
           node->data = it->data;
           it->ReverseAndComplement();
           node->pair->data = it->data;
+          it->ReverseAndComplement();
         }
       }
     }
