@@ -514,7 +514,7 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::Sequence>>& sequences
   if (split_) {
     bool is_fasta = sequences.front()->quality.empty() ? true : false;
     {
-      std::ofstream os("contained.fasta");
+      std::ofstream os(is_fasta ? "contained.fasta" : "contained.fastq");
       for (const auto& it : piles_) {
         if (it->is_invalid()) {
           if (is_fasta) {
@@ -531,7 +531,7 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::Sequence>>& sequences
       os.close();
     }
     {
-      std::ofstream os("uncontained.fasta");
+      std::ofstream os(is_fasta ? "uncontained.fasta" : "uncontained.fastq");
       for (const auto& it : piles_) {
         if (!it->is_invalid()) {
           if (is_fasta) {
