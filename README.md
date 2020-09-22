@@ -25,6 +25,8 @@ usage: raven [options ...] <sequences>
   options:
     --weaken
       use larger (k, w) when assembling highly accurate sequences
+    --split
+      store contained and uncontained sequences separately, and abort
     -p, --polishing-rounds <int>
       default: 2
       number of times racon is invoked

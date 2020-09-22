@@ -28,6 +28,7 @@ namespace raven {
 class Graph {
  public:
   Graph(
+      bool split,
       bool weaken,
       bool checkpoints,
       std::shared_ptr<thread_pool::ThreadPool> thread_pool = nullptr);
@@ -251,6 +252,7 @@ class Graph {
 
   int stage_;
   bool checkpoints_;
+  bool split_;
   std::vector<std::unique_ptr<Pile>> piles_;
   std::vector<std::shared_ptr<Node>> nodes_;
   std::vector<std::shared_ptr<Edge>> edges_;

@@ -73,6 +73,7 @@ std::atomic<std::uint32_t> Graph::Node::num_objects{0};
 std::atomic<std::uint32_t> Graph::Edge::num_objects{0};
 
 Graph::Graph(
+    bool split,
     bool weaken,
     bool checkpoints,
     std::shared_ptr<thread_pool::ThreadPool> thread_pool)
@@ -82,6 +83,7 @@ Graph::Graph(
       minimizer_engine_(weaken ? 29 : 15, weaken ? 9 : 5, thread_pool_),
       stage_(-5),
       checkpoints_(checkpoints),
+      split_(split),
       piles_(),
       nodes_(),
       edges_() {}
@@ -507,6 +509,45 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::Sequence>>& sequences
                 << std::fixed << timer.Stop() << "s"
                 << std::endl;
     }
+  }
+
+  if (split_) {
+    bool is_fasta = sequences.front()->quality.empty() ? true : false;
+    {
+      std::ofstream os("contained.fasta");
+      for (const auto& it : piles_) {
+        if (it->is_invalid()) {
+          if (is_fasta) {
+            os << ">" << sequences[it->id()]->name << std::endl
+               << sequences[it->id()]->data << std::endl;
+          } else {
+            os << "@" << sequences[it->id()]->name << std::endl
+               << sequences[it->id()]->data << std::endl
+               << "+" << std::endl
+               << sequences[it->id()]->quality << std::endl;
+          }
+        }
+      }
+      os.close();
+    }
+    {
+      std::ofstream os("uncontained.fasta");
+      for (const auto& it : piles_) {
+        if (!it->is_invalid()) {
+          if (is_fasta) {
+            os << ">" << sequences[it->id()]->name << std::endl
+               << sequences[it->id()]->data << std::endl;
+          } else {
+            os << "@" << sequences[it->id()]->name << std::endl
+               << sequences[it->id()]->data << std::endl
+               << "+" << std::endl
+               << sequences[it->id()]->quality << std::endl;
+          }
+        }
+      }
+      os.close();
+    }
+    return;
   }
 
   if (stage_ == -4) {  // clear piles for sensitive overlaps
@@ -1129,7 +1170,7 @@ std::uint32_t Graph::RemoveBubbles() {
         }
       }
       sequence->data += path.back()->data;
-      return std::move(sequence);
+      return sequence;
     };
 
     auto ls = path_sequence(lhs);
