@@ -55,7 +55,7 @@ Graph::Node::Node(Node* begin, Node* end)
     count += end->count;
   }
 
-  name = (is_unitig() ? "Utg" : "Ctg") + std::to_string(id);
+  name = (is_unitig() ? "Utg" : "Ctg") + std::to_string(id & (~1UL));
 }
 
 Graph::Edge::Edge(Node* tail, Node* head, std::uint32_t length)
@@ -1129,7 +1129,7 @@ std::uint32_t Graph::RemoveBubbles() {
         }
       }
       sequence->data += path.back()->data;
-      return std::move(sequence);
+      return sequence;
     };
 
     auto ls = path_sequence(lhs);
@@ -2034,7 +2034,7 @@ void Graph::PrintGfa(const std::string& path) const {
     }
   }
   for (const auto& it : edges_) {
-    if (it == nullptr) {
+    if (it == nullptr || it->is_rc()) {
       continue;
     }
     os << "L\t" << it->tail->name << "\t" << (it->tail->is_rc() ? '-' : '+')
