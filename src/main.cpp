@@ -27,6 +27,7 @@ static struct option options[] = {
   {"cuda-banded-alignment", no_argument, nullptr, 'b'},
   {"cuda-alignment-batches", required_argument, nullptr, 'a'},
 #endif
+  {"remove", required_argument, nullptr, 'R'},
   {"graphical-fragment-assembly", required_argument, nullptr, 'f'},
   {"resume", no_argument, nullptr, 'r'},
   {"threads", required_argument, nullptr, 't'},
@@ -106,6 +107,8 @@ void Help() {
       "      prints the assemblg graph in GFA format\n"
       "    --resume\n"
       "      resume previous run from last checkpoint\n"
+      "    --remove <path>\n"
+      "      list of nodes and edges to remove manually\n"
       "    -t, --threads <int>\n"
       "      default: 1\n"
       "      number of threads\n"
@@ -126,6 +129,7 @@ int main(int argc, char** argv) {
   std::int8_t g = -4;
 
   std::string gfa_path = "";
+  std::string remove_path = "";
   bool resume = false;
 
   std::uint32_t num_threads = 1;
@@ -166,6 +170,7 @@ int main(int argc, char** argv) {
         break;
 #endif
       case 'f': gfa_path = optarg; break;
+      case 'R': remove_path = optarg; break;
       case 'r': resume = true; break;
       case 't': num_threads = atoi(optarg); break;
       case 'v': std::cout << raven_version << std::endl; return 0;
@@ -233,6 +238,7 @@ int main(int argc, char** argv) {
 
   graph.Construct(sequences);
   graph.Assemble();
+  graph.RemoveMarked(remove_path);
   graph.Polish(sequences, m, n, g, cuda_poa_batches, cuda_banded_alignment,
       cuda_alignment_batches, num_polishing_rounds);
   graph.PrintGFA(gfa_path);

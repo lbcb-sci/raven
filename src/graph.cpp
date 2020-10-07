@@ -57,7 +57,7 @@ Graph::Node::Node(Node* begin, Node* end)
     count += end->count;
   }
 
-  name = (is_unitig() ? "Utg" : "Ctg") + std::to_string(id);
+  name = (is_unitig() ? "Utg" : "Ctg") + std::to_string(id & (~1UL));
 }
 
 Graph::Edge::Edge(Node* tail, Node* head, std::uint32_t length)
@@ -950,6 +950,7 @@ void Graph::Assemble() {
       }
     }
     PrintJSON("leftovers.json");
+    PrintGFA("graph.gfa");
 
     std::ofstream os("neighbors.json");
     cereal::JSONOutputArchive archive(os);
@@ -990,6 +991,68 @@ void Graph::Assemble() {
 
   timer.Stop();
   std::cerr << "[raven::Graph::Assemble] "
+            << std::fixed << timer.elapsed_time() << "s"
+            << std::endl;
+}
+
+void Graph::RemoveMarked(const std::string& path) {
+  if (path.empty()) {
+    return;
+  }
+
+  biosoup::Timer timer{};
+  timer.Start();
+
+  std::ifstream is(path);
+  if (is.is_open()) {
+    std::unordered_set<std::uint32_t> indices;
+
+    std::string tail, head;
+    while (is >> tail >> head) {
+      for (const auto& it : nodes_) {
+        if (!it) {
+          continue;
+        }
+        if (it->name == tail) {
+          if (tail == head) {
+            for (const auto& jt : it->inedges) {
+              indices.emplace(jt->id);
+              indices.emplace(jt->pair->id);
+            }
+            for (const auto& jt : it->outedges) {
+              indices.emplace(jt->id);
+              indices.emplace(jt->pair->id);
+            }
+          } else {
+            for (const auto& jt : it->outedges) {
+              if (jt->head->name == head) {
+                indices.emplace(jt->id);
+                indices.emplace(jt->pair->id);
+                break;
+              }
+            }
+            for (const auto& jt : it->inedges) {
+              if (jt->tail->name == head) {
+                indices.emplace(jt->id);
+                indices.emplace(jt->pair->id);
+                break;
+              }
+            }
+          }
+          break;
+        }
+      }
+    }
+    is.close();
+
+    RemoveEdges(indices, true);
+    PrintGFA("updated_graph.gfa");
+
+    Store();
+  }
+
+  timer.Stop();
+  std::cerr << "[raven::Graph::RemoveMarked] "
             << std::fixed << timer.elapsed_time() << "s"
             << std::endl;
 }
@@ -1154,7 +1217,7 @@ std::uint32_t Graph::RemoveBubbles() {
         }
       }
       sequence->data += path.back()->data;
-      return std::move(sequence);
+      return sequence;
     };
 
     auto ls = path_sequence(lhs);
@@ -1635,7 +1698,6 @@ void Graph::Polish(
     bool cuda_banded_alignment,
     std::uint32_t cuda_alignment_batches,
     std::uint32_t num_rounds) {
-
   if (sequences.empty() || num_rounds == 0) {
     return;
   }
@@ -1686,6 +1748,7 @@ void Graph::Polish(
           node->data = it->data;
           it->ReverseAndComplement();
           node->pair->data = it->data;
+          it->ReverseAndComplement();
         }
       }
     }
@@ -2059,7 +2122,7 @@ void Graph::PrintGFA(const std::string& path) const {
     }
   }
   for (const auto& it : edges_) {
-    if (it == nullptr) {
+    if (it == nullptr || it->is_rc()) {
       continue;
     }
     os << "L\t" << it->tail->name << "\t" << (it->tail->is_rc() ? '-' : '+')

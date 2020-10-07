@@ -48,6 +48,8 @@ class Graph {
   // simplify with transitive reduction, tip prunning and bubble popping
   void Assemble();
 
+  void RemoveMarked(const std::string& path);
+
   // Racon wrapper
   void Polish(
       const std::vector<std::unique_ptr<biosoup::Sequence>>& sequences,
