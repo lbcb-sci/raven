@@ -16,6 +16,8 @@
 #include "cereal/archives/json.hpp"
 #include "racon/polisher.hpp"
 
+#include "edlib.h"  // NOLINT
+
 namespace raven {
 
 Graph::Node::Node(const biosoup::Sequence& sequence)
@@ -73,6 +75,7 @@ std::atomic<std::uint32_t> Graph::Node::num_objects{0};
 std::atomic<std::uint32_t> Graph::Edge::num_objects{0};
 
 Graph::Graph(
+    bool filter,
     bool split,
     bool weaken,
     bool checkpoints,
@@ -84,11 +87,14 @@ Graph::Graph(
       stage_(-5),
       checkpoints_(checkpoints),
       split_(split),
+      filter_(filter),
       piles_(),
       nodes_(),
       edges_() {}
 
-void Graph::Construct(std::vector<std::unique_ptr<biosoup::Sequence>>& sequences) {  // NOLINT
+void Graph::Construct(
+    std::vector<std::unique_ptr<biosoup::Sequence>>& sequences,  // NOLINT
+    std::vector<std::unique_ptr<biosoup::Sequence>>& contained) {  // NOLINT
   if (sequences.empty() || stage_ > -4) {
     return;
   }
@@ -550,6 +556,18 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::Sequence>>& sequences
     return;
   }
 
+  if (contained.size()) {
+    for (std::uint32_t i = 0, j = 0; i < sequences.size(); ++i) {
+      if (piles_[i]->is_invalid()) {
+        continue;
+      }
+      contained[j]->id = sequences[i]->id;
+      sequences[i].swap(contained[j]);
+      piles_[i]->Correct(sequences[i]->data.size());
+      ++j;
+    }
+  }
+
   if (stage_ == -4) {  // clear piles for sensitive overlaps
     timer.Start();
 
@@ -840,6 +858,42 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::Sequence>>& sequences
     timer.Start();
   }
 
+  if (filter_) {
+    std::vector<bool> is_valid;
+    std::vector<std::future<bool>> futures;
+    for (const auto& it : overlaps.back()) {
+      futures.emplace_back(thread_pool_->Submit(
+        [&] (decltype(it) jt) -> bool {
+          biosoup::Sequence lhs("lhs", sequences[jt.lhs_id]->data.substr(
+              jt.lhs_begin, jt.lhs_end - jt.lhs_begin));
+          biosoup::Sequence rhs("rhs", sequences[jt.rhs_id]->data.substr(
+              jt.rhs_begin, jt.rhs_end - jt.rhs_begin));
+          if (!jt.strand) {
+            rhs.ReverseAndComplement();
+          }
+          EdlibAlignResult result = edlibAlign(
+              lhs.data.c_str(), lhs.data.size(),
+              rhs.data.c_str(), rhs.data.size(),
+              edlibDefaultAlignConfig());
+          double score = 1 - result.editDistance /
+              static_cast<double>(overlap_length(jt));
+          edlibFreeAlignResult(result);
+          return score > 0.99;
+        },
+        it));
+    }
+    std::uint32_t j = 0;
+    for (std::uint32_t i = 0; i < futures.size(); ++i) {
+      if (futures[i].get()) {
+        overlaps.back()[j++] = overlaps.back()[i];
+      }
+    }
+    std::cerr << "Filtered " << overlaps.back().size() - j << " overlaps"
+              << std::endl;
+    overlaps.back().resize(j);
+  }
+
+
   if (stage_ == -4) {  // construct assembly graph
     Node::num_objects = 0;
     Edge::num_objects = 0;
@@ -971,6 +1025,8 @@ void Graph::Assemble() {
                 << std::endl;
     }
   }
+
+  PrintGfa("graph.gfa");
 
   if (stage_ == -1) {  // remove long edges
     timer.Start();

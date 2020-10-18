@@ -19,6 +19,8 @@ const char* raven_version = RAVEN_VERSION;
 static struct option options[] = {
   {"weaken", no_argument, nullptr, 'w'},
   {"split", no_argument, nullptr, 's'},
+  {"filter", no_argument, nullptr, 'f'},
+  {"resume-with", required_argument, nullptr, 'R'},
   {"polishing-rounds", required_argument, nullptr, 'p'},
   {"match", required_argument, nullptr, 'm'},
   {"mismatch", required_argument, nullptr, 'n'},
@@ -28,7 +30,7 @@ static struct option options[] = {
   {"cuda-banded-alignment", no_argument, nullptr, 'b'},
   {"cuda-alignment-batches", required_argument, nullptr, 'a'},
 #endif
-  {"graphical-fragment-assembly", required_argument, nullptr, 'f'},
+  {"graphical-fragment-assembly", required_argument, nullptr, 'F'},
   {"resume", no_argument, nullptr, 'r'},
   {"disable-checkpoints", no_argument, nullptr, 'd'},
   {"threads", required_argument, nullptr, 't'},
@@ -81,6 +83,10 @@ void Help() {
       "  options:\n"
       "    --split\n"
       "      store contained and uncontained sequences separately, and abort\n"
+      "    --filter\n"
+      "      drop low identity overlaps before assembly graph construction\n"
+      "    --resume-with <path>\n"
+      "      file containing highly accurate sequences obtained with split\n"
       "    --weaken\n"
       "      use larger (k, w) when assembling highly accurate sequences\n"
       "    -p, --polishing-rounds <int>\n"
@@ -126,6 +132,8 @@ void Help() {
 int main(int argc, char** argv) {
   bool weaken = false;
   bool split = false;
+  bool filter = false;
+  std::string contained_path = "";
 
   std::int32_t num_polishing_rounds = 2;
   std::int8_t m = 3;
@@ -151,6 +159,8 @@ int main(int argc, char** argv) {
     switch (arg) {
       case 'w': weaken = true; break;
       case 's': split = true; break;
+      case 'f': filter = true; break;
+      case 'R': contained_path = optarg; break;
       case 'p': num_polishing_rounds = atoi(optarg); break;
       case 'm': m = atoi(optarg); break;
       case 'n': n = atoi(optarg); break;
@@ -174,7 +184,7 @@ int main(int argc, char** argv) {
         cuda_alignment_batches = atoi(optarg);
         break;
 #endif
-      case 'f': gfa_path = optarg; break;
+      case 'F': gfa_path = optarg; break;
       case 'r': resume = true; break;
       case 'd': checkpoints = false; break;
       case 't': num_threads = atoi(optarg); break;
@@ -204,7 +214,7 @@ int main(int argc, char** argv) {
 
   auto thread_pool = std::make_shared<thread_pool::ThreadPool>(num_threads);
 
-  raven::Graph graph{split, weaken, checkpoints, thread_pool};
+  raven::Graph graph{filter, split, weaken, checkpoints, thread_pool};
   if (resume) {
     try {
       graph.Load();
@@ -241,7 +251,17 @@ int main(int argc, char** argv) {
     timer.Start();
   }
 
-  graph.Construct(sequences);
+  std::vector<std::unique_ptr<biosoup::Sequence>> contained;
+  if (contained_path.size()) {
+    auto cparser = CreateParser(contained_path);
+    if (cparser == nullptr) {
+      return 1;
+    }
+    contained = cparser->Parse(-1);
+    biosoup::Sequence::num_objects = 0;
+  }
+
+  graph.Construct(sequences, contained);
   graph.Assemble();
   graph.Polish(sequences, m, n, g, cuda_poa_batches, cuda_banded_alignment,
       cuda_alignment_batches, num_polishing_rounds);

@@ -29,6 +29,12 @@ class Pile {
 
   ~Pile() = default;
 
+  void Correct(std::uint32_t l) {
+    data_.resize(l >> kPSS, 0);
+    begin_ = 0;
+    end_ = data_.size();
+  }
+
   std::uint32_t id() const {
     return id_;
   }
