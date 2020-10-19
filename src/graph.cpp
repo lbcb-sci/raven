@@ -540,6 +540,12 @@ void Graph::Construct(
       std::ofstream os(is_fasta ? "uncontained.fasta" : "uncontained.fastq");
       for (const auto& it : piles_) {
         if (!it->is_invalid()) {
+          if (it->is_chimeric()) {
+            sequences[it->id()]->data = sequences[it->id()]->data.substr(it->begin(), it->length());  // NOLINT
+            if (sequences[it->id()]->quality.size()) {
+              sequences[it->id()]->quality = sequences[it->id()]->quality.substr(it->begin(), it->length());  // NOLINT
+            }
+          }
           if (is_fasta) {
             os << ">" << sequences[it->id()]->name << std::endl
                << sequences[it->id()]->data << std::endl;
