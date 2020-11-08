@@ -16,6 +16,8 @@
 #include "cereal/archives/json.hpp"
 #include "racon/polisher.hpp"
 
+#include "edlib.h"  // NOLINT
+
 namespace raven {
 
 Graph::Node::Node(const biosoup::Sequence& sequence)
@@ -2070,6 +2072,14 @@ void Graph::PrintCSV(const std::string& path) const {
     if (it == nullptr) {
       continue;
     }
+    biosoup::Sequence lhs("lhs", it->tail->data.substr(it->length));
+    biosoup::Sequence rhs("rhs", it->head->data.substr(0, lhs.data.size()));
+    EdlibAlignResult result = edlibAlign(
+        lhs.data.c_str(), lhs.data.size(),
+        rhs.data.c_str(), rhs.data.size(),
+        edlibDefaultAlignConfig());
+    double score = 1 - result.editDistance / static_cast<double>(lhs.data.size());  // NOLINT
+
     os << it->tail->id << " [" << it->tail->id / 2 << "]"
        << " LN:i:" << it->tail->data.size()
        << " RC:i:" << it->tail->count
@@ -2078,7 +2088,7 @@ void Graph::PrintCSV(const std::string& path) const {
        << " LN:i:" << it->head->data.size()
        << " RC:i:" << it->head->count
        << ",1,"
-       << it->id << " " << it->length << " " << it->weight
+       << it->id << " " << it->length << " " << it->weight << " " << score
        << std::endl;
   }
   for (const auto& it : nodes_) {  // circular edges TODO(rvaser): check

@@ -242,6 +242,7 @@ int main(int argc, char** argv) {
   graph.Polish(sequences, m, n, g, cuda_poa_batches, cuda_banded_alignment,
       cuda_alignment_batches, num_polishing_rounds);
   graph.PrintGFA(gfa_path);
+  graph.PrintCSV("graph.csv");
 
   for (const auto& it : graph.GetUnitigs(num_polishing_rounds > 0)) {
     std::cout << ">" << it->name << std::endl;
