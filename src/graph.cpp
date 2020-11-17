@@ -80,7 +80,7 @@ Graph::Graph(
           thread_pool :
           std::make_shared<thread_pool::ThreadPool>(1)),
       minimizer_engine_(weaken ? 29 : 15, weaken ? 9 : 5, thread_pool_),
-      stage_(-5),
+      stage_(-6),
       checkpoints_(checkpoints),
       piles_(),
       nodes_(),
@@ -264,13 +264,13 @@ void Graph::Construct(
   };
   // biosoup::Overlap helper functions
 
-  if (stage_ == -5 && checkpoints_) {  // checkpoint test
+  if (stage_ == -6 && checkpoints_) {  // checkpoint test
     Store();
   }
 
   biosoup::Timer timer{};
 
-  if (stage_ == -5) {  // find overlaps and create piles
+  if (stage_ == -6) {  // find overlaps and create piles
     for (const auto& it : sequences) {
       piles_.emplace_back(new Pile(it->id, it->data.size()));
     }
@@ -371,7 +371,7 @@ void Graph::Construct(
     }
   }
 
-  if (stage_ == -5) {  // trim and annotate piles
+  if (stage_ == -6) {  // trim and annotate piles
     timer.Start();
 
     std::vector<std::future<void>> thread_futures;
@@ -398,7 +398,7 @@ void Graph::Construct(
               << std::endl;
   }
 
-  if (stage_ == -5) {  // resolve contained reads
+  if (stage_ == -6) {  // resolve contained reads
     timer.Start();
 
     for (std::uint32_t i = 0; i < overlaps.size(); ++i) {
@@ -432,12 +432,23 @@ void Graph::Construct(
               << std::endl;
   }
 
-  if (split) {  // output valid pile-o-grams
+  if (stage_ == -6) {  // checkpoint
+    ++stage_;
+    if (checkpoints_) {
+      timer.Start();
+      Store();
+      std::cerr << "[raven::Graph::Construct] reached checkpoint "
+                << std::fixed << timer.Stop() << "s"
+                << std::endl;
+    }
+  }
+
+  if (stage_ == -5 && split) {  // output valid pile-o-grams
     PrintJson("uncontained.json");
     exit(1);
   }
 
-  if (!notations_path.empty()) {
+  if (stage_ == -5 && !notations_path.empty()) {
     std::unordered_set<std::size_t> chimeric;
     {
       std::ifstream is(notations_path);
