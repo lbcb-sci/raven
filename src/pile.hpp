@@ -105,6 +105,10 @@ class Pile {
   // store coverage drops
   void FindChimericRegions();
 
+  void RemoveChimericNotations() {
+    chimeric_regions_.clear();
+  }
+
   // update valid region to longest non-chimeric given the component median
   void ClearChimericRegions(std::uint32_t median);
 

@@ -86,7 +86,10 @@ Graph::Graph(
       nodes_(),
       edges_() {}
 
-void Graph::Construct(std::vector<std::unique_ptr<biosoup::Sequence>>& sequences) {  // NOLINT
+void Graph::Construct(
+    std::vector<std::unique_ptr<biosoup::Sequence>>& sequences,  // NOLINT
+    bool split,
+    std::string notations_path) {
   if (sequences.empty() || stage_ > -4) {
     return;
   }
@@ -429,7 +432,33 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::Sequence>>& sequences
               << std::endl;
   }
 
-  if (stage_ == -5) {  // resolve chimeric sequences
+  if (split) {  // output valid pile-o-grams
+    PrintJson("uncontained.json");
+    exit(1);
+  }
+
+  if (!notations_path.empty()) {
+    std::unordered_set<std::size_t> chimeric;
+    {
+      std::ifstream is(notations_path);
+      std::size_t in;
+      while (is >> in) chimeric.emplace(in);
+      is.close();
+    }
+    for (auto& it : piles_) {
+      if (it->is_invalid()) {
+        continue;
+      }
+      if (chimeric.find(it->id()) != chimeric.end()) {
+        it->set_is_invalid();
+      } else {
+        it->RemoveChimericNotations();
+      }
+    }
+    std::cerr << "[raven::Graph::Construct] manually removed chimeric sequences "  // NOLINT
+              << std::fixed << timer.Stop() << "s"
+              << std::endl;
+  } else if (stage_ == -5) {  // resolve chimeric sequences
     timer.Start();
 
     while (true) {
