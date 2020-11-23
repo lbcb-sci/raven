@@ -533,6 +533,17 @@ void Graph::Construct(
       }
     }
 
+    {
+      std::ofstream os("chimeric.txt");
+      for (const auto& it : piles_) {
+        if (it->is_chimeric()) {
+          os << it->id() << " ";
+        }
+      }
+      os << std::endl;
+      os.close();
+    }
+
     std::cerr << "[raven::Graph::Construct] removed chimeric sequences "
               << std::fixed << timer.Stop() << "s"
               << std::endl;
