@@ -1109,7 +1109,7 @@ std::uint32_t Graph::RemoveBubbles() {
       const std::vector<Node*>& lhs,
       const std::vector<Node*>& rhs) -> std::unordered_set<std::uint32_t> {
     if (lhs.empty() || rhs.empty()) {
-      return {};
+      return std::unordered_set<std::uint32_t>{};
     }
 
     // check BFS result
@@ -1117,18 +1117,18 @@ std::uint32_t Graph::RemoveBubbles() {
     bubble.insert(lhs.begin(), lhs.end());
     bubble.insert(rhs.begin(), rhs.end());
     if (lhs.size() + rhs.size() - 2 != bubble.size()) {
-      return {};
+      return std::unordered_set<std::uint32_t>{};
     }
     for (const auto& it : lhs) {
       if (bubble.count(it->pair) != 0) {
-        return {};
+        return std::unordered_set<std::uint32_t>{};
       }
     }
 
     if (!path_is_simple(lhs) || !path_is_simple(rhs)) {  // complex path(s)
       // check poppability
       if (FindRemovableEdges(lhs).empty() && FindRemovableEdges(rhs).empty()) {
-        return {};
+        return std::unordered_set<std::uint32_t>{};
       }
 
       // check similarity
@@ -1136,7 +1136,7 @@ std::uint32_t Graph::RemoveBubbles() {
       auto r = path_sequence(rhs);
       if (std::min(l->data.size(), r->data.size()) <
           std::max(l->data.size(), r->data.size()) * 0.8) {
-        return {};
+        return std::unordered_set<std::uint32_t>{};
       }
 
       auto overlaps = minimizer_engine_.Map(l, r);
@@ -1145,7 +1145,7 @@ std::uint32_t Graph::RemoveBubbles() {
         matches = std::max(matches, it.score);
       }
       if (matches <= 0.5 * std::min(l->data.size(), r->data.size())) {
-        return {};
+        return std::unordered_set<std::uint32_t>{};
       }
     }
 
