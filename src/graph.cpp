@@ -1080,7 +1080,7 @@ std::uint32_t Graph::RemoveBubbles() {
     std::reverse(dst.begin(), dst.end());
     return dst;
   };
-  auto path_type = [] (const std::vector<Node*>& path) -> bool {
+  auto path_is_simple = [] (const std::vector<Node*>& path) -> bool {
     if (path.empty()) {
       return false;
     }
@@ -1091,62 +1091,77 @@ std::uint32_t Graph::RemoveBubbles() {
     }
     return true;  // without branches
   };
-  auto bubble_type = [&] (
-      const std::vector<Node*>& lhs,
-      const std::vector<Node*>& rhs) -> bool {
-    if (lhs.empty() || rhs.empty()) {
-      return false;
-    }
-    std::unordered_set<Node*> intersection;
-    for (auto it : lhs) {
-      intersection.emplace(it);
-    }
-    for (auto it : rhs) {
-      intersection.emplace(it);
-    }
-    if (lhs.size() + rhs.size() - 2 != intersection.size()) {
-      return false;
-    }
-    for (auto it : lhs) {
-      if (intersection.count(it->pair) != 0) {
-        return false;
-      }
-    }
-    if (path_type(lhs) && path_type(rhs)) {  // both without branches
-      return true;
-    }
-
-    auto path_sequence = [] (const std::vector<Node*>& path) ->
-        std::unique_ptr<biosoup::Sequence> {
-      auto sequence =
-          std::unique_ptr<biosoup::Sequence>(new biosoup::Sequence());
-      for (std::uint32_t i = 0; i < path.size() - 1; ++i) {
-        for (auto it : path[i]->outedges) {
-          if (it->head == path[i + 1]) {
-            sequence->data += it->Label();
-            break;
-          }
+  auto path_sequence = [] (const std::vector<Node*>& path) ->
+      std::unique_ptr<biosoup::Sequence> {
+    auto sequence = std::unique_ptr<biosoup::Sequence>(new biosoup::Sequence());
+    for (std::uint32_t i = 0; i < path.size() - 1; ++i) {
+      for (auto it : path[i]->outedges) {
+        if (it->head == path[i + 1]) {
+          sequence->data += it->Label();
+          break;
         }
       }
-      sequence->data += path.back()->data;
-      return sequence;
-    };
-
-    auto ls = path_sequence(lhs);
-    auto rs = path_sequence(rhs);
-
-    if (std::min(ls->data.size(), rs->data.size()) <
-        std::max(ls->data.size(), rs->data.size()) * 0.8) {
-      return false;
+    }
+    sequence->data += path.back()->data;
+    return sequence;
+  };
+  auto bubble_pop = [&] (
+      const std::vector<Node*>& lhs,
+      const std::vector<Node*>& rhs) -> std::unordered_set<std::uint32_t> {
+    if (lhs.empty() || rhs.empty()) {
+      return {};
     }
 
-    auto overlaps = minimizer_engine_.Map(ls, rs);
-
-    std::uint32_t matches = 0;
-    for (const auto& it : overlaps) {
-      matches = std::max(matches, it.score);
+    // check BFS result
+    std::unordered_set<Node*> bubble;
+    bubble.insert(lhs.begin(), lhs.end());
+    bubble.insert(rhs.begin(), rhs.end());
+    if (lhs.size() + rhs.size() - 2 != bubble.size()) {
+      return {};
     }
-    return matches > 0.5 * std::min(ls->data.size(), rs->data.size());
+    for (const auto& it : lhs) {
+      if (bubble.count(it->pair) != 0) {
+        return {};
+      }
+    }
+
+    if (!path_is_simple(lhs) || !path_is_simple(rhs)) {  // complex path(s)
+      // check poppability
+      if (FindRemovableEdges(lhs).empty() && FindRemovableEdges(rhs).empty()) {
+        return {};
+      }
+
+      // check similarity
+      auto l = path_sequence(lhs);
+      auto r = path_sequence(rhs);
+      if (std::min(l->data.size(), r->data.size()) <
+          std::max(l->data.size(), r->data.size()) * 0.8) {
+        return {};
+      }
+
+      auto overlaps = minimizer_engine_.Map(l, r);
+      std::uint32_t matches = 0;
+      for (const auto& it : overlaps) {
+        matches = std::max(matches, it.score);
+      }
+      if (matches <= 0.5 * std::min(l->data.size(), r->data.size())) {
+        return {};
+      }
+    }
+
+    std::uint32_t lhs_count = 0;
+    for (auto jt : lhs) {
+      lhs_count += jt->count;
+    }
+    std::uint32_t rhs_count = 0;
+    for (auto jt : rhs) {
+      rhs_count += jt->count;
+    }
+    auto marked_edges = FindRemovableEdges(lhs_count > rhs_count ? rhs : lhs);
+    if (marked_edges.empty()) {
+      marked_edges = FindRemovableEdges(lhs_count > rhs_count ? lhs : rhs);
+    }
+    return marked_edges;
   };
   // path helper functions
 
@@ -1186,26 +1201,13 @@ std::uint32_t Graph::RemoveBubbles() {
         predecessor[kt->head->id] = jt;
       }
     }
+
     std::unordered_set<std::uint32_t> marked_edges;
     if (end) {
       auto lhs = path_extract(begin, end);
       auto rhs = path_extract(begin, other_end);
       rhs.emplace_back(end);
-
-      if (bubble_type(lhs, rhs)) {
-        std::uint32_t lhs_count = 0;
-        for (auto jt : lhs) {
-          lhs_count += jt->count;
-        }
-        std::uint32_t rhs_count = 0;
-        for (auto jt : rhs) {
-          rhs_count += jt->count;
-        }
-        marked_edges = FindRemovableEdges(lhs_count > rhs_count ? rhs : lhs);
-        if (marked_edges.empty()) {
-          marked_edges = FindRemovableEdges(lhs_count > rhs_count ? lhs : rhs);
-        }
-      }
+      marked_edges = bubble_pop(lhs, rhs);
     }
 
     for (auto jt : visited) {
