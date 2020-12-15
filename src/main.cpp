@@ -10,7 +10,7 @@
 
 #include "graph.hpp"
 
-std::atomic<std::uint32_t> biosoup::Sequence::num_objects{0};
+std::atomic<std::uint32_t> biosoup::NucleicAcid::num_objects{0};
 
 namespace {
 
@@ -36,7 +36,7 @@ static struct option options[] = {
   {nullptr, 0, nullptr, 0}
 };
 
-std::unique_ptr<bioparser::Parser<biosoup::Sequence>> CreateParser(
+std::unique_ptr<bioparser::Parser<biosoup::NucleicAcid>> CreateParser(
     const std::string& path) {
   auto is_suffix = [] (const std::string& s, const std::string& suff) {
     return s.size() < suff.size() ? false :
@@ -46,7 +46,7 @@ std::unique_ptr<bioparser::Parser<biosoup::Sequence>> CreateParser(
   if (is_suffix(path, ".fasta")    || is_suffix(path, ".fa") ||
       is_suffix(path, ".fasta.gz") || is_suffix(path, ".fa.gz")) {
     try {
-      return bioparser::Parser<biosoup::Sequence>::Create<bioparser::FastaParser>(path);  // NOLINT
+      return bioparser::Parser<biosoup::NucleicAcid>::Create<bioparser::FastaParser>(path);  // NOLINT
     } catch (const std::invalid_argument& exception) {
       std::cerr << exception.what() << std::endl;
       return nullptr;
@@ -55,7 +55,7 @@ std::unique_ptr<bioparser::Parser<biosoup::Sequence>> CreateParser(
   if (is_suffix(path, ".fastq")    || is_suffix(path, ".fq") ||
       is_suffix(path, ".fastq.gz") || is_suffix(path, ".fq.gz")) {
     try {
-      return bioparser::Parser<biosoup::Sequence>::Create<bioparser::FastqParser>(path);  // NOLINT
+      return bioparser::Parser<biosoup::NucleicAcid>::Create<bioparser::FastqParser>(path);  // NOLINT
     } catch (const std::invalid_argument& exception) {
       std::cerr << exception.what() << std::endl;
       return nullptr;
@@ -215,7 +215,7 @@ int main(int argc, char** argv) {
     timer.Start();
   }
 
-  std::vector<std::unique_ptr<biosoup::Sequence>> sequences;
+  std::vector<std::unique_ptr<biosoup::NucleicAcid>> sequences;
   if (graph.stage() < -3 || num_polishing_rounds > std::max(0, graph.stage())) {
     try {
       sequences = sparser->Parse(-1);
@@ -244,7 +244,7 @@ int main(int argc, char** argv) {
 
   for (const auto& it : graph.GetUnitigs(num_polishing_rounds > 0)) {
     std::cout << ">" << it->name << std::endl;
-    std::cout << it->data << std::endl;
+    std::cout << it->Inflate() << std::endl;
   }
 
   timer.Stop();

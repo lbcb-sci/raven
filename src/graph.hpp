@@ -12,7 +12,7 @@
 
 #include <iostream>
 
-#include "biosoup/sequence.hpp"
+#include "biosoup/nucleic_acid.hpp"
 #include "cereal/access.hpp"
 #include "cereal/types/memory.hpp"
 #include "cereal/types/string.hpp"
@@ -22,6 +22,19 @@
 #include "thread_pool/thread_pool.hpp"
 
 #include "pile.hpp"
+
+namespace biosoup {
+
+template<class Archive>
+void serialize(Archive& archive, NucleicAcid& sequence) {  // NOLINT
+  archive(
+      sequence.id,
+      sequence.name,
+      sequence.deflated_data,
+      sequence.inflated_len);
+}
+
+}  // namespace biosoup
 
 namespace raven {
 
@@ -46,14 +59,14 @@ class Graph {
 
   // break chimeric sequences, remove contained sequences and overlaps not
   // spanning bridged repeats at sequence ends
-  void Construct(std::vector<std::unique_ptr<biosoup::Sequence>>& sequences);  // NOLINT
+  void Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences);  // NOLINT
 
   // simplify with transitive reduction, tip prunning and bubble popping
   void Assemble();
 
   // Racon wrapper
   void Polish(
-      const std::vector<std::unique_ptr<biosoup::Sequence>>& sequences,
+      const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
       std::uint8_t match,
       std::uint8_t mismatch,
       std::uint8_t gap,
@@ -65,7 +78,7 @@ class Graph {
   // ignore nodes that are less than epsilon away from any junction node
   std::uint32_t CreateUnitigs(std::uint32_t epsilon = 0);
 
-  std::vector<std::unique_ptr<biosoup::Sequence>> GetUnitigs(
+  std::vector<std::unique_ptr<biosoup::NucleicAcid>> GetUnitigs(
       bool drop_unpolished = false);
 
   // draw with misc/plotter.py
@@ -152,7 +165,7 @@ class Graph {
    public:
     Node() = default;  // needed for cereal
 
-    explicit Node(const biosoup::Sequence& sequence);
+    explicit Node(const biosoup::NucleicAcid& sequence);
     Node(Node* begin, Node* end);
 
     Node(const Node&) = delete;
@@ -180,19 +193,18 @@ class Graph {
       return outdegree() > 0 && indegree() == 0 && count < 6;
     }
     bool is_unitig() const {
-      return count > 5 && data.size() > 9999;
+      return count > 5 && sequence->inflated_len > 9999;
     }
 
     template<class Archive>
     void serialize(Archive& archive) {  // NOLINT
-      archive(id, name, data, count, is_circular, is_polished, transitive);
+      archive(id, sequence, count, is_circular, is_polished, transitive);
     }
 
     static std::atomic<std::uint32_t> num_objects;
 
     std::uint32_t id;
-    std::string name;
-    std::string data;
+    std::unique_ptr<biosoup::NucleicAcid> sequence;
     std::uint32_t count;
     bool is_circular;
     bool is_polished;
@@ -217,7 +229,8 @@ class Graph {
     }
 
     std::string Label() const {
-      return tail->data.substr(0, length);
+      // return tail->data.substr(0, length);
+      return tail->sequence->Inflate(0, length);
     }
 
     template<class Archive>

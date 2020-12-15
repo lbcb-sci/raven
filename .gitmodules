@@ -1,6 +1,3 @@
 [submodule "vendor/racon"]
 	path = vendor/racon
 	url = https://github.com/lbcb-sci/racon
-[submodule "vendor/cereal"]
-	path = vendor/cereal
-	url = https://github.com/USCiLab/cereal

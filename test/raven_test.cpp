@@ -7,7 +7,7 @@
 
 #include "graph.hpp"
 
-std::atomic<std::uint32_t> biosoup::Sequence::num_objects{0};
+std::atomic<std::uint32_t> biosoup::NucleicAcid::num_objects{0};
 
 namespace raven {
 namespace test {
@@ -15,13 +15,13 @@ namespace test {
 class RavenTest: public ::testing::Test {
  public:
   void SetUp() {
-    biosoup::Sequence::num_objects = 0;
-    auto p = bioparser::Parser<biosoup::Sequence>::Create<bioparser::FastqParser>(  // NOLINT
+    biosoup::NucleicAcid::num_objects = 0;
+    auto p = bioparser::Parser<biosoup::NucleicAcid>::Create<bioparser::FastqParser>(  // NOLINT
         RAVEN_DATA_PATH + std::string("ERA476754.fastq.gz"));
     s = p->Parse(-1);
 
-    biosoup::Sequence::num_objects = 0;
-    p = bioparser::Parser<biosoup::Sequence>::Create<bioparser::FastaParser>(  // NOLINT
+    biosoup::NucleicAcid::num_objects = 0;
+    p = bioparser::Parser<biosoup::NucleicAcid>::Create<bioparser::FastaParser>(  // NOLINT
         RAVEN_DATA_PATH + std::string("NC_001416.fasta.gz"));
     r = std::move(p->Parse(-1).front());
   }
@@ -38,8 +38,8 @@ class RavenTest: public ::testing::Test {
     return ed;
   }
 
-  std::vector<std::unique_ptr<biosoup::Sequence>> s;
-  std::unique_ptr<biosoup::Sequence> r;
+  std::vector<std::unique_ptr<biosoup::NucleicAcid>> s;
+  std::unique_ptr<biosoup::NucleicAcid> r;
 };
 
 TEST_F(RavenTest, Assemble) {
@@ -49,7 +49,7 @@ TEST_F(RavenTest, Assemble) {
   g.Polish(s, 3, -5, -4, 0, false, 0, 2);
   auto u = std::move(g.GetUnitigs(true).front());
   u->ReverseAndComplement();
-  EXPECT_EQ(1128, EditDistance(u->data, r->data));
+  EXPECT_EQ(1312, EditDistance(u->Inflate(), r->Inflate()));
 }
 
 TEST_F(RavenTest, Checkpoints) {
@@ -76,7 +76,7 @@ TEST_F(RavenTest, Checkpoints) {
   g.Load();
   g.Polish(s, 2, -5, -2, 0, false, 0, 2);
 
-  EXPECT_EQ(u->data, g.GetUnitigs(true).front()->data);
+  EXPECT_EQ(u->deflated_data, g.GetUnitigs(true).front()->deflated_data);
 }
 
 }  // namespace test

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.9)
 
-project(raven VERSION 1.2.3
+project(raven VERSION 1.3.0
               LANGUAGES CXX
               DESCRIPTION "Raven is a de novo genome assembler for long uncorrected reads.")
 
@@ -20,7 +20,7 @@ if (NOT TARGET racon)
   add_subdirectory(vendor/racon EXCLUDE_FROM_ALL)
 endif ()
 if (NOT TARGET cereal)
-  add_subdirectory(vendor/cereal EXCLUDE_FROM_ALL)
+  add_subdirectory(vendor/racon/vendor/spoa/vendor/cereal EXCLUDE_FROM_ALL)
 endif ()
 
 add_executable(${PROJECT_NAME}

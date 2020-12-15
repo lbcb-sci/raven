@@ -4,8 +4,15 @@
 
 #include <algorithm>
 #include <deque>
+#include <limits>
 
 namespace raven {
+
+template<typename T>
+std::uint64_t clamp(T v) {
+  return (v < std::numeric_limits<std::uint16_t>::max()) ?
+          v : std::numeric_limits<std::uint16_t>::max();
+}
 
 Pile::Pile(std::uint32_t id, std::uint32_t len)
     : id_(id),
@@ -44,7 +51,7 @@ void Pile::AddLayers(
   for (const auto& it : boundaries) {
     if (coverage > 0) {
       for (std::uint32_t i = last_boundary; i < (it >> 1); ++i) {
-        data_[i] += coverage;
+        data_[i] = clamp(data_[i] + coverage);
       }
     }
     last_boundary = it >> 1;
@@ -52,7 +59,7 @@ void Pile::AddLayers(
   }
 }
 
-void Pile::FindValidRegion(std::uint32_t coverage) {
+void Pile::FindValidRegion(std::uint16_t coverage) {
   std::uint32_t begin = 0;
   std::uint32_t end = 0;
   for (std::uint32_t i = begin_; i < end_; ++i) {
@@ -99,7 +106,7 @@ void Pile::ClearInvalidRegion() {
 }
 
 void Pile::FindMedian() {
-  std::vector<std::uint32_t> tmp(data_.begin() + begin_, data_.begin() + end_);
+  std::vector<std::uint16_t> tmp(data_.begin() + begin_, data_.begin() + end_);
   std::nth_element(tmp.begin(), tmp.begin() + tmp.size() / 2, tmp.end());
   median_ = tmp[tmp.size() / 2];
 }
@@ -118,10 +125,10 @@ void Pile::FindChimericRegions() {
   chimeric_regions_ = MergeRegions(chimeric_regions_);
 }
 
-void Pile::ClearChimericRegions(std::uint32_t median) {
+void Pile::ClearChimericRegions(std::uint16_t median) {
   auto is_chimeric_region = [&] (const Region& r) -> bool {
     for (std::uint32_t i = r.first; i <= r.second; ++i) {
-      if (data_[i] * 1.82 <= median) {
+      if (clamp(data_[i] * 1.82) <= median) {
         return true;
       }
     }
@@ -159,7 +166,7 @@ void Pile::ClearChimericRegions(std::uint32_t median) {
   UpdateValidRegion(begin, end);
 }
 
-void Pile::FindRepetitiveRegions(std::uint32_t median) {
+void Pile::FindRepetitiveRegions(std::uint16_t median) {
   auto slopes = FindSlopes(1.42);
   if (slopes.empty()) {
       return;
@@ -171,9 +178,9 @@ void Pile::FindRepetitiveRegions(std::uint32_t median) {
       return false;
     }
     bool found_peak = false;
-    std::uint32_t peak_value =
-        1.42 * std::max(data_[begin.second], data_[end.first >> 1]);
-    std::uint32_t min_value = 1.42 * median;
+    std::uint16_t peak_value =
+        clamp(1.42 * std::max(data_[begin.second], data_[end.first >> 1]));
+    std::uint16_t min_value = clamp(1.42 * median);
     std::uint32_t num_valid = 0;
 
     for (std::uint32_t i = begin.second + 1; i < (end.first >> 1); ++i) {
@@ -302,8 +309,8 @@ std::vector<Pile::Region> Pile::MergeRegions(const std::vector<Region>& src) {
 }
 
 std::vector<Pile::Region> Pile::FindSlopes(double q) {
-  using Subpile = std::deque<std::pair<std::int32_t, std::int32_t>>;
-  auto subpile_add = [] (Subpile& s, std::int32_t value, std::int32_t position) -> void {  // NOLINT
+  using Subpile = std::deque<std::pair<std::int32_t, std::uint16_t>>;
+  auto subpile_add = [] (Subpile& s, std::uint16_t value, std::int32_t position) -> void {  // NOLINT
     while (!s.empty() && s.back().second <= value) {
       s.pop_back();
     }
@@ -344,7 +351,7 @@ std::vector<Pile::Region> Pile::FindSlopes(double q) {
     }
     subpile_update(right_subpile, i);
 
-    std::int32_t d = data_[i] * q;
+    std::uint16_t d = clamp(data_[i] * q);
     if (i != 0 && left_subpile.front().second > d) {
       if (found_down) {
         if (i - last_down > 1) {
@@ -401,7 +408,7 @@ std::vector<Pile::Region> Pile::FindSlopes(double q) {
         }
         for (std::uint32_t j = subpile_begin; j < subpile_end; ++j) {
           subpile_update(right_subpile, j);
-          if (data_[j] * q < right_subpile.front().second) {
+          if (clamp(data_[j] * q) < right_subpile.front().second) {
             if (found_up) {
               if (j - last_up > 1) {
                 dst.emplace_back(first_up << 1 | 1, last_up);
@@ -433,7 +440,7 @@ std::vector<Pile::Region> Pile::FindSlopes(double q) {
 
         for (std::uint32_t j = subpile_begin; j < subpile_end + 1; ++j) {
           if (left_subpile.empty() == false &&
-              data_[j] * q < left_subpile.front().second) {
+              clamp(data_[j] * q) < left_subpile.front().second) {
             if (found_down) {
               if (j - last_down > 1) {
                 dst.emplace_back(first_down << 1, last_down);
@@ -472,14 +479,14 @@ std::vector<Pile::Region> Pile::FindSlopes(double q) {
         continue;
       }
 
-      std::uint32_t max_coverage = 0;
+      std::uint16_t max_coverage = 0;
       for (std::uint32_t j = subpile_begin + 1; j < subpile_end; ++j) {
         max_coverage = std::max(max_coverage, data_[j]);
       }
 
       std::uint32_t valid_point = dst[i].first >> 1;
       for (std::uint32_t j = dst[i].first >> 1; j <= subpile_begin; ++j) {
-        if (max_coverage > data_[j] * q) {
+        if (max_coverage > clamp(data_[j] * q)) {
           valid_point = j;
         }
       }
@@ -487,7 +494,7 @@ std::vector<Pile::Region> Pile::FindSlopes(double q) {
 
       valid_point = dst[i + 1].second;
       for (uint32_t j = subpile_end; j <= dst[i + 1].second; ++j) {
-        if (max_coverage > data_[j] * q) {
+        if (max_coverage > clamp(data_[j] * q)) {
           valid_point = j;
           break;
         }

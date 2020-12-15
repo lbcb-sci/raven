@@ -45,7 +45,7 @@ class Pile {
     return end() - begin();
   }
 
-  std::uint32_t median() const {
+  std::uint16_t median() const {
     return median_;
   }
 
@@ -91,7 +91,7 @@ class Pile {
       std::vector<biosoup::Overlap>::const_iterator end);
 
   // store longest region with values greater or equal than given coverage
-  void FindValidRegion(std::uint32_t coverage);
+  void FindValidRegion(std::uint16_t coverage);
 
   // fill valid region with zeroes
   void ClearValidRegion();
@@ -106,10 +106,10 @@ class Pile {
   void FindChimericRegions();
 
   // update valid region to longest non-chimeric given the component median
-  void ClearChimericRegions(std::uint32_t median);
+  void ClearChimericRegions(std::uint16_t median);
 
   // store coverage spikes given component median
-  void FindRepetitiveRegions(std::uint32_t median);
+  void FindRepetitiveRegions(std::uint16_t median);
 
   // increase confidence in repetitive regions given an overlap
   void UpdateRepetitiveRegions(const biosoup::Overlap& o);
@@ -155,12 +155,12 @@ class Pile {
   std::uint32_t id_;
   std::uint32_t begin_;
   std::uint32_t end_;
-  std::uint32_t median_;
+  std::uint16_t median_;
   bool is_invalid_;
   bool is_contained_;
   bool is_chimeric_;
   bool is_repetitive_;
-  std::vector<std::uint32_t> data_;
+  std::vector<std::uint16_t> data_;
   std::vector<Region> chimeric_regions_;
   std::vector<Region> repetitive_regions_;
 };
