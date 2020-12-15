@@ -64,7 +64,7 @@ usage: raven [options ...] <sequences>
 ```
 
 #### Dependencies
-- gcc 4.8+ or clang 3.5+
+- gcc 4.8+ or clang 4.0+
 - cmake 3.9+
 - zlib
 
