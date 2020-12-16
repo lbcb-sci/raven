@@ -941,6 +941,18 @@ void Graph::Assemble() {
     std::cerr << "[raven::Graph::Assemble] removed long edges "
               << std::fixed << timer.Stop() << "s"
               << std::endl;
+
+    timer.Start();
+
+    while (true) {
+      std::uint32_t num_changes = RemoveTips();
+      num_changes += RemoveBubbles();
+      if (num_changes == 0) {
+        break;
+      }
+    }
+
+    timer.Stop();
   }
 
   if (stage_ == -1) {  // checkpoint
@@ -954,17 +966,6 @@ void Graph::Assemble() {
     }
   }
 
-  timer.Start();
-
-  while (true) {  // TODO(rvaser): check if necessary
-     std::uint32_t num_changes = RemoveTips();
-     num_changes += RemoveBubbles();
-     if (num_changes == 0) {
-       break;
-     }
-  }
-
-  timer.Stop();
   std::cerr << "[raven::Graph::Assemble] "
             << std::fixed << timer.elapsed_time() << "s"
             << std::endl;
