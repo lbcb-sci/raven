@@ -80,9 +80,9 @@ Graph::Graph(
     : thread_pool_(thread_pool ?
           thread_pool :
           std::make_shared<thread_pool::ThreadPool>(1)),
-      minimizer_engine_(thread_pool_, weaken ? 29 : 15, weaken ? 9 : 5),
       stage_(-5),
       checkpoints_(checkpoints),
+      accurate_(weaken),
       piles_(),
       nodes_(),
       edges_() {}
@@ -268,6 +268,12 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
 
   biosoup::Timer timer{};
 
+  ram::MinimizerEngine minimizer_engine{
+      thread_pool_,
+      accurate_ ? 29U : 15U,
+      accurate_ ? 9U : 5U
+  };
+
   if (stage_ == -5) {  // find overlaps and create piles
     for (const auto& it : sequences) {
       piles_.emplace_back(new Pile(it->id, it->inflated_len));
@@ -282,11 +288,11 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
 
       timer.Start();
 
-      minimizer_engine_.Minimize(
+      minimizer_engine.Minimize(
           sequences.begin() + j,
           sequences.begin() + i + 1,
           true);
-      minimizer_engine_.Filter(0.001);
+      minimizer_engine.Filter(0.001);
 
       std::cerr << "[raven::Graph::Construct] minimized "
                 << j << " - " << i + 1 << " / " << sequences.size() << " "
@@ -305,7 +311,7 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
       for (std::uint32_t k = 0; k < i + 1; ++k) {
         thread_futures.emplace_back(thread_pool_->Submit(
             [&] (std::uint32_t i) -> std::vector<biosoup::Overlap> {
-              return minimizer_engine_.Map(sequences[i], true, true, true);
+              return minimizer_engine.Map(sequences[i], true, true, true);
             },
             k));
 
@@ -562,7 +568,7 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
 
       timer.Start();
 
-      minimizer_engine_.Minimize(
+      minimizer_engine.Minimize(
           sequences.begin() + j,
           sequences.begin() + i + 1,
           true);
@@ -574,12 +580,12 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
 
       timer.Start();
 
-      minimizer_engine_.Filter(0.00001);
+      minimizer_engine.Filter(0.00001);
       std::vector<std::future<std::vector<biosoup::Overlap>>> thread_futures;
       for (std::uint32_t k = s; k < sequences.size(); ++k) {
         thread_futures.emplace_back(thread_pool_->Submit(
             [&] (std::uint32_t i) -> std::vector<biosoup::Overlap> {
-              return minimizer_engine_.Map(sequences[i], true, false, true);
+              return minimizer_engine.Map(sequences[i], true, false, true);
             },
             k));
 
@@ -631,7 +637,7 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
 
       timer.Start();
 
-      minimizer_engine_.Minimize(
+      minimizer_engine.Minimize(
           sequences.begin() + j,
           sequences.begin() + i + 1);
 
@@ -643,11 +649,11 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
       timer.Start();
 
       std::vector<std::future<std::vector<biosoup::Overlap>>> thread_futures;
-      minimizer_engine_.Filter(0.001);
+      minimizer_engine.Filter(0.001);
       for (std::uint32_t k = 0; k < i + 1; ++k) {
         thread_futures.emplace_back(thread_pool_->Submit(
             [&] (std::uint32_t i) -> std::vector<biosoup::Overlap> {
-              return minimizer_engine_.Map(sequences[i], true, true);
+              return minimizer_engine.Map(sequences[i], true, true);
             },
             k));
       }
@@ -905,12 +911,18 @@ void Graph::Assemble() {
     }
   }
 
+  ram::MinimizerEngine minimizer_engine{
+      thread_pool_,
+      accurate_ ? 29U : 15U,
+      accurate_ ? 9U : 5U
+  };
+
   if (stage_ == -2) {  // remove tips and bubbles
     timer.Start();
 
     while (true) {
       std::uint32_t num_changes = RemoveTips();
-      num_changes += RemoveBubbles();
+      num_changes += RemoveBubbles(minimizer_engine);
       if (num_changes == 0) {
         break;
       }
@@ -946,7 +958,7 @@ void Graph::Assemble() {
 
     while (true) {
       std::uint32_t num_changes = RemoveTips();
-      num_changes += RemoveBubbles();
+      num_changes += RemoveBubbles(minimizer_engine);
       if (num_changes == 0) {
         break;
       }
@@ -1067,7 +1079,7 @@ std::uint32_t Graph::RemoveTips() {
   return num_tips;
 }
 
-std::uint32_t Graph::RemoveBubbles() {
+std::uint32_t Graph::RemoveBubbles(const ram::MinimizerEngine& minimizer_engine) {  // NOLINT
   std::vector<std::uint32_t> distance(nodes_.size(), 0);
   std::vector<Node*> predecessor(nodes_.size(), nullptr);
 
@@ -1142,7 +1154,7 @@ std::uint32_t Graph::RemoveBubbles() {
         return std::unordered_set<std::uint32_t>{};
       }
 
-      auto overlaps = minimizer_engine_.Map(l, r);
+      auto overlaps = minimizer_engine.Map(l, r);
       std::uint32_t matches = 0;
       for (const auto& it : overlaps) {
         matches = std::max(matches, it.score);

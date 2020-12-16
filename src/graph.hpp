@@ -102,7 +102,7 @@ class Graph {
 
   std::uint32_t RemoveTips();
 
-  std::uint32_t RemoveBubbles();
+  std::uint32_t RemoveBubbles(const ram::MinimizerEngine& minimizer_engine);
 
   // remove long edges in force directed layout
   std::uint32_t RemoveLongEdges(std::uint32_t num_round);
@@ -260,10 +260,10 @@ class Graph {
   void CreateForceDirectedLayout(const std::string& path = "");
 
   std::shared_ptr<thread_pool::ThreadPool> thread_pool_;
-  ram::MinimizerEngine minimizer_engine_;
 
   int stage_;
   bool checkpoints_;
+  bool accurate_;
   std::vector<std::unique_ptr<Pile>> piles_;
   std::vector<std::shared_ptr<Node>> nodes_;
   std::vector<std::shared_ptr<Edge>> edges_;
