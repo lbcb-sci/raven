@@ -50,7 +50,7 @@ Graph::Node::Node(Node* begin, Node* end)
     }
   }
   if (begin != end) {
-    data += end->sequence->Inflate();
+    data += end->sequence->InflateData();
     count += end->count;
   }
 
@@ -818,7 +818,7 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
 
       auto sequence = biosoup::NucleicAcid{
           sequences[it->id()]->name,
-          sequences[it->id()]->Inflate(it->begin(), it->end() - it->begin())};
+          sequences[it->id()]->InflateData(it->begin(), it->end() - it->begin())};  // NOLINT
 
       sequence_to_node[it->id()] = Node::num_objects;
 
@@ -1116,7 +1116,7 @@ std::uint32_t Graph::RemoveBubbles(const ram::MinimizerEngine& minimizer_engine)
         }
       }
     }
-    data += path.back()->sequence->Inflate();
+    data += path.back()->sequence->InflateData();
     return std::unique_ptr<biosoup::NucleicAcid>(
         new biosoup::NucleicAcid("", data));
   };
@@ -1638,9 +1638,28 @@ void Graph::Polish(
 
   piles_.clear();  // save memory
 
+  double avg_q = 0.;
+  for (const auto& it : sequences) {
+    if (it->block_quality.empty()) {
+      continue;
+    }
+    double q = std::accumulate(
+        it->block_quality.begin(),
+        it->block_quality.end(),
+        0.);
+    avg_q += q / it->block_quality.size();
+  }
+  if (avg_q == 0.) {  // when all values equal to '!'
+    for (const auto& it : sequences) {
+      it->block_quality.clear();
+    }
+  } else {
+    avg_q /= sequences.size();
+  }
+
   auto polisher = racon::Polisher::Create(
       thread_pool_,
-      1ULL << 34,  // 16GB
+      avg_q,
       0.3,
       500,
       true,
@@ -1840,7 +1859,9 @@ std::vector<std::unique_ptr<biosoup::NucleicAcid>> Graph::GetUnitigs(
         " RC:i:" + std::to_string(it->count) +
         " XO:i:" + std::to_string(it->is_circular);
 
-    dst.emplace_back(new biosoup::NucleicAcid(name, it->sequence->Inflate()));
+    dst.emplace_back(new biosoup::NucleicAcid(
+        name,
+        it->sequence->InflateData()));
   }
 
   return dst;
@@ -2026,7 +2047,7 @@ void Graph::PrintGfa(const std::string& path) const {
       continue;
     }
     os << "S\t" << it->sequence->name
-       << "\t"  << it->sequence->Inflate()
+       << "\t"  << it->sequence->InflateData()
        << "\tLN:i:" << it->sequence->inflated_len
        << "\tRC:i:" << it->count
        << std::endl;

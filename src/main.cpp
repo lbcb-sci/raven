@@ -244,7 +244,7 @@ int main(int argc, char** argv) {
 
   for (const auto& it : graph.GetUnitigs(num_polishing_rounds > 0)) {
     std::cout << ">" << it->name << std::endl;
-    std::cout << it->Inflate() << std::endl;
+    std::cout << it->InflateData() << std::endl;
   }
 
   timer.Stop();

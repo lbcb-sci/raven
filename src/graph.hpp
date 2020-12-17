@@ -31,7 +31,9 @@ void serialize(Archive& archive, NucleicAcid& sequence) {  // NOLINT
       sequence.id,
       sequence.name,
       sequence.deflated_data,
-      sequence.inflated_len);
+      sequence.block_quality,
+      sequence.inflated_len,
+      sequence.is_reverse_complement);
 }
 
 }  // namespace biosoup
@@ -230,7 +232,7 @@ class Graph {
 
     std::string Label() const {
       // return tail->data.substr(0, length);
-      return tail->sequence->Inflate(0, length);
+      return tail->sequence->InflateData(0, length);
     }
 
     template<class Archive>

@@ -49,7 +49,7 @@ TEST_F(RavenTest, Assemble) {
   g.Polish(s, 3, -5, -4, 0, false, 0, 2);
   auto u = std::move(g.GetUnitigs(true).front());
   u->ReverseAndComplement();
-  EXPECT_EQ(1312, EditDistance(u->Inflate(), r->Inflate()));
+  EXPECT_EQ(1137, EditDistance(u->InflateData(), r->InflateData()));
 }
 
 TEST_F(RavenTest, Checkpoints) {
