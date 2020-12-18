@@ -105,5 +105,4 @@ cmake -Draven_build_tests=ON -DCMAKE_BUILD_TYPE=Release .. && make
 - gtest
 
 ## Acknowledgment
-
-This work has been supported in part by the Croatian Science Foundation under the projects Algorithms for genome sequence analysis (UIP-11-2013-7353) and Single genome and metagenome assembly (IP-2018-01-5886), and in part by the European Regional Development Fund under the grant KK.01.1.1.01.0009 (DATACROSS).
+This work has been supported in part by the Agency for Science, Technology and Research (A\*STAR) Singapore, by the Croatian Science Foundation under projects Algorithms for genome sequence analysis (UIP-11-2013-7353) and Single genome and metagenome assembly (IP-2018-01-5886), and in part by the European Regional Development Fund under grant KK.01.1.1.01.0009 (DATACROSS).
