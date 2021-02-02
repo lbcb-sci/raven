@@ -49,6 +49,7 @@ class Graph {
   void Construct(
       std::vector<std::unique_ptr<biosoup::Sequence>>& sequences,  // NOLINT
       bool split = false,
+      bool discard = false,
       std::string notations_path = "");
 
   // simplify with transitive reduction, tip prunning and bubble popping

@@ -89,6 +89,7 @@ Graph::Graph(
 void Graph::Construct(
     std::vector<std::unique_ptr<biosoup::Sequence>>& sequences,  // NOLINT
     bool split,
+    bool discard,
     std::string notations_path) {
   if (sequences.empty() || stage_ > -4) {
     return;
@@ -489,7 +490,7 @@ void Graph::Construct(
         for (const auto& jt : it) {
           thread_futures.emplace_back(thread_pool_->Submit(
               [&] (std::uint32_t i) -> void {
-                piles_[i]->ClearChimericRegions(median);
+                piles_[i]->ClearChimericRegions(median, discard);
                 if (piles_[i]->is_invalid()) {
                   std::vector<biosoup::Overlap>().swap(overlaps[i]);
                 }

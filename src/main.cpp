@@ -32,6 +32,7 @@ static struct option options[] = {
   {"disable-checkpoints", no_argument, nullptr, 'd'},
   {"notations", required_argument, nullptr, 'N'},
   {"split", no_argument, nullptr, 's'},
+  {"discard", no_argument, nullptr, 'D'},
   {"threads", required_argument, nullptr, 't'},
   {"version", no_argument, nullptr, 'v'},
   {"help", no_argument, nullptr, 'h'},
@@ -113,6 +114,8 @@ void Help() {
       "      disable checkpoint file creation\n"
       "    --split\n"
       "      store pile-o-grams of uncontained sequences, and abort\n"
+      "    --discard\n"
+      "      instead of splitting chimeric reads, discard them\n"
       "    --notations <string>\n"
       "      path to file containing read labels\n"
       "    -t, --threads <int>\n"
@@ -138,6 +141,7 @@ int main(int argc, char** argv) {
   bool resume = false;
   bool checkpoints = true;
   bool split = false;
+  bool discard = false;
   std::string notations = "";
 
   std::uint32_t num_threads = 1;
@@ -180,6 +184,7 @@ int main(int argc, char** argv) {
       case 'f': gfa_path = optarg; break;
       case 'r': resume = true; break;
       case 'd': checkpoints = false; break;
+      case 'D': discard = true; break;
       case 's': split = true; break;
       case 'N': notations = optarg; break;
       case 't': num_threads = atoi(optarg); break;
@@ -246,7 +251,7 @@ int main(int argc, char** argv) {
     timer.Start();
   }
 
-  graph.Construct(sequences, split, notations);
+  graph.Construct(sequences, split, discard, notations);
   graph.Assemble();
   graph.Polish(sequences, m, n, g, cuda_poa_batches, cuda_banded_alignment,
       cuda_alignment_batches, num_polishing_rounds);

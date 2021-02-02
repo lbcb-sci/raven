@@ -118,7 +118,7 @@ void Pile::FindChimericRegions() {
   chimeric_regions_ = MergeRegions(chimeric_regions_);
 }
 
-void Pile::ClearChimericRegions(std::uint32_t median) {
+void Pile::ClearChimericRegions(std::uint32_t median, bool discard) {
   auto is_chimeric_region = [&] (const Region& r) -> bool {
     for (std::uint32_t i = r.first; i <= r.second; ++i) {
       if (data_[i] * 1.82 <= median) {
@@ -152,6 +152,9 @@ void Pile::ClearChimericRegions(std::uint32_t median) {
   }
 
   if (begin != begin_ || end != end_) {
+    if (discard) {
+      set_is_invalid();
+    }
     set_is_chimeric();
   }
   chimeric_regions_.swap(unresolved_regions);

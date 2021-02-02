@@ -110,7 +110,7 @@ class Pile {
   }
 
   // update valid region to longest non-chimeric given the component median
-  void ClearChimericRegions(std::uint32_t median);
+  void ClearChimericRegions(std::uint32_t median, bool discard = false);
 
   // store coverage spikes given component median
   void FindRepetitiveRegions(std::uint32_t median);
