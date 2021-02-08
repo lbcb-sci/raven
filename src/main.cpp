@@ -14,8 +14,6 @@ std::atomic<std::uint32_t> biosoup::NucleicAcid::num_objects{0};
 
 namespace {
 
-const char* raven_version = RAVEN_VERSION;
-
 static struct option options[] = {
   {"weaken", no_argument, nullptr, 'w'},
   {"polishing-rounds", required_argument, nullptr, 'p'},
@@ -173,7 +171,7 @@ int main(int argc, char** argv) {
       case 'r': resume = true; break;
       case 'd': checkpoints = false; break;
       case 't': num_threads = atoi(optarg); break;
-      case 'v': std::cout << raven_version << std::endl; return 0;
+      case 'v': std::cout << VERSION << std::endl; return 0;
       case 'h': Help(); return 0;
       default: return 1;
     }

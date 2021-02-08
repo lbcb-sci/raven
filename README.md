@@ -8,13 +8,14 @@ Raven is a de novo genome assembler for long uncorrected reads.
 
 ## Usage
 To build raven run the following commands (< 30s):
+
 ```bash
-git clone --recursive https://github.com/lbcb-sci/raven.git raven
-cd raven && mkdir build && cd build
+git clone https://github.com/lbcb-sci/raven && cd raven && mkdir build && cd build
 cmake -DCMAKE_BUILD_TYPE=Release .. && make
-./bin/raven
 ```
-which will display the following usage:
+
+which will create raven executable and unit tests. Running the executable will display the following usage:
+
 ```bash
 usage: raven [options ...] <sequences>
 
@@ -63,18 +64,19 @@ usage: raven [options ...] <sequences>
       number of batches for CUDA accelerated alignment
 ```
 
-#### Dependencies
-- gcc 4.8+ or clang 4.0+
-- cmake 3.9+
-- zlib
-
-### CUDA Support
-To build submodule racon with CUDA support, add `-Dracon_enable_cuda=ON` while running `cmake`. For more information see [this](https://github.com/lbcb-sci/racon).
+#### Build options
+- `raven_build_tests`: build unit tests
+- `racon_enable_cuda`: build with NVICIDA CUDA support
 
 #### Dependencies
-- gcc 5.0+
-- cmake 3.10+
-- CUDA 9.0+
+- gcc 4.8+ | clang 4.0+
+- cmake 3.11+
+- zlib 1.2.8+
+
+###### Hidden
+- lbcb-sci/racon/tree/library 3.0.1
+- rvaser/bioparser 3.0.13
+- (racon_test) google/googletest 1.10.0
 
 ### Other options
 
@@ -90,19 +92,6 @@ Install [conda](https://conda.io/en/latest/miniconda.html) and run the following
 ```bash
 conda install -c bioconda raven-assembler
 ```
-
-## Unit tests
-
-To build and run raven unit tests run the following commands (< 30s):
-```bash
-git clone --recursive https://github.com/lbcb-sci/raven.git raven
-cd raven && mkdir build && cd build
-cmake -Draven_build_tests=ON -DCMAKE_BUILD_TYPE=Release .. && make
-./bin/raven_test
-```
-
-#### Dependencies
-- gtest
 
 ## Acknowledgment
 This work has been supported in part by the Genome Institute of Singapore (A\*STAR), by the Croatian Science Foundation under projects Algorithms for genome sequence analysis (UIP-11-2013-7353) and Single genome and metagenome assembly (IP-2018-01-5886), and in part by the European Regional Development Fund under grant KK.01.1.1.01.0009 (DATACROSS).

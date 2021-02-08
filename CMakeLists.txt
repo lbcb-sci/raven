@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.9)
+cmake_minimum_required(VERSION 3.11)
 
 project(raven VERSION 1.3.1
               LANGUAGES CXX
@@ -13,46 +13,122 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin)
 
-if (NOT TARGET bioparser)
-  add_subdirectory(vendor/racon/vendor/ram/vendor/bioparser EXCLUDE_FROM_ALL)
-endif ()
-if (NOT TARGET racon)
-  add_subdirectory(vendor/racon EXCLUDE_FROM_ALL)
-endif ()
-if (NOT TARGET cereal)
-  add_subdirectory(vendor/racon/vendor/spoa/vendor/cereal EXCLUDE_FROM_ALL)
-endif ()
-
-add_executable(${PROJECT_NAME}
-  src/graph.cpp
-  src/main.cpp
-  src/pile.cpp)
-target_link_libraries(${PROJECT_NAME}
-  bioparser
-  cereal
-  racon)
-target_compile_definitions(${PROJECT_NAME} PRIVATE
-  RAVEN_VERSION="v${PROJECT_VERSION}")
-if (racon_enable_cuda)
-  target_compile_definitions(${PROJECT_NAME} PRIVATE CUDA_ENABLED)
-endif ()
-
+include(FetchContent)
 include(GNUInstallDirs)
-install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_BINDIR})
 
-option(raven_build_tests "Build raven unit tests" OFF)
-if (raven_build_tests)
-  find_package(GTest REQUIRED)
-  include_directories(${PROJECT_SOURCE_DIR}/src)
-  add_executable(${PROJECT_NAME}_test
-    src/graph.cpp
-    src/pile.cpp
-    test/raven_test.cpp)
-  target_link_libraries(${PROJECT_NAME}_test
+if (CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+  set(raven_main_project ON)
+endif ()
+option(raven_build_tests "Build unit tests" ${raven_main_project})
+
+find_package(bioparser 3.0.13 QUIET)
+if (NOT bioparser_FOUND)
+  FetchContent_Declare(
     bioparser
+    GIT_REPOSITORY https://github.com/rvaser/bioparser
+    GIT_TAG 3.0.13)
+
+  FetchContent_GetProperties(bioparser)
+  if (NOT bioparser_POPULATED)
+    FetchContent_Populate(bioparser)
+    add_subdirectory(
+      ${bioparser_SOURCE_DIR}
+      ${bioparser_BINARY_DIR}
+      EXCLUDE_FROM_ALL)
+  endif ()
+endif ()
+
+find_package(cereal 1.3.0 QUIET)
+if (NOT cereal_FOUND)
+  FetchContent_Declare(
     cereal
-    GTest::Main
-    racon)
-  target_compile_definitions(${PROJECT_NAME}_test PRIVATE
-    RAVEN_DATA_PATH="${PROJECT_SOURCE_DIR}/test/data/")
+    GIT_REPOSITORY https://github.com/USCiLab/cereal
+    GIT_TAG v1.3.0)
+
+  FetchContent_GetProperties(cereal)
+  if (NOT cereal_POPULATED)
+    FetchContent_Populate(cereal)
+    add_subdirectory(
+      ${cereal_SOURCE_DIR}
+      ${cereal_BINARY_DIR}
+      EXCLUDE_FROM_ALL)
+    add_library(cereal::cereal ALIAS cereal)
+  endif ()
+endif ()
+
+find_package(racon 3.0.1 QUIET)
+if (NOT racon_FOUND)
+  FetchContent_Declare(
+    racon
+    GIT_REPOSITORY https://github.com/lbcb-sci/racon
+    GIT_TAG library)
+
+  FetchContent_GetProperties(racon)
+  if (NOT racon_POPULATED)
+    FetchContent_Populate(racon)
+    add_subdirectory(
+      ${racon_SOURCE_DIR}
+      ${racon_BINARY_DIR}
+      EXCLUDE_FROM_ALL)
+  endif ()
+endif ()
+
+if (raven_build_tests)
+  find_package(GTest 1.10.0 QUIET)
+  if (NOT GTest_FOUND)
+    FetchContent_Declare(
+      googletest
+      GIT_REPOSITORY https://github.com/google/googletest
+      GIT_TAG release-1.10.0)
+
+    FetchContent_GetProperties(googletest)
+    if (NOT googletest_POPULATED)
+      FetchContent_Populate(googletest)
+      add_subdirectory(
+        ${googletest_SOURCE_DIR}
+        ${googletest_BINARY_DIR}
+        EXCLUDE_FROM_ALL)
+      add_library(GTest::Main ALIAS gtest_main)
+    endif ()
+  endif ()
+endif ()
+
+add_library(raven
+  src/graph.cpp
+  src/pile.cpp)
+
+target_link_libraries(raven
+  cereal::cereal
+  racon::racon)
+
+target_include_directories(raven PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
+
+add_executable(raven_exe
+  src/main.cpp)
+
+target_link_libraries(raven_exe
+  raven
+  bioparser::bioparser)
+
+if (racon_enable_cuda)
+  target_compile_definitions(raven_exe PRIVATE CUDA_ENABLED)
+endif ()
+
+target_compile_definitions(raven_exe PRIVATE VERSION="${PROJECT_VERSION}")
+set_property(TARGET raven_exe PROPERTY OUTPUT_NAME raven)
+
+install(TARGETS raven_exe DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+if (raven_build_tests)
+  add_executable(raven_test
+    test/raven_test.cpp)
+
+  target_link_libraries(raven_test
+    raven
+    bioparser::bioparser
+    GTest::Main)
+
+  target_compile_definitions(raven_test
+    PRIVATE TEST_DATA="${PROJECT_SOURCE_DIR}/test/data/")
 endif ()
