@@ -14,7 +14,7 @@ git clone https://github.com/lbcb-sci/raven && cd raven && mkdir build && cd bui
 cmake -DCMAKE_BUILD_TYPE=Release .. && make
 ```
 
-which will create raven executable and unit tests. Running the executable will display the following usage:
+which will create raven executable and unit tests (running `make install` will install the executable to your system). Running the executable will display the following usage:
 
 ```bash
 usage: raven [options ...] <sequences>
