@@ -140,7 +140,8 @@ class Pile {
         CEREAL_NVP(is_repetitive_),
         CEREAL_NVP(data_),
         CEREAL_NVP(chimeric_regions_),
-        CEREAL_NVP(repetitive_regions_));
+        CEREAL_NVP(repetitive_regions_),
+        CEREAL_NVP(points_));
   }
 
   friend cereal::access;
@@ -167,6 +168,7 @@ class Pile {
   std::vector<std::uint32_t> data_;
   std::vector<Region> chimeric_regions_;
   std::vector<Region> repetitive_regions_;
+  std::vector<std::pair<std::uint32_t, std::uint32_t>> points_;
 };
 
 }  // namespace raven

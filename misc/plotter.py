@@ -44,6 +44,35 @@ class Plotter:
     pyplot.savefig(str(pile["id_"]) + ".png", format = 'png')
     pyplot.close(figure)
 
+  def DrawStack(self, pile):
+    if ((self.type == "regular" and (pile["is_chimeric_"] or pile["is_repetitive_"])) or
+        (self.type == "chimeric" and not pile["is_chimeric_"]) or
+        (self.type == "repetitive" and not pile["is_repetitive_"])):
+      return
+
+    figure, ax = pyplot.subplots(1, 1, figsize = (7.5, 5))
+
+    points = pile["points_"]
+    for i in range(0, len(points)):
+      ax.plot(points[i]['first'], i + 1, 'bo', markersize = 2)
+      ax.plot(points[i]['second'], i + 1, 'ro', markersize = 2)
+      ax.plot([points[i]['first'], points[i]['second']], [i + 1, i + 1], 'k')
+
+    for slope in pile["chimeric_regions_"]:
+      ax.axvline(slope["first"], color = scpr[2], linestyle = ":")
+      ax.axvline(slope["second"], color = scpr[2], linestyle = ":")
+
+    for slope in pile["repetitive_regions_"]:
+      c = scpg[3] if slope["first"] & 1 else scpr[3]
+      ax.axvline(slope["first"] >> 1, color = c, linestyle = ":")
+      ax.axvline(slope["second"], color = c, linestyle = ":")
+
+    ax.set_title(pile["id_"])
+    figure.text(0.5, 0.05, "base", ha = "center")
+    figure.text(0.05, 0.5, "reads", va = "center", rotation = "vertical")
+    pyplot.savefig(str(pile["id_"]) + ".png", format = 'png')
+    pyplot.close(figure)
+
   def DrawGraph(self, title, graph):
     pyplot.figure(figsize = (16,16), frameon = False)
 
@@ -83,6 +112,9 @@ class Plotter:
     elif (self.mode == "pile"):
       for pile in data:
         self.DrawPile(data[pile])
+    elif (self.mode == "stack"):
+      for stack in data:
+        self.DrawStack(data[stack])
     return
 
 if __name__ == "__main__":
@@ -90,7 +122,7 @@ if __name__ == "__main__":
       description = "Plotter is a tool for drawing the assembly graph and pile-o-grams",
       formatter_class = argparse.ArgumentDefaultsHelpFormatter)
   parser.add_argument("mode",
-      help = "draw either the assembly [graph] or [pile]-o-grams")
+      help = "draw either the assembly [graph], [pile]-o-grams or [stack]s")
   parser.add_argument("path",
       help = "input file in JSON format")
   parser.add_argument("-t", "--type", default = "all",

@@ -18,7 +18,8 @@ Pile::Pile(std::uint32_t id, std::uint32_t len)
       is_repetitive_(0),
       data_(end_, 0),
       chimeric_regions_(),
-      repetitive_regions_() {}
+      repetitive_regions_(),
+      points_() {}
 
 void Pile::AddLayers(
     std::vector<biosoup::Overlap>::const_iterator begin,
@@ -32,12 +33,19 @@ void Pile::AddLayers(
     if (it->lhs_id == id_) {
       boundaries.emplace_back(((it->lhs_begin >> kPSS) + 1) << 1);
       boundaries.emplace_back(((it->lhs_end   >> kPSS) - 1) << 1 | 1);
+      points_.emplace_back(
+          (it->lhs_begin >> kPSS) + 1,
+          (it->lhs_end   >> kPSS) - 1);
     } else if (it->rhs_id == id_) {
       boundaries.emplace_back(((it->rhs_begin >> kPSS) + 1) << 1);
       boundaries.emplace_back(((it->rhs_end   >> kPSS) - 1) << 1 | 1);
+      points_.emplace_back(
+          (it->rhs_begin >> kPSS) + 1,
+          (it->rhs_end   >> kPSS) - 1);
     }
   }
   std::sort(boundaries.begin(), boundaries.end());
+  std::sort(points_.begin(), points_.end());
 
   std::uint32_t coverage = 0;
   std::uint32_t last_boundary = 0;
@@ -91,6 +99,7 @@ void Pile::UpdateValidRegion(std::uint32_t begin, std::uint32_t end) {
 
 void Pile::ClearValidRegion() {
   std::fill(data_.begin() + begin_, data_.begin() + end_, 0);
+  points_.clear();
 }
 
 void Pile::ClearInvalidRegion() {
