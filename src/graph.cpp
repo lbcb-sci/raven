@@ -14,14 +14,16 @@
 #include "biosoup/timer.hpp"
 #include "cereal/archives/binary.hpp"
 #include "cereal/archives/json.hpp"
+#include "edlib.h"  // NOLINT
 #include "racon/polisher.hpp"
 
 namespace raven {
 
 Graph::Node::Node(const biosoup::NucleicAcid& sequence)
     : id(num_objects++),
-      sequence(new biosoup::NucleicAcid(sequence)),
+      sequence(sequence),
       count(1),
+      is_unitig(),
       is_circular(),
       is_polished(),
       transitive(),
@@ -33,6 +35,7 @@ Graph::Node::Node(Node* begin, Node* end)
     : id(num_objects++),
       sequence(),
       count(),
+      is_unitig(),
       is_circular(begin == end),
       is_polished(),
       transitive(),
@@ -50,13 +53,15 @@ Graph::Node::Node(Node* begin, Node* end)
     }
   }
   if (begin != end) {
-    data += end->sequence->InflateData();
+    data += end->sequence.InflateData();
     count += end->count;
   }
 
-  sequence = std::unique_ptr<biosoup::NucleicAcid>(
-      new biosoup::NucleicAcid("", data));
-  sequence->name = (is_unitig() ? "Utg" : "Ctg") + std::to_string(id & (~1UL));
+  is_unitig = count > 5 && data.size() > 9999;
+
+  sequence = biosoup::NucleicAcid(
+    (is_unitig ? "Utg" : "Ctg") + std::to_string(id & (~1UL)),
+    data);
 }
 
 Graph::Edge::Edge(Node* tail, Node* head, std::uint32_t length)
@@ -911,18 +916,12 @@ void Graph::Assemble() {
     }
   }
 
-  ram::MinimizerEngine minimizer_engine{
-      thread_pool_,
-      accurate_ ? 29U : 15U,
-      accurate_ ? 9U : 5U
-  };
-
   if (stage_ == -2) {  // remove tips and bubbles
     timer.Start();
 
     while (true) {
       std::uint32_t num_changes = RemoveTips();
-      num_changes += RemoveBubbles(minimizer_engine);
+      num_changes += RemoveBubbles();
       if (num_changes == 0) {
         break;
       }
@@ -958,11 +957,13 @@ void Graph::Assemble() {
 
     while (true) {
       std::uint32_t num_changes = RemoveTips();
-      num_changes += RemoveBubbles(minimizer_engine);
+      num_changes += RemoveBubbles();
       if (num_changes == 0) {
         break;
       }
     }
+
+    SalvagePlasmids();
 
     timer.Stop();
   }
@@ -1079,7 +1080,7 @@ std::uint32_t Graph::RemoveTips() {
   return num_tips;
 }
 
-std::uint32_t Graph::RemoveBubbles(const ram::MinimizerEngine& minimizer_engine) {  // NOLINT
+std::uint32_t Graph::RemoveBubbles() {
   std::vector<std::uint32_t> distance(nodes_.size(), 0);
   std::vector<Node*> predecessor(nodes_.size(), nullptr);
 
@@ -1105,8 +1106,7 @@ std::uint32_t Graph::RemoveBubbles(const ram::MinimizerEngine& minimizer_engine)
     }
     return true;  // without branches
   };
-  auto path_sequence = [] (const std::vector<Node*>& path) ->
-      std::unique_ptr<biosoup::NucleicAcid> {
+  auto path_sequence = [] (const std::vector<Node*>& path) -> std::string {
     std::string data{};
     for (std::uint32_t i = 0; i < path.size() - 1; ++i) {
       for (auto it : path[i]->outedges) {
@@ -1116,9 +1116,8 @@ std::uint32_t Graph::RemoveBubbles(const ram::MinimizerEngine& minimizer_engine)
         }
       }
     }
-    data += path.back()->sequence->InflateData();
-    return std::unique_ptr<biosoup::NucleicAcid>(
-        new biosoup::NucleicAcid("", data));
+    data += path.back()->sequence.InflateData();
+    return data;
   };
   auto bubble_pop = [&] (
       const std::vector<Node*>& lhs,
@@ -1149,17 +1148,21 @@ std::uint32_t Graph::RemoveBubbles(const ram::MinimizerEngine& minimizer_engine)
       // check similarity
       auto l = path_sequence(lhs);
       auto r = path_sequence(rhs);
-      if (std::min(l->inflated_len, r->inflated_len) <
-          std::max(l->inflated_len, r->inflated_len) * 0.8) {
+      if (std::min(l.size(), r.size()) < std::max(l.size(), r.size()) * 0.8) {
         return std::unordered_set<std::uint32_t>{};
       }
 
-      auto overlaps = minimizer_engine.Map(l, r);
-      std::uint32_t matches = 0;
-      for (const auto& it : overlaps) {
-        matches = std::max(matches, it.score);
+      EdlibAlignResult result = edlibAlign(
+          l.c_str(), l.size(),
+          r.c_str(), r.size(),
+          edlibDefaultAlignConfig());
+      double score = 0;
+      if (result.status == EDLIB_STATUS_OK) {
+        score = 1 - result.editDistance /
+            static_cast<double>(std::max(l.size(), r.size()));
+        edlibFreeAlignResult(result);
       }
-      if (matches <= 0.5 * std::min(l->inflated_len, r->inflated_len)) {
+      if (score < 0.5) {
         return std::unordered_set<std::uint32_t>{};
       }
     }
@@ -1618,6 +1621,75 @@ void Graph::CreateForceDirectedLayout(const std::string& path) {
   }
 }
 
+std::uint32_t Graph::SalvagePlasmids() {
+  CreateUnitigs();
+
+  std::vector<std::unique_ptr<biosoup::NucleicAcid>> plasmids;
+  for (const auto& it : nodes_) {
+    if (!it || it->is_rc() || it->is_unitig || !it->is_circular) {
+      continue;
+    }
+    plasmids.emplace_back(new biosoup::NucleicAcid(it->sequence));
+  }
+  if (plasmids.empty()) {
+    return 0;
+  }
+
+  std::vector<std::unique_ptr<biosoup::NucleicAcid>> unitigs;
+  for (const auto& it : nodes_) {
+    if (!it || it->is_rc() || !it->is_unitig) {
+      continue;
+    }
+    unitigs.emplace_back(new biosoup::NucleicAcid(it->sequence));
+  }
+  if (unitigs.empty()) {
+    return 0;
+  }
+
+  // remove duplicates within plasmids
+  std::sort(plasmids.begin(), plasmids.end(),
+      [] (const std::unique_ptr<biosoup::NucleicAcid>& lhs,
+          const std::unique_ptr<biosoup::NucleicAcid>& rhs) -> bool {
+        return lhs->inflated_len < rhs->inflated_len;
+      });
+  for (std::uint32_t i = 0; i < plasmids.size(); ++i) {
+    plasmids[i]->id = i;
+  }
+
+  ram::MinimizerEngine minimizer_engine{thread_pool_};
+  minimizer_engine.Minimize(plasmids.begin(), plasmids.end());
+  minimizer_engine.Filter(0.001);
+  for (auto& it : plasmids) {
+    if (!minimizer_engine.Map(it, true, true).empty()) {
+      it.reset();
+    }
+  }
+  plasmids.erase(
+      std::remove(plasmids.begin(), plasmids.end(), nullptr),
+      plasmids.end());
+
+  // remove duplicates between plasmids and unitigs
+  minimizer_engine.Minimize(unitigs.begin(), unitigs.end(), true);
+  minimizer_engine.Filter(0.001);
+  for (auto& it : plasmids) {
+    if (!minimizer_engine.Map(it, false, false).empty()) {
+      it.reset();
+    }
+  }
+  plasmids.erase(
+      std::remove(plasmids.begin(), plasmids.end(), nullptr),
+      plasmids.end());
+
+  // update nodes
+  for (const auto& it : plasmids) {
+    const auto& node = nodes_[std::atoi(&it->name[3])];
+    node->is_unitig = node->pair->is_unitig = true;
+    node->sequence.name[0] = node->pair->sequence.name[0] = 'U';
+  }
+
+  return plasmids.size();
+}
+
 void Graph::Polish(
     const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
     std::uint8_t match,
@@ -1677,13 +1749,16 @@ void Graph::Polish(
       std::size_t tag;
       if ((tag = it->name.rfind(':')) != std::string::npos) {
         if (std::atof(&it->name[tag + 1]) > 0) {
-          node->is_polished = true;
-          node->sequence = std::unique_ptr<biosoup::NucleicAcid>(
-              new biosoup::NucleicAcid(*(it.get())));
-          it->ReverseAndComplement();
-          node->pair->sequence = std::unique_ptr<biosoup::NucleicAcid>(
-              new biosoup::NucleicAcid(*(it.get())));
-          it->ReverseAndComplement();
+          if (node->is_circular) {  // rotate
+            auto s = it->InflateData();
+            std::size_t b = 0.42 * s.size();
+            s = s.substr(b) + s.substr(0, b);
+            it->deflated_data = biosoup::NucleicAcid{"", s}.deflated_data;
+          }
+
+          node->is_polished = node->pair->is_polished = true;
+          node->sequence.deflated_data = node->pair->sequence.deflated_data = it->deflated_data;  // NOLINT
+          node->sequence.inflated_len = node->pair->sequence.inflated_len = it->inflated_len;  // NOLINT
         }
       }
     }
@@ -1782,7 +1857,7 @@ std::uint32_t Graph::CreateUnitigs(std::uint32_t epsilon) {
         unitig_edges.emplace_back(std::make_shared<Edge>(
             unitig->pair,
             begin->inedges.front()->pair->head,
-            begin->inedges.front()->pair->length + unitig->pair->sequence->inflated_len - begin->pair->sequence->inflated_len));  // NOLINT
+            begin->inedges.front()->pair->length + unitig->pair->sequence.inflated_len - begin->pair->sequence.inflated_len));  // NOLINT
         edge->pair = unitig_edges.back().get();
         edge->pair->pair = edge.get();
       }
@@ -1793,7 +1868,7 @@ std::uint32_t Graph::CreateUnitigs(std::uint32_t epsilon) {
         auto edge = std::make_shared<Edge>(
             unitig.get(),
             end->outedges.front()->head,
-            end->outedges.front()->length + unitig->sequence->inflated_len - end->sequence->inflated_len);  // NOLINT
+            end->outedges.front()->length + unitig->sequence.inflated_len - end->sequence.inflated_len);  // NOLINT
         unitig_edges.emplace_back(edge);
         unitig_edges.emplace_back(std::make_shared<Edge>(
             end->outedges.front()->pair->tail,
@@ -1847,21 +1922,21 @@ std::vector<std::unique_ptr<biosoup::NucleicAcid>> Graph::GetUnitigs(
 
   std::vector<std::unique_ptr<biosoup::NucleicAcid>> dst;
   for (const auto& it : nodes_) {
-    if (it == nullptr || it->is_rc() || !it->is_unitig()) {
+    if (it == nullptr || it->is_rc() || !it->is_unitig) {
       continue;
     }
     if (drop_unpolished && !it->is_polished) {
       continue;
     }
 
-    std::string name = it->sequence->name +
-        " LN:i:" + std::to_string(it->sequence->inflated_len) +
+    std::string name = it->sequence.name +
+        " LN:i:" + std::to_string(it->sequence.inflated_len) +
         " RC:i:" + std::to_string(it->count) +
         " XO:i:" + std::to_string(it->is_circular);
 
     dst.emplace_back(new biosoup::NucleicAcid(
         name,
-        it->sequence->InflateData()));
+        it->sequence.InflateData()));
   }
 
   return dst;
@@ -1994,11 +2069,11 @@ void Graph::PrintCsv(const std::string& path) const {
       continue;
     }
     os << it->id << " [" << it->id / 2 << "]"
-       << " LN:i:" << it->sequence->inflated_len
+       << " LN:i:" << it->sequence.inflated_len
        << " RC:i:" << it->count
        << ","
        << it->pair->id << " [" << it->pair->id / 2 << "]"
-       << " LN:i:" << it->pair->sequence->inflated_len
+       << " LN:i:" << it->pair->sequence.inflated_len
        << " RC:i:" << it->pair->count
        << ",0,-"
        << std::endl;
@@ -2008,11 +2083,11 @@ void Graph::PrintCsv(const std::string& path) const {
       continue;
     }
     os << it->tail->id << " [" << it->tail->id / 2 << "]"
-       << " LN:i:" << it->tail->sequence->inflated_len
+       << " LN:i:" << it->tail->sequence.inflated_len
        << " RC:i:" << it->tail->count
        << ","
        << it->head->id << " [" << it->head->id / 2 << "]"
-       << " LN:i:" << it->head->sequence->inflated_len
+       << " LN:i:" << it->head->sequence.inflated_len
        << " RC:i:" << it->head->count
        << ",1,"
        << it->id << " " << it->length << " " << it->weight
@@ -2023,11 +2098,11 @@ void Graph::PrintCsv(const std::string& path) const {
       continue;
     }
     os << it->id << " [" << it->id / 2 << "]"
-       << " LN:i:" << it->sequence->inflated_len
+       << " LN:i:" << it->sequence.inflated_len
        << " RC:i:" << it->count
        << ","
        << it->id << " [" << it->id / 2 << "]"
-       << " LN:i:" << it->sequence->inflated_len
+       << " LN:i:" << it->sequence.inflated_len
        << " RC:i:" << it->count
        << ",1,-"
        << std::endl;
@@ -2046,14 +2121,14 @@ void Graph::PrintGfa(const std::string& path) const {
         (it->count == 1 && it->outdegree() == 0 && it->indegree() == 0)) {
       continue;
     }
-    os << "S\t" << it->sequence->name
-       << "\t"  << it->sequence->InflateData()
-       << "\tLN:i:" << it->sequence->inflated_len
+    os << "S\t" << it->sequence.name
+       << "\t"  << it->sequence.InflateData()
+       << "\tLN:i:" << it->sequence.inflated_len
        << "\tRC:i:" << it->count
        << std::endl;
     if (it->is_circular) {
-      os << "L\t" << it->sequence->name << "\t" << '+'
-         << "\t"  << it->sequence->name << "\t" << '+'
+      os << "L\t" << it->sequence.name << "\t" << '+'
+         << "\t"  << it->sequence.name << "\t" << '+'
          << "\t0M"
          << std::endl;
     }
@@ -2062,9 +2137,9 @@ void Graph::PrintGfa(const std::string& path) const {
     if (it == nullptr || it->is_rc()) {
       continue;
     }
-    os << "L\t" << it->tail->sequence->name << "\t" << (it->tail->is_rc() ? '-' : '+')  // NOLINT
-       << "\t"  << it->head->sequence->name << "\t" << (it->head->is_rc() ? '-' : '+')  // NOLINT
-       << "\t"  << it->tail->sequence->inflated_len - it->length << 'M'
+    os << "L\t" << it->tail->sequence.name << "\t" << (it->tail->is_rc() ? '-' : '+')  // NOLINT
+       << "\t"  << it->head->sequence.name << "\t" << (it->head->is_rc() ? '-' : '+')  // NOLINT
+       << "\t"  << it->tail->sequence.inflated_len - it->length << 'M'
        << std::endl;
   }
   os.close();

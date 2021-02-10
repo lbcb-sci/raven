@@ -1,11 +1,11 @@
 // Copyright (c) 2020 Robert Vaser
 
+#include "graph.hpp"
+
 #include "bioparser/fasta_parser.hpp"
 #include "bioparser/fastq_parser.hpp"
 #include "edlib.h"  // NOLINT
 #include "gtest/gtest.h"
-
-#include "graph.hpp"
 
 std::atomic<std::uint32_t> biosoup::NucleicAcid::num_objects{0};
 

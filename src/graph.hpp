@@ -104,10 +104,13 @@ class Graph {
 
   std::uint32_t RemoveTips();
 
-  std::uint32_t RemoveBubbles(const ram::MinimizerEngine& minimizer_engine);
+  std::uint32_t RemoveBubbles();
 
   // remove long edges in force directed layout
   std::uint32_t RemoveLongEdges(std::uint32_t num_round);
+
+  // label small circular contigs as unitigs
+  std::uint32_t SalvagePlasmids();
 
   friend cereal::access;
 
@@ -194,20 +197,25 @@ class Graph {
     bool is_tip() const {
       return outdegree() > 0 && indegree() == 0 && count < 6;
     }
-    bool is_unitig() const {
-      return count > 5 && sequence->inflated_len > 9999;
-    }
 
     template<class Archive>
     void serialize(Archive& archive) {  // NOLINT
-      archive(id, sequence, count, is_circular, is_polished, transitive);
+      archive(
+          id,
+          sequence,
+          count,
+          is_unitig,
+          is_circular,
+          is_polished,
+          transitive);
     }
 
     static std::atomic<std::uint32_t> num_objects;
 
     std::uint32_t id;
-    std::unique_ptr<biosoup::NucleicAcid> sequence;
+    biosoup::NucleicAcid sequence;
     std::uint32_t count;
+    bool is_unitig;
     bool is_circular;
     bool is_polished;
     std::unordered_set<std::uint32_t> transitive;
@@ -231,8 +239,7 @@ class Graph {
     }
 
     std::string Label() const {
-      // return tail->data.substr(0, length);
-      return tail->sequence->InflateData(0, length);
+      return tail->sequence.InflateData(0, length);
     }
 
     template<class Archive>
