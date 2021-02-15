@@ -63,7 +63,7 @@ class Plotter:
     pyplot.xticks([])
     pyplot.yticks([])
     pyplot.axis('off')
-    pyplot.savefig(title + '.pdf', format = 'pdf')
+    pyplot.savefig(title + '.png', format = 'png')
 
   def Run(self):
     try:

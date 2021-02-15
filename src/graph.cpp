@@ -79,6 +79,7 @@ std::atomic<std::uint32_t> Graph::Node::num_objects{0};
 std::atomic<std::uint32_t> Graph::Edge::num_objects{0};
 
 Graph::Graph(
+    std::size_t step,
     bool weaken,
     bool checkpoints,
     std::shared_ptr<thread_pool::ThreadPool> thread_pool)
@@ -86,6 +87,7 @@ Graph::Graph(
           thread_pool :
           std::make_shared<thread_pool::ThreadPool>(1)),
       stage_(-5),
+      step_(step),
       checkpoints_(checkpoints),
       accurate_(weaken),
       piles_(),
@@ -387,7 +389,9 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
     for (std::uint32_t i = 0; i < piles_.size(); ++i) {
       thread_futures.emplace_back(thread_pool_->Submit(
           [&] (std::uint32_t i) -> void {
-            piles_[i]->FindValidRegion(4);
+            if (step_ > 0) {
+              piles_[i]->FindValidRegion(4);
+            }
             if (piles_[i]->is_invalid()) {
               std::vector<biosoup::Overlap>().swap(overlaps[i]);
             } else {
@@ -441,7 +445,7 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
               << std::endl;
   }
 
-  if (stage_ == -5) {  // resolve chimeric sequences
+  if (step_ > 0 && stage_ == -5) {  // resolve chimeric sequences
     timer.Start();
 
     while (true) {
@@ -746,7 +750,7 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
         });
   }
 
-  if (stage_ == -4) {  // resolve repeat induced overlaps
+  if (step_ < 2 && stage_ == -4) {  // resolve repeat induced overlaps
     timer.Start();
 
     while (true) {
@@ -895,6 +899,8 @@ void Graph::Assemble() {
 
   biosoup::Timer timer{};
 
+  PrintGfa("construction.gfa");
+
   if (stage_ == -3) {  // remove transitive edges
     timer.Start();
 
@@ -904,6 +910,8 @@ void Graph::Assemble() {
               << std::fixed << timer.Stop() << "s"
               << std::endl;
   }
+
+  PrintGfa("transitive.gfa");
 
   if (stage_ == -3) {  // checkpoint
     ++stage_;
@@ -932,6 +940,8 @@ void Graph::Assemble() {
               << std::endl;
   }
 
+  PrintGfa("bubbles.gfa");
+
   if (stage_ == -2) {  // checkpoint
     ++stage_;
     if (checkpoints_) {
@@ -943,15 +953,21 @@ void Graph::Assemble() {
     }
   }
 
+  CreateUnitigs(42);  // speed up force directed layout
+
+  PrintJson("piles.json");
+  PrintGfa("unitigs.gfa");
+
   if (stage_ == -1) {  // remove long edges
-    timer.Start();
+    if (step_ > 0) {
+      timer.Start();
 
-    CreateUnitigs(42);  // speed up force directed layout
-    RemoveLongEdges(16);
+      RemoveLongEdges(16);
 
-    std::cerr << "[raven::Graph::Assemble] removed long edges "
-              << std::fixed << timer.Stop() << "s"
-              << std::endl;
+      std::cerr << "[raven::Graph::Assemble] removed long edges "
+                << std::fixed << timer.Stop() << "s"
+                << std::endl;
+    }
 
     timer.Start();
 
@@ -978,6 +994,8 @@ void Graph::Assemble() {
                 << std::endl;
     }
   }
+
+  PrintGfa("final.gfa");
 
   std::cerr << "[raven::Graph::Assemble] "
             << std::fixed << timer.elapsed_time() << "s"
@@ -1244,7 +1262,7 @@ std::uint32_t Graph::RemoveLongEdges(std::uint32_t num_rounds) {
   std::uint32_t num_long_edges = 0;
 
   for (std::uint32_t i = 0; i < num_rounds; ++i) {
-    CreateForceDirectedLayout();
+    CreateForceDirectedLayout(i == 0 ? "layout.json" : "");
 
     std::unordered_set<std::uint32_t> marked_edges;
     for (const auto& it : nodes_) {

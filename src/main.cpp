@@ -25,6 +25,7 @@ static struct option options[] = {
   {"cuda-banded-alignment", no_argument, nullptr, 'b'},
   {"cuda-alignment-batches", required_argument, nullptr, 'a'},
 #endif
+  {"step", required_argument, nullptr, 's'},
   {"graphical-fragment-assembly", required_argument, nullptr, 'f'},
   {"resume", no_argument, nullptr, 'r'},
   {"disable-checkpoints", no_argument, nullptr, 'd'},
@@ -121,14 +122,15 @@ void Help() {
 int main(int argc, char** argv) {
   bool weaken = false;
 
-  std::int32_t num_polishing_rounds = 2;
+  std::int32_t num_polishing_rounds = 0;
   std::int8_t m = 3;
   std::int8_t n = -5;
   std::int8_t g = -4;
 
+  std::size_t step = 0;
   std::string gfa_path = "";
   bool resume = false;
-  bool checkpoints = true;
+  bool checkpoints = false;
 
   std::uint32_t num_threads = 1;
 
@@ -167,6 +169,7 @@ int main(int argc, char** argv) {
         cuda_alignment_batches = atoi(optarg);
         break;
 #endif
+      case 's': step = atoi(optarg); break;
       case 'f': gfa_path = optarg; break;
       case 'r': resume = true; break;
       case 'd': checkpoints = false; break;
@@ -197,7 +200,7 @@ int main(int argc, char** argv) {
 
   auto thread_pool = std::make_shared<thread_pool::ThreadPool>(num_threads);
 
-  raven::Graph graph{weaken, checkpoints, thread_pool};
+  raven::Graph graph{step, weaken, checkpoints, thread_pool};
   if (resume) {
     try {
       graph.Load();
