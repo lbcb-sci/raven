@@ -83,6 +83,13 @@ class Plotter:
     elif (self.mode == "pile"):
       for pile in data:
         self.DrawPile(data[pile])
+    elif (self.mode == "demo"):
+      if ("529" in data):
+        self.DrawPile(data["529"])
+      if ("1008" in data):
+        self.DrawPile(data["1008"])
+      if ("8203" in data):
+        self.DrawPile(data["8203"])
     return
 
 if __name__ == "__main__":
@@ -90,7 +97,7 @@ if __name__ == "__main__":
       description = "Plotter is a tool for drawing the assembly graph and pile-o-grams",
       formatter_class = argparse.ArgumentDefaultsHelpFormatter)
   parser.add_argument("mode",
-      help = "draw either the assembly [graph] or [pile]-o-grams")
+      help = "draw either the assembly [graph] or [pile]-o-grams ([demo] prints only three pile-o-grams)")
   parser.add_argument("path",
       help = "input file in JSON format")
   parser.add_argument("-t", "--type", default = "all",

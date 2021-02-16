@@ -752,7 +752,7 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
         });
   }
 
-  if (step_ < 2 && stage_ == -4) {  // resolve repeat induced overlaps
+  if (stage_ == -4) {  // resolve repeat induced overlaps
     timer.Start();
 
     while (true) {
@@ -790,8 +790,9 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
       std::uint32_t j = 0;
       for (std::uint32_t i = 0; i < overlaps.back().size(); ++i) {
         const auto& it = overlaps.back()[i];
-        if (piles_[it.lhs_id]->CheckRepetitiveRegions(it) ||
-            piles_[it.rhs_id]->CheckRepetitiveRegions(it)) {
+        if (step_ > 1 &&
+            (piles_[it.lhs_id]->CheckRepetitiveRegions(it) ||
+             piles_[it.rhs_id]->CheckRepetitiveRegions(it))) {
           is_changed = true;
         } else {
           overlaps.back()[j++] = it;
@@ -998,7 +999,7 @@ void Graph::Assemble() {
     }
   }
 
-  PrintGfa(prefix_ + "_final.gfa");
+  PrintGfa(prefix_ + "_end.gfa");
 
   std::cerr << "[raven::Graph::Assemble] "
             << std::fixed << timer.elapsed_time() << "s"
@@ -1265,7 +1266,7 @@ std::uint32_t Graph::RemoveLongEdges(std::uint32_t num_rounds) {
   std::uint32_t num_long_edges = 0;
 
   for (std::uint32_t i = 0; i < num_rounds; ++i) {
-    CreateForceDirectedLayout(i == 0 ? "layout.json" : "");
+    CreateForceDirectedLayout(i == 0 ? prefix_ + "_layout.json" : "");
 
     std::unordered_set<std::uint32_t> marked_edges;
     for (const auto& it : nodes_) {
