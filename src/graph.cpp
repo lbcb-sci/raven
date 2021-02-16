@@ -79,6 +79,7 @@ std::atomic<std::uint32_t> Graph::Node::num_objects{0};
 std::atomic<std::uint32_t> Graph::Edge::num_objects{0};
 
 Graph::Graph(
+    std::string prefix,
     std::size_t step,
     bool weaken,
     bool checkpoints,
@@ -87,6 +88,7 @@ Graph::Graph(
           thread_pool :
           std::make_shared<thread_pool::ThreadPool>(1)),
       stage_(-5),
+      prefix_(prefix),
       step_(step),
       checkpoints_(checkpoints),
       accurate_(weaken),
@@ -828,6 +830,7 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
       auto sequence = biosoup::NucleicAcid{
           sequences[it->id()]->name,
           sequences[it->id()]->InflateData(it->begin(), it->end() - it->begin())};  // NOLINT
+      sequence.id = it->id();
 
       sequence_to_node[it->id()] = Node::num_objects;
 
@@ -899,7 +902,7 @@ void Graph::Assemble() {
 
   biosoup::Timer timer{};
 
-  PrintGfa("construction.gfa");
+  PrintGfa(prefix_ + "_construction.gfa");
 
   if (stage_ == -3) {  // remove transitive edges
     timer.Start();
@@ -911,7 +914,7 @@ void Graph::Assemble() {
               << std::endl;
   }
 
-  PrintGfa("transitive.gfa");
+  PrintGfa(prefix_ + "_transitive.gfa");
 
   if (stage_ == -3) {  // checkpoint
     ++stage_;
@@ -940,7 +943,7 @@ void Graph::Assemble() {
               << std::endl;
   }
 
-  PrintGfa("bubbles.gfa");
+  PrintGfa(prefix_ + "_bubbles.gfa");
 
   if (stage_ == -2) {  // checkpoint
     ++stage_;
@@ -955,8 +958,8 @@ void Graph::Assemble() {
 
   CreateUnitigs(42);  // speed up force directed layout
 
-  PrintJson("piles.json");
-  PrintGfa("unitigs.gfa");
+  PrintJson(prefix_ + "_piles.json");
+  PrintGfa(prefix_ + "_unitigs.gfa");
 
   if (stage_ == -1) {  // remove long edges
     if (step_ > 0) {
@@ -995,7 +998,7 @@ void Graph::Assemble() {
     }
   }
 
-  PrintGfa("final.gfa");
+  PrintGfa(prefix_ + "_final.gfa");
 
   std::cerr << "[raven::Graph::Assemble] "
             << std::fixed << timer.elapsed_time() << "s"
@@ -2067,11 +2070,11 @@ void Graph::PrintJson(const std::string& path) const {
 
   std::ofstream os(path);
   cereal::JSONOutputArchive archive(os);
-  for (const auto& it : piles_) {
-    if (it->is_invalid()) {
+  for (const auto& it : nodes_) {
+    if (!it || it->is_rc() || it->count > 1) {
       continue;
     }
-    archive(cereal::make_nvp(std::to_string(it->id()), *(it.get())));
+    archive(cereal::make_nvp(std::to_string(it->sequence.id), *(piles_[it->sequence.id].get())));
   }
 }
 

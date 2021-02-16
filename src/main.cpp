@@ -195,12 +195,20 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  std::string prefix = argv[optind];
+  {
+    auto c = prefix.rfind('/');
+    prefix = prefix.substr(c == std::string::npos ? 0 : c + 1);
+    c = prefix.find('.');
+    prefix = prefix.substr(0, c);
+  }
+
   biosoup::Timer timer{};
   timer.Start();
 
   auto thread_pool = std::make_shared<thread_pool::ThreadPool>(num_threads);
 
-  raven::Graph graph{step, weaken, checkpoints, thread_pool};
+  raven::Graph graph{prefix, step, weaken, checkpoints, thread_pool};
   if (resume) {
     try {
       graph.Load();

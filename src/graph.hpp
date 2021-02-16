@@ -43,6 +43,7 @@ namespace raven {
 class Graph {
  public:
   Graph(
+      std::string prefix,
       std::size_t step,
       bool weaken,
       bool checkpoints,
@@ -128,14 +129,14 @@ class Graph {
       }
     }
 
-    archive(stage_, step_, piles_, nodes_, edges_, connections);
+    archive(stage_, prefix_, step_, piles_, nodes_, edges_, connections);
   }
 
   template<class Archive>
   void load(Archive& archive) {  // NOLINT
     std::vector<std::pair<std::uint32_t, std::uint32_t>> connections;
 
-    archive(stage_, step_, piles_, nodes_, edges_, connections);
+    archive(stage_, prefix_, step_, piles_, nodes_, edges_, connections);
 
     for (std::uint32_t i = 0; i < nodes_.size(); i += 2) {
       if (nodes_[i]) {
@@ -272,6 +273,7 @@ class Graph {
   std::shared_ptr<thread_pool::ThreadPool> thread_pool_;
 
   int stage_;
+  std::string prefix_;
   std::size_t step_;
   bool checkpoints_;
   bool accurate_;
