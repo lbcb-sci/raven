@@ -4,9 +4,11 @@
 #define RAVEN_PILE_HPP_
 
 #include <cstdint>
-#include <vector>
+#include <memory>
 #include <utility>
+#include <vector>
 
+#include "biosoup/nucleic_acid.hpp"
 #include "biosoup/overlap.hpp"
 #include "cereal/cereal.hpp"
 #include "cereal/access.hpp"
@@ -90,6 +92,12 @@ class Pile {
       std::vector<biosoup::Overlap>::const_iterator begin,
       std::vector<biosoup::Overlap>::const_iterator end);
 
+  // mark repetitive k-mers
+  void AddKmers(
+      const std::vector<std::uint32_t>& kmers,
+      std::uint32_t kmer_len,
+      const std::unique_ptr<biosoup::NucleicAcid>& sequence);
+
   // store longest region with values greater or equal than given coverage
   void FindValidRegion(std::uint16_t coverage);
 
@@ -108,7 +116,8 @@ class Pile {
   // update valid region to longest non-chimeric given the component median
   void ClearChimericRegions(std::uint16_t median);
 
-  // store coverage spikes given component median
+  // store coverage spikes given component median, and
+  //   tightly packed groups of repetitive k-mers
   void FindRepetitiveRegions(std::uint16_t median);
 
   // increase confidence in repetitive regions given an overlap
@@ -135,6 +144,7 @@ class Pile {
         CEREAL_NVP(is_chimeric_),
         CEREAL_NVP(is_repetitive_),
         CEREAL_NVP(data_),
+        CEREAL_NVP(kmers_),
         CEREAL_NVP(chimeric_regions_),
         CEREAL_NVP(repetitive_regions_));
   }
@@ -161,6 +171,7 @@ class Pile {
   bool is_chimeric_;
   bool is_repetitive_;
   std::vector<std::uint16_t> data_;
+  std::vector<bool> kmers_;
   std::vector<Region> chimeric_regions_;
   std::vector<Region> repetitive_regions_;
 };

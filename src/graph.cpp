@@ -273,9 +273,10 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
 
   biosoup::Timer timer{};
 
+  std::uint32_t kmer_len = accurate_ ? 29 : 15;
   ram::MinimizerEngine minimizer_engine{
       thread_pool_,
-      accurate_ ? 29U : 15U,
+      kmer_len,
       accurate_ ? 9U : 5U
   };
 
@@ -521,31 +522,7 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
     }
   }
 
-  if (stage_ == -4) {  // clear piles for sensitive overlaps
-    timer.Start();
-
-    std::vector<std::future<void>> thread_futures;
-    for (std::uint32_t i = 0; i < piles_.size(); ++i) {
-      if (piles_[i]->is_invalid()) {
-        continue;
-      }
-      thread_futures.emplace_back(thread_pool_->Submit(
-          [&] (std::uint32_t i) -> void {
-            piles_[i]->ClearValidRegion();
-          },
-          i));
-    }
-    for (const auto& it : thread_futures) {
-      it.wait();
-    }
-    thread_futures.clear();
-
-    std::cerr << "[raven::Graph::Construct] cleared piles "
-              << std::fixed << timer.Stop() << "s"
-              << std::endl;
-  }
-
-  if (stage_ == -4) {  // find overlaps and update piles with repetitive regions
+  if (stage_ == -4) {  // find overlaps and repetitive regions
     std::sort(sequences.begin(), sequences.end(),
         [&] (const std::unique_ptr<biosoup::NucleicAcid>& lhs,
              const std::unique_ptr<biosoup::NucleicAcid>& rhs) -> bool {
@@ -561,78 +538,9 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
       }
     }
 
-    // map invalid reads to valid reads
+    // map valid reads to each other
     overlaps.resize(sequences.size() + 1);
     std::size_t bytes = 0;
-    for (std::uint32_t i = 0, j = 0; i < s; ++i) {
-      bytes += sequences[i]->inflated_len;
-      if (i != s - 1 && bytes < (1ULL << 32)) {
-        continue;
-      }
-      bytes = 0;
-
-      timer.Start();
-
-      minimizer_engine.Minimize(
-          sequences.begin() + j,
-          sequences.begin() + i + 1,
-          true);
-
-      std::cerr << "[raven::Graph::Construct] minimized "
-                << j << " - " << i + 1 << " / " << s << " "
-                << std::fixed << timer.Stop() << "s"
-                << std::endl;
-
-      timer.Start();
-
-      minimizer_engine.Filter(0.00001);
-      std::vector<std::future<std::vector<biosoup::Overlap>>> thread_futures;
-      for (std::uint32_t k = s; k < sequences.size(); ++k) {
-        thread_futures.emplace_back(thread_pool_->Submit(
-            [&] (std::uint32_t i) -> std::vector<biosoup::Overlap> {
-              return minimizer_engine.Map(sequences[i], true, false, true);
-            },
-            k));
-
-        bytes += sequences[k]->inflated_len;
-        if (k != sequences.size() - 1 && bytes < (1U << 30)) {
-          continue;
-        }
-        bytes = 0;
-
-        for (auto& it : thread_futures) {
-          for (const auto& jt : it.get()) {
-            overlaps[jt.rhs_id].emplace_back(jt);
-          }
-        }
-        thread_futures.clear();
-
-        std::vector<std::future<void>> void_futures;
-        for (std::uint32_t k = j; k < i + 1; ++k) {
-          if (overlaps[sequences[k]->id].empty()) {
-            continue;
-          }
-          void_futures.emplace_back(thread_pool_->Submit(
-              [&] (std::uint32_t i) -> void {
-                piles_[i]->AddLayers(overlaps[i].begin(), overlaps[i].end());
-                std::vector<biosoup::Overlap>().swap(overlaps[i]);
-              },
-              sequences[k]->id));
-        }
-        for (const auto& it : void_futures) {
-          it.wait();
-        }
-      }
-
-      std::cerr << "[raven::Graph::Construct] mapped invalid sequences "
-                << std::fixed << timer.Stop() << "s"
-                << std::endl;
-
-      j = i + 1;
-    }
-
-    // map valid reads to each other
-    bytes = 0;
     for (std::uint32_t i = 0, j = 0; i < s; ++i) {
       bytes += sequences[i]->inflated_len;
       if (i != s - 1 && bytes < (1U << 30)) {
@@ -658,7 +566,15 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
       for (std::uint32_t k = 0; k < i + 1; ++k) {
         thread_futures.emplace_back(thread_pool_->Submit(
             [&] (std::uint32_t i) -> std::vector<biosoup::Overlap> {
-              return minimizer_engine.Map(sequences[i], true, true);
+              std::vector<std::uint32_t> filtered;
+              auto dst = minimizer_engine.Map(
+                  sequences[i],
+                  true,  // avoid equal
+                  true,  // avoid symmetric
+                  false,  // minhash
+                  &filtered);
+              piles_[sequences[i]->id]->AddKmers(filtered, kmer_len, sequences[i]); // NOLINT
+              return dst;
             },
             k));
       }
@@ -702,28 +618,8 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
     for (std::uint32_t i = 0; i < piles_.size(); ++i) {
       if (piles_[i]->is_contained()) {
         piles_[i]->set_is_invalid();
-        continue;
       }
-      if (piles_[i]->is_invalid()) {
-        continue;
-      }
-      thread_futures.emplace_back(thread_pool_->Submit(
-          [&] (std::uint32_t i) -> void {
-            piles_[i]->ClearInvalidRegion();
-            piles_[i]->FindMedian();
-          },
-          i));
     }
-    for (const auto& it : thread_futures) {
-      it.wait();
-    }
-    thread_futures.clear();
-
-    std::cerr << "[raven::Graph::Construct] updated piles "
-              << std::fixed << timer.Stop() << "s"
-              << std::endl;
-
-    timer.Start();
 
     {
       std::uint32_t k = 0;

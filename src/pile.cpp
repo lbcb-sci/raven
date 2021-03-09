@@ -5,11 +5,12 @@
 #include <algorithm>
 #include <deque>
 #include <limits>
+#include <string>
 
 namespace raven {
 
 template<typename T>
-T clamp(T v) {
+std::uint16_t clamp(T v) {
   return (v < std::numeric_limits<std::uint16_t>::max()) ?
           v : std::numeric_limits<std::uint16_t>::max();
 }
@@ -24,6 +25,7 @@ Pile::Pile(std::uint32_t id, std::uint32_t len)
       is_chimeric_(0),
       is_repetitive_(0),
       data_(end_, 0),
+      kmers_(),
       chimeric_regions_(),
       repetitive_regions_() {}
 
@@ -56,6 +58,62 @@ void Pile::AddLayers(
     }
     last_boundary = it >> 1;
     coverage += it & 1 ? -1 : 1;
+  }
+}
+
+void Pile::AddKmers(
+    const std::vector<std::uint32_t>& kmers,
+    std::uint32_t kmer_len,
+    const std::unique_ptr<biosoup::NucleicAcid>& sequence) {
+  if (kmers.empty()) {
+    return;
+  }
+  if (kmers_.empty()) {
+    kmers_.resize(data_.size() + 1, 0);
+  }
+  for (const auto& it : kmers) {
+    // filter low-complexity regions
+    std::string kmer = sequence->InflateData(it, kmer_len);
+
+    std::vector<std::string> polymers;
+    for (const auto& it : kmer) {
+      polymers.emplace_back(1, it);
+    }
+    polymers.erase(std::unique(polymers.begin(), polymers.end()), polymers.end());  // NOLINT
+    kmer = std::accumulate(polymers.begin(), polymers.end(), std::string());
+    if (kmer.size() < kmer_len / 2 + 1) {
+      continue;
+    }
+
+    polymers.clear();
+    for (auto it = kmer.begin(); it != kmer.end(); ++it) {
+      if ((it - kmer.begin()) % 2 == 1) {
+        polymers.back() += *it;
+      } else {
+        polymers.emplace_back(1, *it);
+      }
+    }
+    polymers.erase(std::unique(polymers.begin(), polymers.end()), polymers.end());  // NOLINT
+    kmer = std::accumulate(polymers.begin(), polymers.end(), std::string());
+    if (kmer.size() < kmer_len / 2 + 1) {
+      continue;
+    }
+
+    polymers.clear();
+    for (auto it = kmer.begin(); it != kmer.end(); ++it) {
+      if (!polymers.empty() && (it - kmer.begin()) % 2 == 0) {
+        polymers.back() += *it;
+      } else {
+        polymers.emplace_back(1, *it);
+      }
+    }
+    polymers.erase(std::unique(polymers.begin(), polymers.end()), polymers.end());  // NOLINT
+    kmer = std::accumulate(polymers.begin(), polymers.end(), std::string());
+    if (kmer.size() < kmer_len / 2 + 1) {
+      continue;
+    }
+
+    kmers_[it >> kPSS] = 1;
   }
 }
 
@@ -167,50 +225,78 @@ void Pile::ClearChimericRegions(std::uint16_t median) {
 }
 
 void Pile::FindRepetitiveRegions(std::uint16_t median) {
-  auto slopes = FindSlopes(1.42);
-  if (slopes.empty()) {
-      return;
-  }
+  // check kmers_
+  if (!kmers_.empty()) {
+    std::uint32_t w = 479 >> kPSS;
+    std::uint32_t group = 12;
 
-  auto is_repetitive_region = [&] (const Region& begin, const Region& end) -> bool {  // NOLINT
-    if (((end.first >> 1) + end.second) / 2 -
-        ((begin.first >> 1) + begin.second) / 2 > 0.84 * (end_ - begin_)) {
-      return false;
-    }
-    bool found_peak = false;
-    std::uint16_t peak_value =
-        clamp(1.42 * std::max(data_[begin.second], data_[end.first >> 1]));
-    std::uint16_t min_value = clamp(1.42 * median);
-    std::uint32_t num_valid = 0;
-
-    for (std::uint32_t i = begin.second + 1; i < (end.first >> 1); ++i) {
-      if (data_[i] > min_value) {
-        ++num_valid;
-      }
-      if (data_[i] > peak_value) {
-        found_peak = true;
-      }
-    }
-
-    if (!found_peak || num_valid < 0.9 * ((end.first >> 1) - begin.second)) {
-      return false;
-    }
-    return true;
-  };
-
-  for (std::uint32_t i = 0; i < slopes.size() - 1; ++i) {
-    if (!(slopes[i].first & 1)) {
-      continue;
-    }
-    for (std::uint32_t j = i + 1; j < slopes.size(); ++j) {
-      if (slopes[j].first & 1) {
+    Region region;
+    std::size_t count = 0;
+    for (std::uint32_t i = 0; i < kmers_.size(); ++i) {
+      if (kmers_[i] == 0) {
         continue;
       }
-      if (is_repetitive_region(slopes[i], slopes[j])) {
-        repetitive_regions_.emplace_back(
-            (slopes[i].second)     - 0.336 * (slopes[i].second - (slopes[i].first >> 1)),  // NOLINT
-            (slopes[j].first >> 1) + 0.336 * (slopes[j].second - (slopes[j].first >> 1)));  // NOLINT
+      if (count && i - region.second <= w) {
+        region.second = i;
+        ++count;
+        continue;
+      }
+      if (count > group) {
+        repetitive_regions_.emplace_back(region);
         set_is_repetitive();
+      }
+      region = {i, i};
+      count = 1;
+    }
+    if (count > group) {
+      repetitive_regions_.emplace_back(region);
+      set_is_repetitive();
+    }
+  }
+
+  // check data_
+  auto slopes = FindSlopes(1.42);
+  if (!slopes.empty()) {
+    auto is_repetitive_region = [&] (const Region& begin, const Region& end) -> bool {  // NOLINT
+      if (((end.first >> 1) + end.second) / 2 -
+          ((begin.first >> 1) + begin.second) / 2 > 0.84 * (end_ - begin_)) {
+        return false;
+      }
+      bool found_peak = false;
+      std::uint16_t peak_value =
+          clamp(1.42 * std::max(data_[begin.second], data_[end.first >> 1]));
+      std::uint16_t min_value = clamp(1.42 * median);
+      std::uint32_t num_valid = 0;
+
+      for (std::uint32_t i = begin.second + 1; i < (end.first >> 1); ++i) {
+        if (data_[i] > min_value) {
+          ++num_valid;
+        }
+        if (data_[i] > peak_value) {
+          found_peak = true;
+        }
+      }
+
+      if (!found_peak || num_valid < 0.9 * ((end.first >> 1) - begin.second)) {
+        return false;
+      }
+      return true;
+    };
+
+    for (std::uint32_t i = 0; i < slopes.size() - 1; ++i) {
+      if (!(slopes[i].first & 1)) {
+        continue;
+      }
+      for (std::uint32_t j = i + 1; j < slopes.size(); ++j) {
+        if (slopes[j].first & 1) {
+          continue;
+        }
+        if (is_repetitive_region(slopes[i], slopes[j])) {
+          repetitive_regions_.emplace_back(
+              (slopes[i].second)     - 0.336 * (slopes[i].second - (slopes[i].first >> 1)),  // NOLINT
+              (slopes[j].first >> 1) + 0.336 * (slopes[j].second - (slopes[j].first >> 1)));  // NOLINT
+          set_is_repetitive();
+        }
       }
     }
   }
