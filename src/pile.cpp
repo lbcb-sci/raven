@@ -10,7 +10,7 @@
 namespace raven {
 
 template<typename T>
-std::uint16_t clamp(T v) {
+T clamp(T v) {
   return (v < std::numeric_limits<std::uint16_t>::max()) ?
           v : std::numeric_limits<std::uint16_t>::max();
 }

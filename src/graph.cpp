@@ -1245,7 +1245,7 @@ void Graph::CreateForceDirectedLayout(const std::string& path) {
       y /= c;
       return *this;
     }
-    double norm() const {
+    double Norm() const {
       return sqrt(x * x + y * y);
     }
 
@@ -1262,7 +1262,7 @@ void Graph::CreateForceDirectedLayout(const std::string& path) {
           subtrees() {
     }
 
-    bool add(const Point& p) {
+    bool Add(const Point& p) {
       if (nucleus.x - width > p.x || p.x > nucleus.x + width ||
           nucleus.y - width > p.y || p.y > nucleus.y + width) {
         return false;
@@ -1280,40 +1280,40 @@ void Graph::CreateForceDirectedLayout(const std::string& path) {
         subtrees.emplace_back(Point(nucleus.x - w, nucleus.y - w), w);
         subtrees.emplace_back(Point(nucleus.x + w, nucleus.y - w), w);
         for (auto& it : subtrees) {
-          if (it.add(center)) {
+          if (it.Add(center)) {
             break;
           }
         }
       }
       for (auto& it : subtrees) {
-        if (it.add(p)) {
+        if (it.Add(p)) {
           break;
         }
       }
       return true;
     }
 
-    void centre() {
+    void Centre() {
       if (subtrees.empty()) {
         return;
       }
       center = Point(0, 0);
       for (auto& it : subtrees) {
-        it.centre();
+        it.Centre();
         center += it.center * it.mass;
       }
       center /= mass;
     }
 
-    Point force(const Point& p, double k) const {
+    Point Force(const Point& p, double k) const {
       auto delta = p - center;
-      auto distance = delta.norm();
+      auto distance = delta.Norm();
       if (width * 2 / distance < 1) {
         return delta * (mass * (k * k) / (distance * distance));
       }
       delta = Point(0, 0);
       for (const auto& it : subtrees) {
-        delta += it.force(p, k);
+        delta += it.Force(p, k);
       }
       return delta;
     }
@@ -1376,19 +1376,19 @@ void Graph::CreateForceDirectedLayout(const std::string& path) {
 
       Quadtree tree(Point(x.x + w, y.x + h), std::max(w, h) + 0.01);
       for (const auto& n : component) {
-        tree.add(points[n]);
+        tree.Add(points[n]);
       }
-      tree.centre();
+      tree.Centre();
 
       std::vector<std::future<void>> thread_futures;
       std::vector<Point> displacements(nodes_.size(), Point(0, 0));
 
       auto thread_task = [&](std::uint32_t n) -> void {
-        auto displacement = tree.force(points[n], k);
+        auto displacement = tree.Force(points[n], k);
         for (auto e : nodes_[n]->inedges) {
           auto m = (e->tail->id >> 1) << 1;
           auto delta = points[n] - points[m];
-          auto distance = delta.norm();
+          auto distance = delta.Norm();
           if (distance < 0.01) {
             distance = 0.01;
           }
@@ -1397,7 +1397,7 @@ void Graph::CreateForceDirectedLayout(const std::string& path) {
         for (auto e : nodes_[n]->outedges) {
           auto m = (e->head->id >> 1) << 1;
           auto delta = points[n] - points[m];
-          auto distance = delta.norm();
+          auto distance = delta.Norm();
           if (distance < 0.01) {
             distance = 0.01;
           }
@@ -1405,13 +1405,13 @@ void Graph::CreateForceDirectedLayout(const std::string& path) {
         }
         for (const auto& m : nodes_[n]->transitive) {
           auto delta = points[n] - points[m];
-          auto distance = delta.norm();
+          auto distance = delta.Norm();
           if (distance < 0.01) {
             distance = 0.01;
           }
           displacement += delta * (-1. * distance / k);
         }
-        auto length = displacement.norm();
+        auto length = displacement.Norm();
         if (length < 0.01) {
           length = 0.1;
         }
@@ -1441,7 +1441,7 @@ void Graph::CreateForceDirectedLayout(const std::string& path) {
 
       if (component.find(n) != component.end() &&
           component.find(m) != component.end()) {
-        it->weight = (points[n] - points[m]).norm();
+        it->weight = (points[n] - points[m]).Norm();
         it->pair->weight = it->weight;
       }
     }
