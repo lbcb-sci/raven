@@ -538,7 +538,7 @@ void Graph::Construct(
       std::ofstream os("chimeric.txt");
       for (const auto& it : piles_) {
         if (it->is_chimeric()) {
-          os << it->id() << " ";
+          os << it->id() << "\n";
         }
       }
       os << std::endl;
@@ -2077,6 +2077,7 @@ void Graph::PrintGfa(const std::string& path) const {
        << "\t"  << it->data
        << "\tLN:i:" << it->data.size()
        << "\tRC:i:" << it->count
+       << "\tID:i:" << it->id / 2
        << std::endl;
     if (it->is_circular) {
       os << "L\t" << it->name << "\t" << '+'
