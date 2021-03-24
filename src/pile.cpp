@@ -120,20 +120,16 @@ void Pile::AddKmers(
 void Pile::FindValidRegion(std::uint16_t coverage) {
   std::uint32_t begin = 0;
   std::uint32_t end = 0;
+  std::uint32_t counter = 0;
   for (std::uint32_t i = begin_; i < end_; ++i) {
-    if (data_[i] < coverage) {
-      continue;
-    }
-    for (std::uint32_t j = i + 1; j < end_; ++j) {
-      if (data_[j] >= coverage) {
-        continue;
+    if (data_[i] >= coverage) {
+      counter++;
+      if (counter > end - begin) {
+        end = i + 1;
+        begin = i - counter + 1;
       }
-      if (end - begin < j - i) {
-        begin = i;
-        end = j;
-      }
-      i = j;
-      break;
+    } else {
+      counter = 0;
     }
   }
   UpdateValidRegion(begin, end);
