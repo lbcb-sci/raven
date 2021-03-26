@@ -450,24 +450,73 @@ void Graph::Construct(
   }
 
   if (stage_ == -5 && !notations_path.empty()) {
-    std::unordered_set<std::size_t> chimeric;
-    {
-      std::ifstream is(notations_path);
-      std::size_t in;
-      while (is >> in) chimeric.emplace(in);
-      is.close();
-    }
     for (auto& it : piles_) {
-      if (it->is_invalid()) {
-        continue;
+      it->RemoveChimericNotations();
+    }
+
+    std::ifstream is(notations_path);
+    std::string in;
+    while (std::getline(is, in)) {
+      std::vector<std::size_t> tokens;
+      std::size_t pos = 0;
+      while ((pos = in.find(' ')) != std::string::npos) {
+        if (pos > 0) {
+          tokens.emplace_back(std::atoi(in.substr(0, pos).c_str()));
+        }
+        in.erase(0, pos + 1);
       }
-      if (chimeric.find(it->id()) != chimeric.end()) {
-        it->set_is_invalid();
+      tokens.emplace_back(std::atoi(in.c_str()));
+      if (tokens.empty()) {
+        continue;
+      } else if (tokens.size() == 1) {
+        if (tokens[0] < piles_.size()) {
+          piles_[tokens[0]]->set_is_chimeric();
+          piles_[tokens[0]]->set_is_invalid();
+        }
       } else {
-        it->RemoveChimericNotations();
+        if (tokens[0] < piles_.size()) {
+          std::vector<Pile::Region> regions;
+          for (std::uint32_t i = 1; i < tokens.size() - 1; i += 2) {
+            regions.emplace_back(tokens[i], tokens[i + 1]);
+          }
+          piles_[tokens[0]]->AddChimericNotations(regions);
+        }
       }
     }
-    std::cerr << "[raven::Graph::Construct] manually removed chimeric sequences "  // NOLINT
+    is.close();
+
+    for (auto& it : piles_) {
+      it->ClearChimericRegions(-1, discard);
+      if (it->is_invalid()) {
+        std::vector<biosoup::Overlap>().swap(overlaps[it->id()]);
+      }
+    }
+
+    for (std::uint32_t i = 0; i < overlaps.size(); ++i) {
+      std::uint32_t k = 0;
+      for (std::uint32_t j = 0; j < overlaps[i].size(); ++j) {
+        if (overlap_update(overlaps[i][j])) {
+          overlaps[i][k++] = overlaps[i][j];
+        }
+      }
+      overlaps[i].resize(k);
+    }
+
+    for (const auto& it : overlaps) {
+      for (const auto& jt : it) {
+        std::uint32_t type = overlap_type(jt);
+        if (type == 1) {
+          piles_[jt.lhs_id]->set_is_contained();
+          piles_[jt.lhs_id]->set_is_invalid();
+        } else if (type == 2) {
+          piles_[jt.rhs_id]->set_is_contained();
+          piles_[jt.rhs_id]->set_is_invalid();
+        }
+      }
+    }
+    overlaps.clear();
+
+    std::cerr << "[raven::Graph::Construct] manually resolved chimeric sequences "  // NOLINT
               << std::fixed << timer.Stop() << "s"
               << std::endl;
   } else if (stage_ == -5) {  // resolve chimeric sequences

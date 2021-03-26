@@ -109,6 +109,10 @@ class Pile {
     chimeric_regions_.clear();
   }
 
+  using Region = std::pair<std::uint32_t, std::uint32_t>;
+
+  void AddChimericNotations(const std::vector<Region>& regions);
+
   // update valid region to longest non-chimeric given the component median
   void ClearChimericRegions(std::uint32_t median, bool discard = false);
 
@@ -145,8 +149,6 @@ class Pile {
   }
 
   friend cereal::access;
-
-  using Region = std::pair<std::uint32_t, std::uint32_t>;
 
   // clear invalid region after update
   void UpdateValidRegion(std::uint32_t begin, std::uint32_t end);

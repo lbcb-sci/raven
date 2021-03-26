@@ -511,4 +511,15 @@ std::vector<Pile::Region> Pile::FindSlopes(double q) {
   return dst;
 }
 
+void Pile::AddChimericNotations(const std::vector<Region>& regions) {
+  for (const auto& it : regions) {
+    if (begin_ <= (it.first  >> kPSS) && (it.first  >> kPSS) <= end_ &&
+        begin_ <= (it.second >> kPSS) && (it.second >> kPSS) <= end_) {
+      chimeric_regions_.emplace_back(it.first >> kPSS, it.second >> kPSS);
+    }
+  }
+  std::sort(chimeric_regions_.begin(), chimeric_regions_.end());
+  chimeric_regions_ = MergeRegions(chimeric_regions_);
+}
+
 }  // namespace raven
