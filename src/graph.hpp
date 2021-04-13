@@ -61,7 +61,11 @@ class Graph {
 
   // break chimeric sequences, remove contained sequences and overlaps not
   // spanning bridged repeats at sequence ends
-  void Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences);  // NOLINT
+  void Construct(
+      std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,  // NOLINT
+      bool split = false,
+      bool discard = false,
+      std::string notations_path = "");
 
   // simplify with transitive reduction, tip prunning and bubble popping
   void Assemble();

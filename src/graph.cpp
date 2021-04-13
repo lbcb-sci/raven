@@ -85,14 +85,18 @@ Graph::Graph(
     : thread_pool_(thread_pool ?
           thread_pool :
           std::make_shared<thread_pool::ThreadPool>(1)),
-      stage_(-5),
+      stage_(-6),
       checkpoints_(checkpoints),
       accurate_(weaken),
       piles_(),
       nodes_(),
       edges_() {}
 
-void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences) {  // NOLINT
+void Graph::Construct(
+    std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,  // NOLINT
+    bool split,
+    bool discard,
+    std::string notations_path) {
   if (sequences.empty() || stage_ > -4) {
     return;
   }
@@ -267,7 +271,7 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
   };
   // biosoup::Overlap helper functions
 
-  if (stage_ == -5 && checkpoints_) {  // checkpoint test
+  if (stage_ == -6 && checkpoints_) {  // checkpoint test
     Store();
   }
 
@@ -280,7 +284,7 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
       accurate_ ? 9U : 5U
   };
 
-  if (stage_ == -5) {  // find overlaps and create piles
+  if (stage_ == -6) {  // find overlaps and create piles
     for (const auto& it : sequences) {
       piles_.emplace_back(new Pile(it->id, it->inflated_len));
     }
@@ -381,7 +385,7 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
     }
   }
 
-  if (stage_ == -5) {  // trim and annotate piles
+  if (stage_ == -6) {  // trim and annotate piles
     timer.Start();
 
     std::vector<std::future<void>> thread_futures;
@@ -408,7 +412,7 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
               << std::endl;
   }
 
-  if (stage_ == -5) {  // resolve contained reads
+  if (stage_ == -6) {  // resolve contained reads
     timer.Start();
 
     for (std::uint32_t i = 0; i < overlaps.size(); ++i) {
@@ -442,7 +446,93 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
               << std::endl;
   }
 
-  if (stage_ == -5) {  // resolve chimeric sequences
+  if (stage_ == -6) {  // checkpoint
+    ++stage_;
+    if (checkpoints_) {
+      timer.Start();
+      Store();
+      std::cerr << "[raven::Graph::Construct] reached checkpoint "
+                << std::fixed << timer.Stop() << "s"
+                << std::endl;
+    }
+  }
+
+  if (stage_ == -5 && split) {  // output valid pile-o-grams
+    PrintJson("uncontained.json");
+    exit(1);
+  }
+
+  if (stage_ == -5 && !notations_path.empty()) {
+    for (auto& it : piles_) {
+      it->RemoveChimericRegions();
+    }
+
+    std::ifstream is(notations_path);
+    std::string in;
+    while (std::getline(is, in)) {
+      std::vector<std::size_t> tokens;
+      std::size_t pos = 0;
+      while ((pos = in.find(' ')) != std::string::npos) {
+        if (pos > 0) {
+          tokens.emplace_back(std::atoi(in.substr(0, pos).c_str()));
+        }
+        in.erase(0, pos + 1);
+      }
+      tokens.emplace_back(std::atoi(in.c_str()));
+      if (tokens.empty()) {
+        continue;
+      } else if (tokens.size() == 1) {
+        if (tokens[0] < piles_.size()) {
+          piles_[tokens[0]]->set_is_chimeric();
+          piles_[tokens[0]]->set_is_invalid();
+        }
+      } else {
+        if (tokens[0] < piles_.size()) {
+          std::vector<Pile::Region> regions;
+          for (std::uint32_t i = 1; i < tokens.size() - 1; i += 2) {
+            regions.emplace_back(tokens[i] << 4, tokens[i + 1] << 4);
+          }
+          piles_[tokens[0]]->AddChimericRegions(regions);
+        }
+      }
+    }
+    is.close();
+
+    for (auto& it : piles_) {
+      it->ClearChimericRegions(-1, discard);
+      if (it->is_invalid()) {
+        std::vector<biosoup::Overlap>().swap(overlaps[it->id()]);
+      }
+    }
+
+    for (std::uint32_t i = 0; i < overlaps.size(); ++i) {
+       std::uint32_t k = 0;
+       for (std::uint32_t j = 0; j < overlaps[i].size(); ++j) {
+         if (overlap_update(overlaps[i][j])) {
+           overlaps[i][k++] = overlaps[i][j];
+         }
+       }
+       overlaps[i].resize(k);
+    }
+
+    for (const auto& it : overlaps) {
+      for (const auto& jt : it) {
+        std::uint32_t type = overlap_type(jt);
+        if (type == 1) {
+          piles_[jt.lhs_id]->set_is_contained();
+          piles_[jt.lhs_id]->set_is_invalid();
+        } else if (type == 2) {
+          piles_[jt.rhs_id]->set_is_contained();
+          piles_[jt.rhs_id]->set_is_invalid();
+        }
+      }
+    }
+    overlaps.clear();
+
+    std::cerr << "[raven::Graph::Construct] manually resolved chimeric sequences "  // NOLINT
+              << std::fixed << timer.Stop() << "s"
+              << std::endl;
+  } else if (stage_ == -5) {  // resolve chimeric sequences
     timer.Start();
 
     while (true) {
@@ -462,7 +552,7 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
         for (const auto& jt : it) {
           thread_futures.emplace_back(thread_pool_->Submit(
               [&] (std::uint32_t i) -> void {
-                piles_[i]->ClearChimericRegions(median);
+                piles_[i]->ClearChimericRegions(median, discard);
                 if (piles_[i]->is_invalid()) {
                   std::vector<biosoup::Overlap>().swap(overlaps[i]);
                 }
@@ -505,6 +595,17 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
         break;
       }
     }
+
+    {
+       std::ofstream os("chimeric.txt");
+       for (const auto& it : piles_) {
+         if (it->is_chimeric()) {
+           os << it->id() << "\n";
+         }
+       }
+       os << std::endl;
+       os.close();
+     }
 
     std::cerr << "[raven::Graph::Construct] removed chimeric sequences "
               << std::fixed << timer.Stop() << "s"
@@ -2021,6 +2122,7 @@ void Graph::PrintGfa(const std::string& path) const {
        << "\t"  << it->sequence.InflateData()
        << "\tLN:i:" << it->sequence.inflated_len
        << "\tRC:i:" << it->count
+       << "\tID:i:" << it->id / 2
        << std::endl;
     if (it->is_circular) {
       os << "L\t" << it->sequence.name << "\t" << '+'

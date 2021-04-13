@@ -28,6 +28,9 @@ static struct option options[] = {
   {"graphical-fragment-assembly", required_argument, nullptr, 'f'},
   {"resume", no_argument, nullptr, 'r'},
   {"disable-checkpoints", no_argument, nullptr, 'd'},
+  {"notations", required_argument, nullptr, 'N'},
+  {"split", no_argument, nullptr, 's'},
+  {"discard", no_argument, nullptr, 'D'},
   {"threads", required_argument, nullptr, 't'},
   {"version", no_argument, nullptr, 'v'},
   {"help", no_argument, nullptr, 'h'},
@@ -107,6 +110,12 @@ void Help() {
       "      resume previous run from last checkpoint\n"
       "    --disable-checkpoints\n"
       "      disable checkpoint file creation\n"
+      "    --split\n"
+      "      store pile-o-grams of uncontained sequences, and abort\n"
+      "    --discard\n"
+      "      instead of splitting chimeric reads, discard them\n"
+      "    --notations <string>\n"
+      "      path to file containing read labels\n"
       "    -t, --threads <int>\n"
       "      default: 1\n"
       "      number of threads\n"
@@ -129,6 +138,9 @@ int main(int argc, char** argv) {
   std::string gfa_path = "";
   bool resume = false;
   bool checkpoints = true;
+  bool split = false;
+  bool discard = false;
+  std::string notations = "";
 
   std::uint32_t num_threads = 1;
 
@@ -170,6 +182,9 @@ int main(int argc, char** argv) {
       case 'f': gfa_path = optarg; break;
       case 'r': resume = true; break;
       case 'd': checkpoints = false; break;
+      case 'D': discard = true; break;
+      case 's': split = true; break;
+      case 'N': notations = optarg; break;
       case 't': num_threads = atoi(optarg); break;
       case 'v': std::cout << VERSION << std::endl; return 0;
       case 'h': Help(); return 0;
@@ -234,7 +249,7 @@ int main(int argc, char** argv) {
     timer.Start();
   }
 
-  graph.Construct(sequences);
+  graph.Construct(sequences, split, discard, notations);
   graph.Assemble();
   graph.Polish(sequences, m, n, g, cuda_poa_batches, cuda_banded_alignment,
       cuda_alignment_batches, num_polishing_rounds);

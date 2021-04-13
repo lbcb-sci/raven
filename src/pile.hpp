@@ -110,11 +110,19 @@ class Pile {
   // store median of valid region
   void FindMedian();
 
+  using Region = std::pair<std::uint32_t, std::uint32_t>;
+
+  void AddChimericRegions(const std::vector<Region>& regions);
+
   // store coverage drops
   void FindChimericRegions();
 
   // update valid region to longest non-chimeric given the component median
-  void ClearChimericRegions(std::uint16_t median);
+  void ClearChimericRegions(std::uint16_t median, bool discard = false);
+
+  void RemoveChimericRegions() {
+    chimeric_regions_.clear();
+  }
 
   // store coverage spikes given component median, and
   //   tightly packed groups of repetitive k-mers
@@ -146,12 +154,11 @@ class Pile {
         CEREAL_NVP(data_),
         CEREAL_NVP(kmers_),
         CEREAL_NVP(chimeric_regions_),
-        CEREAL_NVP(repetitive_regions_));
+        CEREAL_NVP(repetitive_regions_),
+        CEREAL_NVP(points_));
   }
 
   friend cereal::access;
-
-  using Region = std::pair<std::uint32_t, std::uint32_t>;
 
   // clear invalid region after update
   void UpdateValidRegion(std::uint32_t begin, std::uint32_t end);
@@ -174,6 +181,7 @@ class Pile {
   std::vector<bool> kmers_;
   std::vector<Region> chimeric_regions_;
   std::vector<Region> repetitive_regions_;
+  std::vector<Region> points_;
 };
 
 }  // namespace raven
