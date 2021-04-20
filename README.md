@@ -24,8 +24,14 @@ usage: raven [options ...] <sequences>
     input file in FASTA/FASTQ format (can be compressed with gzip)
 
   options:
+    --split
+      store contained and uncontained sequences separately, and abort
+    --resume-with <path>
+      file containing highly accurate sequences obtained with split
     --weaken
       use larger (k, w) when assembling highly accurate sequences
+    --filter
+      drop low identity overlaps before assembly graph construction
     -p, --polishing-rounds <int>
       default: 2
       number of times racon is invoked

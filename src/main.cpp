@@ -15,7 +15,10 @@ std::atomic<std::uint32_t> biosoup::NucleicAcid::num_objects{0};
 namespace {
 
 static struct option options[] = {
+  {"split", no_argument, nullptr, 's'},
+  {"resume-with", required_argument, nullptr, 'R'},
   {"weaken", no_argument, nullptr, 'w'},
+  {"filter", no_argument, nullptr, 'F'},
   {"polishing-rounds", required_argument, nullptr, 'p'},
   {"match", required_argument, nullptr, 'm'},
   {"mismatch", required_argument, nullptr, 'n'},
@@ -76,8 +79,14 @@ void Help() {
       "    input file in FASTA/FASTQ format (can be compressed with gzip)\n"
       "\n"
       "  options:\n"
+      "    --split\n"
+      "      store contained and uncontained sequences separately, and abort\n"
+      "    --resume-with <path>\n"
+      "      file containing highly accurate sequences obtained with split\n"
       "    --weaken\n"
       "      use larger (k, w) when assembling highly accurate sequences\n"
+      "    --filter\n"
+      "      drop low identity overlaps before assembly graph construction\n"
       "    -p, --polishing-rounds <int>\n"
       "      default: 2\n"
       "      number of times racon is invoked\n"
@@ -119,7 +128,10 @@ void Help() {
 }  // namespace
 
 int main(int argc, char** argv) {
+  bool split = false;
+  bool filter = false;
   bool weaken = false;
+  std::string contained_path = "";
 
   std::int32_t num_polishing_rounds = 2;
   std::int8_t m = 3;
@@ -143,6 +155,9 @@ int main(int argc, char** argv) {
   int arg;
   while ((arg = getopt_long(argc, argv, optstr.c_str(), options, nullptr)) != -1) {  // NOLINT
     switch (arg) {
+      case 's': split = true; break;
+      case 'R': contained_path = optarg; break;
+      case 'F': filter = true; break;
       case 'w': weaken = true; break;
       case 'p': num_polishing_rounds = atoi(optarg); break;
       case 'm': m = atoi(optarg); break;
@@ -197,7 +212,7 @@ int main(int argc, char** argv) {
 
   auto thread_pool = std::make_shared<thread_pool::ThreadPool>(num_threads);
 
-  raven::Graph graph{weaken, checkpoints, thread_pool};
+  raven::Graph graph{split, weaken, filter, checkpoints, thread_pool};
   if (resume) {
     try {
       graph.Load();
@@ -234,7 +249,17 @@ int main(int argc, char** argv) {
     timer.Start();
   }
 
-  graph.Construct(sequences);
+  std::vector<std::unique_ptr<biosoup::NucleicAcid>> contained;
+  if (!contained_path.empty()) {
+    auto cparser = CreateParser(contained_path);
+    if (cparser == nullptr) {
+      return 1;
+    }
+    biosoup::NucleicAcid::num_objects = 0;
+    contained = cparser->Parse(-1);
+  }
+
+  graph.Construct(sequences, contained);
   graph.Assemble();
   graph.Polish(sequences, m, n, g, cuda_poa_batches, cuda_banded_alignment,
       cuda_alignment_batches, num_polishing_rounds);

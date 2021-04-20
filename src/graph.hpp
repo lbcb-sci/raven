@@ -43,7 +43,9 @@ namespace raven {
 class Graph {
  public:
   Graph(
+      bool split,
       bool weaken,
+      bool filter,
       bool checkpoints,
       std::shared_ptr<thread_pool::ThreadPool> thread_pool = nullptr);
 
@@ -61,7 +63,9 @@ class Graph {
 
   // break chimeric sequences, remove contained sequences and overlaps not
   // spanning bridged repeats at sequence ends
-  void Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences);  // NOLINT
+  void Construct(
+      std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,  // NOLINT
+      std::vector<std::unique_ptr<biosoup::NucleicAcid>>& contained);  // NOLINT
 
   // simplify with transitive reduction, tip prunning and bubble popping
   void Assemble();
@@ -272,7 +276,9 @@ class Graph {
 
   int stage_;
   bool checkpoints_;
+  bool split_;
   bool accurate_;
+  bool filter_;
   std::vector<std::unique_ptr<Pile>> piles_;
   std::vector<std::shared_ptr<Node>> nodes_;
   std::vector<std::shared_ptr<Edge>> edges_;

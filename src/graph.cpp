@@ -79,7 +79,9 @@ std::atomic<std::uint32_t> Graph::Node::num_objects{0};
 std::atomic<std::uint32_t> Graph::Edge::num_objects{0};
 
 Graph::Graph(
+    bool split,
     bool weaken,
+    bool filter,
     bool checkpoints,
     std::shared_ptr<thread_pool::ThreadPool> thread_pool)
     : thread_pool_(thread_pool ?
@@ -87,12 +89,16 @@ Graph::Graph(
           std::make_shared<thread_pool::ThreadPool>(1)),
       stage_(-5),
       checkpoints_(checkpoints),
+      split_(split),
       accurate_(weaken),
+      filter_(filter),
       piles_(),
       nodes_(),
       edges_() {}
 
-void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences) {  // NOLINT
+void Graph::Construct(
+    std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,  // NOLINT
+    std::vector<std::unique_ptr<biosoup::NucleicAcid>>& contained) {  // NOLINT
   if (sequences.empty() || stage_ > -4) {
     return;
   }
@@ -522,6 +528,55 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
     }
   }
 
+  if (split_) {
+    bool is_fasta = sequences.front()->block_quality.empty() ? true : false;
+    {
+      std::ofstream os(is_fasta ? "contained.fasta" : "contained.fastq");
+      for (const auto& it : piles_) {
+        if (it->is_invalid()) {
+          os << (is_fasta ? ">" : "@") << sequences[it->id()]->name << std::endl
+             << sequences[it->id()]->InflateData() << std::endl;
+          if (!is_fasta) {
+            os << "+" << std::endl
+               << sequences[it->id()]->InflateQuality() << std::endl;
+          }
+        }
+      }
+      os.close();
+    }
+    {
+      std::ofstream os(is_fasta ? "uncontained.fasta" : "uncontained.fastq");
+      for (const auto& it : piles_) {
+        if (!it->is_invalid()) {
+          os << (is_fasta ? ">" : "@") << sequences[it->id()]->name << std::endl
+             << sequences[it->id()]->InflateData(
+                    it->is_chimeric() ? it->begin() : 0,
+                    it->is_chimeric() ? it->length() : -1) << std::endl;
+          if (!is_fasta) {
+            os << "+" << std::endl
+               << sequences[it->id()]->InflateQuality(
+                    it->is_chimeric() ? it->begin() : 0,
+                    it->is_chimeric() ? it->length() : -1) << std::endl;
+          }
+        }
+      }
+      os.close();
+    }
+    return;
+  }
+
+  if (!contained.empty()) {
+    for (std::uint32_t i = 0, j = 0; i < piles_.size(); ++i) {
+      if (piles_[i]->is_invalid()) {
+        continue;
+      }
+      piles_[i]->Update(contained[j]->inflated_len);
+      contained[j]->id = sequences[i]->id;
+      contained[j].swap(sequences[i]);
+      ++j;
+    }
+  }
+
   if (stage_ == -4) {  // find overlaps and repetitive regions
     std::sort(sequences.begin(), sequences.end(),
         [&] (const std::unique_ptr<biosoup::NucleicAcid>& lhs,
@@ -705,6 +760,50 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
               << std::endl;
 
     timer.Start();
+  }
+
+  if (stage_ == -4 && filter_) {
+    timer.Start();
+
+    std::vector<std::future<bool>> futures;
+    for (const auto& it : overlaps.back()) {
+      futures.emplace_back(thread_pool_->Submit(
+        [&] (decltype(it) jt) -> bool {
+          auto l = std::unique_ptr<biosoup::NucleicAcid>(new biosoup::NucleicAcid(  // NOLINT
+              "",
+              sequences[jt.lhs_id]->InflateData(
+                  jt.lhs_begin,
+                  jt.lhs_end - jt.lhs_begin)));
+          auto r = std::unique_ptr<biosoup::NucleicAcid>(new biosoup::NucleicAcid(  // NOLINT
+              "",
+              sequences[jt.rhs_id]->InflateData(
+                  jt.rhs_begin,
+                  jt.rhs_end - jt.rhs_begin)));
+          if (!jt.strand) {
+            r->ReverseAndComplement();
+          }
+          EdlibAlignResult result = edlibAlign(
+              l->InflateData().c_str(), l->inflated_len,
+              r->InflateData().c_str(), r->inflated_len,
+              edlibDefaultAlignConfig());
+          double score = 1 - result.editDistance /
+              static_cast<double>(overlap_length(jt));
+          edlibFreeAlignResult(result);
+          return score > 0.98;
+        },
+        it));
+    }
+    std::uint32_t j = 0;
+    for (std::uint32_t i = 0; i < futures.size(); ++i) {
+      if (futures[i].get()) {
+        overlaps.back()[j++] = overlaps.back()[i];
+      }
+    }
+    std::cerr << "[raven::Graph::Construct] filtered "
+              << overlaps.back().size() - j << " overlaps "
+              << std::fixed << timer.Stop() << "s"
+              << std::endl;
+    overlaps.back().resize(j);
   }
 
   if (stage_ == -4) {  // construct assembly graph

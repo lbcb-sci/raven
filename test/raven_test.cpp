@@ -43,8 +43,9 @@ class RavenTest: public ::testing::Test {
 };
 
 TEST_F(RavenTest, Assemble) {
-  Graph g{false, false, nullptr};
-  g.Construct(s);
+  Graph g{false, false, false, false, nullptr};
+  decltype(s) c;
+  g.Construct(s, c);
   g.Assemble();
   g.Polish(s, 3, -5, -4, 0, false, 0, 2);
   auto u = std::move(g.GetUnitigs(true).front());
@@ -53,26 +54,27 @@ TEST_F(RavenTest, Assemble) {
 }
 
 TEST_F(RavenTest, Checkpoints) {
-  Graph g{false, false, nullptr};
-  g.Construct(s);
+  Graph g{false, false, false, false, nullptr};
+  decltype(s) c;
+  g.Construct(s, c);
   g.Assemble();
   g.Polish(s, 2, -5, -2, 0, false, 0, 2);
   auto u = std::move(g.GetUnitigs(true).front());
 
   SetUp();
 
-  g = {false, true, nullptr};
-  g.Construct(s);
+  g = {false, false, false, true, nullptr};
+  g.Construct(s, c);
 
-  g = {false, true, nullptr};
+  g = {false, false, false, true, nullptr};
   g.Load();
   g.Assemble();
 
-  g = {false, true, nullptr};
+  g = {false, false, false, true, nullptr};
   g.Load();
   g.Polish(s, 2, -5, -2, 0, false, 0, 1);
 
-  g = {false, true, nullptr};
+  g = {false, false, false, true, nullptr};
   g.Load();
   g.Polish(s, 2, -5, -2, 0, false, 0, 2);
 
