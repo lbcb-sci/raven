@@ -88,11 +88,14 @@ Graph::Graph(
       stage_(-5),
       checkpoints_(checkpoints),
       accurate_(weaken),
+      annotations_(),
       piles_(),
       nodes_(),
       edges_() {}
 
-void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences) {  // NOLINT
+void Graph::Construct(
+    std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,  // NOLINT
+    const std::string& annotations_path) {
   if (sequences.empty() || stage_ > -4) {
     return;
   }
@@ -266,6 +269,48 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
     return dst;
   };
   // biosoup::Overlap helper functions
+
+  annotations_.resize(sequences.size());
+  if (!annotations_path.empty()) {
+    std::ifstream is(annotations_path);
+    std::string line;
+    while (std::getline(is, line)) {
+      if (line.empty()) {
+        break;
+      }
+      std::istringstream iss(line);
+      std::size_t id, pos;
+      iss >> id;
+      while (iss >> pos) {
+        annotations_[id].emplace_back(pos);
+      }
+    }
+    is.close();
+  }
+
+  // annotations_ helper functions
+  auto annotation_extract = [&] (
+      std::uint32_t i,
+      std::uint32_t begin,
+      std::uint32_t end,
+      bool strand) -> std::string {
+    std::string dst = "";
+    if (annotations_[i].empty()) {
+      return dst;
+    }
+    for (const auto& it : annotations_[i]) {
+      if (begin <= it && it <= end) {
+        dst += sequences[i]->InflateData(it, 1);
+      }
+    }
+    if (!strand) {
+      biosoup::NucleicAcid na{"", dst};
+      na.ReverseAndComplement();
+      dst = na.InflateData();
+    }
+    return dst;
+  };
+  // annotations_ helper functions
 
   if (stage_ == -5 && checkpoints_) {  // checkpoint test
     Store();
@@ -642,6 +687,59 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
         });
   }
 
+  if (stage_ == -4) {  // remove overlaps with annotations
+    for (const auto& it : overlaps.back()) {
+      auto la = annotation_extract(it.lhs_id, it.lhs_begin, it.lhs_end, 1);
+      auto ra = annotation_extract(it.rhs_id, it.rhs_begin, it.rhs_end, it.strand);  // NOLINT
+
+      if (la.empty() && ra.empty()) {
+        continue;
+      }
+
+      auto ascore = std::min(la.size(), ra.size()) /
+          static_cast<double>(std::max(la.size(), ra.size()));
+
+      auto lhs = sequences[it.lhs_id]->InflateData(it.lhs_begin, it.lhs_end - it.lhs_begin);  // NOLINT
+      auto rhs = sequences[it.rhs_id]->InflateData(it.rhs_begin, it.rhs_end - it.rhs_begin);  // NOLINT
+      if (!it.strand) {
+        biosoup::NucleicAcid rhs_{"", rhs};
+        rhs_.ReverseAndComplement();
+        rhs = rhs_.InflateData();
+      }
+      EdlibAlignResult result = edlibAlign(
+          lhs.c_str(), lhs.size(),
+          rhs.c_str(), rhs.size(),
+          edlibDefaultAlignConfig());
+      double score = 0;
+      if (result.status == EDLIB_STATUS_OK) {
+        score = 1 - result.editDistance /
+            static_cast<double>(std::max(lhs.size(), rhs.size()));
+        edlibFreeAlignResult(result);
+      }
+
+      std::cerr << la.size() << " "
+                << ra.size() << " "
+                << ascore << " "
+                << score << std::endl;
+
+      if (ascore > 0.1 && ascore < 0.2) {
+        std::cerr << it.lhs_id << " " << it.rhs_id << std::endl;
+        std::cerr << sequences[it.lhs_id]->inflated_len << " " << sequences[it.rhs_id]->inflated_len << std::endl;
+        std::cerr << it.lhs_begin << " " << it.lhs_end << std::endl;
+        for (const auto& it : annotations_[it.lhs_id]) std::cerr << it << " ";
+        std::cerr << std::endl;
+        std::cerr << it.rhs_begin << " " << it.rhs_end << std::endl;
+        for (const auto& it : annotations_[it.rhs_id]) std::cerr << it << " ";
+        std::cerr << std::endl;
+        std::cerr << it.strand << std::endl;
+        std::cerr << la << " vs " << ra << std::endl;
+        std::cerr << lhs << " - " << rhs << std::endl;
+        return;
+      }
+    }
+  }
+  return;
+
   if (stage_ == -4) {  // resolve repeat induced overlaps
     timer.Start();
 
@@ -812,6 +910,8 @@ void Graph::Assemble() {
     }
   }
 
+  PrintCsv("after_transitive.csv");
+
   if (stage_ == -2) {  // remove tips and bubbles
     timer.Start();
 
@@ -838,6 +938,8 @@ void Graph::Assemble() {
                 << std::endl;
     }
   }
+
+  PrintCsv("after_bubble.csv");
 
   if (stage_ == -1) {  // remove long edges
     timer.Start();

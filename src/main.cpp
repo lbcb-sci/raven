@@ -25,6 +25,7 @@ static struct option options[] = {
   {"cuda-banded-alignment", no_argument, nullptr, 'b'},
   {"cuda-alignment-batches", required_argument, nullptr, 'a'},
 #endif
+  {"annotations", required_argument, nullptr, 'A'},
   {"graphical-fragment-assembly", required_argument, nullptr, 'f'},
   {"resume", no_argument, nullptr, 'r'},
   {"disable-checkpoints", no_argument, nullptr, 'd'},
@@ -101,6 +102,8 @@ void Help() {
       "      default: 0\n"
       "      number of batches for CUDA accelerated alignment\n"
 #endif
+      "    --annotations <string>\n"
+      "      annotation file path\n"
       "    --graphical-fragment-assembly <string>\n"
       "      prints the assembly graph in GFA format\n"
       "    --resume\n"
@@ -126,6 +129,7 @@ int main(int argc, char** argv) {
   std::int8_t n = -5;
   std::int8_t g = -4;
 
+  std::string anno_path = "";
   std::string gfa_path = "";
   bool resume = false;
   bool checkpoints = true;
@@ -167,6 +171,7 @@ int main(int argc, char** argv) {
         cuda_alignment_batches = atoi(optarg);
         break;
 #endif
+      case 'A': anno_path = optarg; break;
       case 'f': gfa_path = optarg; break;
       case 'r': resume = true; break;
       case 'd': checkpoints = false; break;
@@ -234,7 +239,7 @@ int main(int argc, char** argv) {
     timer.Start();
   }
 
-  graph.Construct(sequences);
+  graph.Construct(sequences, anno_path);
   graph.Assemble();
   graph.Polish(sequences, m, n, g, cuda_poa_batches, cuda_banded_alignment,
       cuda_alignment_batches, num_polishing_rounds);
