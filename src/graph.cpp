@@ -293,20 +293,22 @@ void Graph::Construct(
       std::uint32_t i,
       std::uint32_t begin,
       std::uint32_t end,
-      bool strand) -> std::string {
-    std::string dst = "";
+      bool strand) -> std::vector<std::uint32_t> {
+    std::vector<std::uint32_t> dst;
     if (annotations_[i].empty()) {
       return dst;
     }
     for (const auto& it : annotations_[i]) {
       if (begin <= it && it <= end) {
-        dst += sequences[i]->InflateData(it, 1);
+        dst.emplace_back(strand ? it : sequences[i]->inflated_len - 1 - it);
+        // += sequences[i]->InflateData(it, 1);
       }
     }
     if (!strand) {
-      biosoup::NucleicAcid na{"", dst};
-      na.ReverseAndComplement();
-      dst = na.InflateData();
+      std::reverse(dst.begin(), dst.end());
+      // biosoup::NucleicAcid na{"", dst};
+      // na.ReverseAndComplement();
+      // dst = na.InflateData();
     }
     return dst;
   };
@@ -687,17 +689,20 @@ void Graph::Construct(
         });
   }
 
-  if (stage_ == -4) {  // remove overlaps with annotations
-    for (const auto& it : overlaps.back()) {
+  if (false && stage_ == -4) {  // remove overlaps with annotations
+    timer.Start();
+
+    std::uint32_t j = 0;
+    for (std::uint32_t i = 0; i < overlaps.back().size(); ++i) {
+      const auto& it = overlaps.back()[i];
+
       auto la = annotation_extract(it.lhs_id, it.lhs_begin, it.lhs_end, 1);
       auto ra = annotation_extract(it.rhs_id, it.rhs_begin, it.rhs_end, it.strand);  // NOLINT
 
       if (la.empty() && ra.empty()) {
+        overlaps.back()[j++] = it;
         continue;
       }
-
-      auto ascore = std::min(la.size(), ra.size()) /
-          static_cast<double>(std::max(la.size(), ra.size()));
 
       auto lhs = sequences[it.lhs_id]->InflateData(it.lhs_begin, it.lhs_end - it.lhs_begin);  // NOLINT
       auto rhs = sequences[it.rhs_id]->InflateData(it.rhs_begin, it.rhs_end - it.rhs_begin);  // NOLINT
@@ -709,36 +714,69 @@ void Graph::Construct(
       EdlibAlignResult result = edlibAlign(
           lhs.c_str(), lhs.size(),
           rhs.c_str(), rhs.size(),
-          edlibDefaultAlignConfig());
-      double score = 0;
+          edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_PATH, nullptr, 0));
       if (result.status == EDLIB_STATUS_OK) {
-        score = 1 - result.editDistance /
-            static_cast<double>(std::max(lhs.size(), rhs.size()));
+        std::uint32_t lhs_pos = it.lhs_begin;
+        std::uint32_t la_pos = 0;
+
+        std::uint32_t rhs_pos = it.rhs_begin;
+        std::uint32_t ra_pos = 0;
+
+        std::uint32_t mismatches = 0;
+        std::uint32_t snps = 0;
+
+        for (int k = 0; k < result.alignmentLength; ++k) {
+          if ((la_pos < la.size() && lhs_pos == la[la_pos]) ||
+              (ra_pos < ra.size() && rhs_pos == ra[ra_pos])) {
+            ++snps;
+            if (result.alignment[k] == 3) {
+              ++mismatches;
+            }
+          }
+          switch (result.alignment[k]) {
+            case 0:
+            case 3: {
+              ++lhs_pos;
+              ++rhs_pos;
+              break;
+            }
+            case 1: {
+              ++lhs_pos;
+              break;
+            }
+            case 2: {
+              ++rhs_pos;
+              break;
+            }
+            default: break;
+          }
+          for (; la_pos < la.size() && la[la_pos] < lhs_pos; ++la_pos) {
+            continue;
+          }
+          for (; ra_pos < ra.size() && ra[ra_pos] < rhs_pos; ++ra_pos) {
+            continue;
+          }
+          if (la_pos >= la.size() && ra_pos >= ra.size()) {
+            break;
+          }
+        }
+
+        if (mismatches / static_cast<double>(snps) < 0.1) {
+          overlaps.back()[j++] = it;
+        }
+
         edlibFreeAlignResult(result);
       }
-
-      std::cerr << la.size() << " "
-                << ra.size() << " "
-                << ascore << " "
-                << score << std::endl;
-
-      if (ascore > 0.1 && ascore < 0.2) {
-        std::cerr << it.lhs_id << " " << it.rhs_id << std::endl;
-        std::cerr << sequences[it.lhs_id]->inflated_len << " " << sequences[it.rhs_id]->inflated_len << std::endl;
-        std::cerr << it.lhs_begin << " " << it.lhs_end << std::endl;
-        for (const auto& it : annotations_[it.lhs_id]) std::cerr << it << " ";
-        std::cerr << std::endl;
-        std::cerr << it.rhs_begin << " " << it.rhs_end << std::endl;
-        for (const auto& it : annotations_[it.rhs_id]) std::cerr << it << " ";
-        std::cerr << std::endl;
-        std::cerr << it.strand << std::endl;
-        std::cerr << la << " vs " << ra << std::endl;
-        std::cerr << lhs << " - " << rhs << std::endl;
-        return;
-      }
     }
+
+    std::cerr << "[raven::Graph::Construct] overlaps "
+              << overlaps.back().size() << " -> " << j << std::endl;
+    std::cerr << "[raven::Graph::Construct] removed overlaps "
+              << std::fixed << timer.Stop() << "s"
+              << std::endl;
+
+    overlaps.back().resize(j);
   }
-  return;
 
   if (stage_ == -4) {  // resolve repeat induced overlaps
     timer.Start();
