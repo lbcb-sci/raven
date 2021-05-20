@@ -293,6 +293,7 @@ void Graph::Construct(
       std::uint32_t i,
       std::uint32_t begin,
       std::uint32_t end,
+      std::uint32_t len,
       bool strand) -> std::vector<std::uint32_t> {
     std::vector<std::uint32_t> dst;
     if (annotations_[i].empty()) {
@@ -300,7 +301,7 @@ void Graph::Construct(
     }
     for (const auto& it : annotations_[i]) {
       if (begin <= it && it <= end) {
-        dst.emplace_back(strand ? it : sequences[i]->inflated_len - 1 - it);
+        dst.emplace_back(strand ? it : len - 1 - it);
         // += sequences[i]->InflateData(it, 1);
       }
     }
@@ -470,8 +471,8 @@ void Graph::Construct(
 
               const auto& it = overlaps[i][j];
 
-              auto la = annotation_extract(it.lhs_id, it.lhs_begin, it.lhs_end, 1);  // NOLINT
-              auto ra = annotation_extract(it.rhs_id, it.rhs_begin, it.rhs_end, it.strand);  // NOLINT
+              auto la = annotation_extract(it.lhs_id, it.lhs_begin, it.lhs_end, sequences[it.lhs_id]->inflated_len, 1);  // NOLINT
+              auto ra = annotation_extract(it.rhs_id, it.rhs_begin, it.rhs_end, sequences[it.rhs_id]->inflated_len, it.strand);  // NOLINT
 
               if (!la.empty() || !ra.empty()) {
                 auto lhs = sequences[it.lhs_id]->InflateData(it.lhs_begin, it.lhs_end - it.lhs_begin);  // NOLINT
@@ -489,7 +490,7 @@ void Graph::Construct(
                   std::uint32_t lhs_pos = it.lhs_begin;
                   std::uint32_t la_pos = 0;
 
-                  std::uint32_t rhs_pos = it.rhs_begin;
+                  std::uint32_t rhs_pos = it.strand ? it.rhs_begin : sequences[it.rhs_id]->inflated_len - it.rhs_end;  // NOLINT
                   std::uint32_t ra_pos = 0;
 
                   std::uint32_t mismatches = 0;
@@ -539,6 +540,10 @@ void Graph::Construct(
                 }
               }
 
+              if ((overlaps[i][j].lhs_id < 27240 && overlaps[i][j].rhs_id > 27240) ||
+                  (overlaps[i][j].rhs_id < 27240 && overlaps[i][j].lhs_id > 27240)) {
+                std::cerr << "Mixing first " << overlaps[i][j].lhs_id << " " << overlaps[i][j].rhs_id << std::endl;
+              }
               overlaps[i][k++] = overlaps[i][j];
             }
             overlaps[i].resize(k);
@@ -642,97 +647,6 @@ void Graph::Construct(
       }
 
       if (!is_changed) {
-        std::vector<std::future<void>> futures;
-        for (std::uint32_t i = 0; i < overlaps.size(); ++i) {
-          futures.emplace_back(thread_pool_->Submit(
-              [&] (std::uint32_t i) -> void {
-                std::uint32_t k = 0;
-                for (std::uint32_t j = 0; j < overlaps[i].size(); ++j) {
-                  if (!overlap_update(overlaps[i][j])) {
-                    continue;
-                  }
-
-                  const auto& it = overlaps[i][j];
-
-                  auto la = annotation_extract(it.lhs_id, it.lhs_begin, it.lhs_end, 1);  // NOLINT
-                  auto ra = annotation_extract(it.rhs_id, it.rhs_begin, it.rhs_end, it.strand);  // NOLINT
-
-                  if (!la.empty() || !ra.empty()) {
-                    auto lhs = sequences[it.lhs_id]->InflateData(it.lhs_begin, it.lhs_end - it.lhs_begin);  // NOLINT
-                    auto rhs = sequences[it.rhs_id]->InflateData(it.rhs_begin, it.rhs_end - it.rhs_begin);  // NOLINT
-                    if (!it.strand) {
-                      biosoup::NucleicAcid rhs_{"", rhs};
-                      rhs_.ReverseAndComplement();
-                      rhs = rhs_.InflateData();
-                    }
-                    EdlibAlignResult result = edlibAlign(
-                        lhs.c_str(), lhs.size(),
-                        rhs.c_str(), rhs.size(),
-                        edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_PATH, nullptr, 0));  // NOLINT
-                    if (result.status == EDLIB_STATUS_OK) {
-                      std::uint32_t lhs_pos = it.lhs_begin;
-                      std::uint32_t la_pos = 0;
-
-                      std::uint32_t rhs_pos = it.rhs_begin;
-                      std::uint32_t ra_pos = 0;
-
-                      std::uint32_t mismatches = 0;
-                      std::uint32_t snps = 0;
-
-                      for (int a = 0; a < result.alignmentLength; ++a) {
-                        if ((la_pos < la.size() && lhs_pos == la[la_pos]) ||
-                            (ra_pos < ra.size() && rhs_pos == ra[ra_pos])) {
-                          ++snps;
-                          if (result.alignment[a] == 3) {
-                            ++mismatches;
-                          }
-                        }
-                        switch (result.alignment[a]) {
-                          case 0:
-                          case 3: {
-                            ++lhs_pos;
-                            ++rhs_pos;
-                            break;
-                          }
-                          case 1: {
-                            ++lhs_pos;
-                            break;
-                          }
-                          case 2: {
-                            ++rhs_pos;
-                            break;
-                          }
-                          default: break;
-                        }
-                        for (; la_pos < la.size() && la[la_pos] < lhs_pos; ++la_pos) {  // NOLINT
-                          continue;
-                        }
-                        for (; ra_pos < ra.size() && ra[ra_pos] < rhs_pos; ++ra_pos) {  // NOLINT
-                          continue;
-                        }
-                        if (la_pos >= la.size() && ra_pos >= ra.size()) {
-                          break;
-                        }
-                      }
-
-                      edlibFreeAlignResult(result);
-
-                      if (mismatches / static_cast<double>(snps) > 0.01) {
-                        continue;
-                      }
-                    }
-                  }
-
-                  overlaps[i][k++] = overlaps[i][j];
-                }
-                overlaps[i].resize(k);
-              },
-              i));
-        }
-        for (const auto& it : futures) {
-          it.wait();
-        }
-
         for (const auto& it : overlaps) {
           for (const auto& jt : it) {
             std::uint32_t type = overlap_type(jt);
@@ -789,6 +703,11 @@ void Graph::Construct(
                 (piles_[lhs->id]->is_invalid() == piles_[rhs->id]->is_invalid() && lhs->id < rhs->id);  // NOLINT
         });
 
+    std::vector<std::uint32_t> sequences_map(sequences.size());
+    for (std::uint32_t i = 0; i < sequences.size(); ++i) {
+      sequences_map[sequences[i]->id] = i;
+    }
+
     std::uint32_t s = 0;
     for (std::uint32_t i = 0; i < sequences.size(); ++i) {
       if (piles_[sequences[i]->id]->is_invalid()) {
@@ -836,18 +755,18 @@ void Graph::Construct(
 
               std::uint32_t k = 0;
               for (std::uint32_t j = 0; j < dst.size(); ++j) {
-                if (!overlap_update(dst[j])) {
+                if (!overlap_update(dst[j]) || overlap_length(dst[j]) < 1000) {
                   continue;
                 }
 
                 const auto& it = dst[j];
 
-                auto la = annotation_extract(it.lhs_id, it.lhs_begin, it.lhs_end, 1);  // NOLINT
-                auto ra = annotation_extract(it.rhs_id, it.rhs_begin, it.rhs_end, it.strand);  // NOLINT
+                auto la = annotation_extract(it.lhs_id, it.lhs_begin, it.lhs_end, sequences[sequences_map[it.lhs_id]]->inflated_len, 1);  // NOLINT
+                auto ra = annotation_extract(it.rhs_id, it.rhs_begin, it.rhs_end, sequences[sequences_map[it.rhs_id]]->inflated_len, it.strand);  // NOLINT
 
                 if (!la.empty() || !ra.empty()) {
-                  auto lhs = sequences[it.lhs_id]->InflateData(it.lhs_begin, it.lhs_end - it.lhs_begin);  // NOLINT
-                  auto rhs = sequences[it.rhs_id]->InflateData(it.rhs_begin, it.rhs_end - it.rhs_begin);  // NOLINT
+                  auto lhs = sequences[sequences_map[it.lhs_id]]->InflateData(it.lhs_begin, it.lhs_end - it.lhs_begin);  // NOLINT
+                  auto rhs = sequences[sequences_map[it.rhs_id]]->InflateData(it.rhs_begin, it.rhs_end - it.rhs_begin);  // NOLINT
                   if (!it.strand) {
                     biosoup::NucleicAcid rhs_{"", rhs};
                     rhs_.ReverseAndComplement();
@@ -861,7 +780,7 @@ void Graph::Construct(
                     std::uint32_t lhs_pos = it.lhs_begin;
                     std::uint32_t la_pos = 0;
 
-                    std::uint32_t rhs_pos = it.rhs_begin;
+                    std::uint32_t rhs_pos = it.strand ? it.rhs_begin : sequences[sequences_map[it.rhs_id]]->inflated_len - it.rhs_end;  // NOLINT
                     std::uint32_t ra_pos = 0;
 
                     std::uint32_t mismatches = 0;
@@ -911,6 +830,13 @@ void Graph::Construct(
                   }
                 }
 
+                if ((dst[j].lhs_id < 27240 && dst[j].rhs_id > 27240) ||
+                    (dst[j].rhs_id < 27240 && dst[j].lhs_id > 27240)) {
+                  std::cerr << "Mixing after: "
+                       << dst[j].lhs_id << " " << dst[j].lhs_begin << " " << dst[j].lhs_end << " " << la.size() << " "
+                       << (dst[j].strand ? "+" : "-") << " "
+                       << dst[j].rhs_id << " " << dst[j].rhs_begin << " " << dst[j].rhs_end << " " << ra.size() << " " << std::endl;
+                }
                 dst[k++] = dst[j];
               }
               dst.resize(k);
@@ -1097,6 +1023,14 @@ void Graph::Construct(
     for (auto& it : overlaps.back()) {  // create edges
       if (!overlap_finalize(it)) {
         continue;
+      }
+
+      if ((it.lhs_id < 27240 && it.rhs_id > 27240) ||
+          (it.rhs_id < 27240 && it.lhs_id > 27240)) {
+        std::cerr << "Mixing at contrusction: "
+             << it.lhs_id << " " << it.lhs_begin << " " << it.lhs_end << " " << annotation_extract(it.lhs_id, it.lhs_begin, it.lhs_end, sequences[it.lhs_id]->inflated_len, 1).size() << " "
+             << (it.strand ? "+" : "-") << " "
+             << it.rhs_id << " " << it.rhs_begin << " " << it.rhs_end << " " << annotation_extract(it.lhs_id, it.lhs_begin, it.lhs_end, sequences[it.lhs_id]->inflated_len, it.strand).size() << " " << std::endl;
       }
 
       auto tail = nodes_[sequence_to_node[it.lhs_id]].get();
@@ -1460,7 +1394,7 @@ std::uint32_t Graph::RemoveBubbles() {
         if (kt->head == begin) {  // cycle
           continue;
         }
-        if (distance[jt->id] + kt->length > 500000) {  // out of reach
+        if (distance[jt->id] + kt->length > 5000000) {  // out of reach
           continue;
         }
         distance[kt->head->id] = distance[jt->id] + kt->length;
