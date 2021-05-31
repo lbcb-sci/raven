@@ -2,7 +2,7 @@
 
 [![Latest GitHub release](https://img.shields.io/github/release/lbcb-sci/raven.svg)](https://github.com/lbcb-sci/raven/releases/latest)
 [![Build status for c++/clang++](https://travis-ci.com/lbcb-sci/raven.svg?branch=master)](https://travis-ci.com/lbcb-sci/raven)
-[![Preprint at bioRxiv](https://img.shields.io/badge/preprint-bioRxiv-orange)](https://doi.org/10.1101/2020.08.07.242461)
+[![Published in Nature Computational Science](https://img.shields.io/badge/published%20in-Nature%20Computational%20Science-blue)](https://www.nature.com/articles/s43588-021-00073-4)
 
 Raven is a de novo genome assembler for long uncorrected reads.
 
