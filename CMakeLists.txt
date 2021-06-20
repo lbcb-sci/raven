@@ -56,7 +56,7 @@ if (NOT cereal_FOUND)
   endif ()
 endif ()
 
-find_package(racon 3.0.1 QUIET)
+find_package(racon 3.0.2 QUIET)
 if (NOT racon_FOUND)
   FetchContent_Declare(
     racon

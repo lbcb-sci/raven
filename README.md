@@ -74,7 +74,7 @@ usage: raven [options ...] <sequences>
 - zlib 1.2.8+
 
 ###### Hidden
-- lbcb-sci/racon/tree/library 3.0.1
+- lbcb-sci/racon/tree/library 3.0.2
 - rvaser/bioparser 3.0.13
 - (racon_test) google/googletest 1.10.0
 
