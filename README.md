@@ -17,7 +17,7 @@ cmake -DCMAKE_BUILD_TYPE=Release .. && make
 which will create raven executable and unit tests (running `make install` will install the executable to your system). Running the executable will display the following usage:
 
 ```bash
-usage: raven [options ...] <sequences>
+usage: raven [options ...] <sequences> [<sequences> ...]
 
   # default output is to stdout in FASTA format
   <sequences>
@@ -66,7 +66,7 @@ usage: raven [options ...] <sequences>
 
 #### Build options
 - `raven_build_tests`: build unit tests
-- `racon_enable_cuda`: build with NVICIDA CUDA support
+- `racon_enable_cuda`: build with NVIDIA CUDA support
 
 #### Dependencies
 - gcc 4.8+ | clang 4.0+

@@ -69,7 +69,7 @@ std::unique_ptr<bioparser::Parser<biosoup::NucleicAcid>> CreateParser(
 
 void Help() {
   std::cout <<
-      "usage: raven [options ...] <sequences>\n"
+      "usage: raven [options ...] <sequences> [<sequences> ...]\n"
       "\n"
       "  # default output is to stdout in FASTA format\n"
       "  <sequences>\n"
@@ -183,12 +183,7 @@ int main(int argc, char** argv) {
   }
 
   if (optind >= argc) {
-    std::cerr << "[raven::] error: missing input file!" << std::endl;
-    return 1;
-  }
-
-  auto sparser = CreateParser(argv[optind]);
-  if (sparser == nullptr) {
+    std::cerr << "[raven::] error: missing input file(s)!" << std::endl;
     return 1;
   }
 
@@ -215,11 +210,35 @@ int main(int argc, char** argv) {
 
   std::vector<std::unique_ptr<biosoup::NucleicAcid>> sequences;
   if (graph.stage() < -3 || num_polishing_rounds > std::max(0, graph.stage())) {
-    try {
-      sequences = sparser->Parse(-1);
-    } catch (const std::invalid_argument& exception) {
-      std::cerr << exception.what() << std::endl;
-      return 1;
+    for (int i = optind; i < argc; ++i) {
+      auto sparser = CreateParser(argv[i]);
+      if (sparser == nullptr) {
+        return 1;
+      }
+
+      std::vector<std::unique_ptr<biosoup::NucleicAcid>> chunk;
+      try {
+        chunk = sparser->Parse(-1);
+      } catch (const std::invalid_argument& exception) {
+        std::cerr << exception.what() << " (" << argv[i] << ")"
+                  << std::endl;
+        return 1;
+      }
+
+      if (chunk.empty()) {
+        std::cerr << "[raven::] warning: file " << argv[i] << " is empty"
+                  << std::endl;
+        continue;
+      }
+
+      if (sequences.empty()) {
+        sequences.swap(chunk);
+      } else {
+        sequences.insert(
+            sequences.end(),
+            std::make_move_iterator(chunk.begin()),
+            std::make_move_iterator(chunk.end()));
+      }
     }
 
     if (sequences.empty()) {
@@ -227,7 +246,7 @@ int main(int argc, char** argv) {
       return 1;
     }
 
-    std::cerr << "[raven::] loaded " << sequences.size() << " sequences "
+    std::cerr << "[raven::] loaded " << sequences.size() << " sequences "  // NOLINT
               << std::fixed << timer.Stop() << "s"
               << std::endl;
 
