@@ -534,16 +534,12 @@ void Graph::Construct(
 
                   edlibFreeAlignResult(result);
 
-                  if (mismatches / static_cast<double>(snps) > 0.01) {
+                  if (mismatches / static_cast<double>(snps) > (accurate_ ? 0.01 : 0.1)) {  // NOLINT
                     continue;
                   }
                 }
               }
 
-              if ((overlaps[i][j].lhs_id < 27240 && overlaps[i][j].rhs_id > 27240) ||
-                  (overlaps[i][j].rhs_id < 27240 && overlaps[i][j].lhs_id > 27240)) {
-                std::cerr << "Mixing first " << overlaps[i][j].lhs_id << " " << overlaps[i][j].rhs_id << std::endl;
-              }
               overlaps[i][k++] = overlaps[i][j];
             }
             overlaps[i].resize(k);
@@ -583,21 +579,6 @@ void Graph::Construct(
     std::cerr << "[raven::Graph::Construct] removed contained sequences "
               << std::fixed << timer.Stop() << "s"
               << std::endl;
-  }
-
-  {
-    std::size_t genomic = 0, modified = 0;
-    for (const auto& it : piles_) {
-      if (it->is_invalid()) {
-        continue;
-      }
-      if (it->id() < 27240) {
-        ++genomic;
-      } else {
-        ++modified;
-      }
-    }
-    std::cerr << "G/M = " << genomic << " / " << modified << std::endl;
   }
 
   if (stage_ == -5) {  // resolve chimeric sequences
@@ -667,21 +648,6 @@ void Graph::Construct(
     std::cerr << "[raven::Graph::Construct] removed chimeric sequences "
               << std::fixed << timer.Stop() << "s"
               << std::endl;
-  }
-
-  {
-    std::size_t genomic = 0, modified = 0;
-    for (const auto& it : piles_) {
-      if (it->is_invalid()) {
-        continue;
-      }
-      if (it->id() < 27240) {
-        ++genomic;
-      } else {
-        ++modified;
-      }
-    }
-    std::cerr << "G/M = " << genomic << " / " << modified << std::endl;
   }
 
   if (stage_ == -5) {  // checkpoint
@@ -824,19 +790,12 @@ void Graph::Construct(
 
                     edlibFreeAlignResult(result);
 
-                    if (mismatches / static_cast<double>(snps) > 0.01) {
+                    if (mismatches / static_cast<double>(snps) > (accurate_ ? 0.01 : 0.1)) {  // NOLINT
                       continue;
                     }
                   }
                 }
 
-                if ((dst[j].lhs_id < 27240 && dst[j].rhs_id > 27240) ||
-                    (dst[j].rhs_id < 27240 && dst[j].lhs_id > 27240)) {
-                  std::cerr << "Mixing after: "
-                       << dst[j].lhs_id << " " << dst[j].lhs_begin << " " << dst[j].lhs_end << " " << la.size() << " "
-                       << (dst[j].strand ? "+" : "-") << " "
-                       << dst[j].rhs_id << " " << dst[j].rhs_begin << " " << dst[j].rhs_end << " " << ra.size() << " " << std::endl;
-                }
                 dst[k++] = dst[j];
               }
               dst.resize(k);
@@ -907,21 +866,6 @@ void Graph::Construct(
              const std::unique_ptr<biosoup::NucleicAcid>& rhs) -> bool {
           return lhs->id < rhs->id;
         });
-  }
-
-  {
-    std::size_t genomic = 0, modified = 0;
-    for (const auto& it : piles_) {
-      if (it->is_invalid()) {
-        continue;
-      }
-      if (it->id() < 27240) {
-        ++genomic;
-      } else {
-        ++modified;
-      }
-    }
-    std::cerr << "G/M = " << genomic << " / " << modified << std::endl;
   }
 
   if (stage_ == -4) {  // resolve repeat induced overlaps
@@ -1023,14 +967,6 @@ void Graph::Construct(
     for (auto& it : overlaps.back()) {  // create edges
       if (!overlap_finalize(it)) {
         continue;
-      }
-
-      if ((it.lhs_id < 27240 && it.rhs_id > 27240) ||
-          (it.rhs_id < 27240 && it.lhs_id > 27240)) {
-        std::cerr << "Mixing at contrusction: "
-             << it.lhs_id << " " << it.lhs_begin << " " << it.lhs_end << " " << annotation_extract(it.lhs_id, it.lhs_begin, it.lhs_end, sequences[it.lhs_id]->inflated_len, 1).size() << " "
-             << (it.strand ? "+" : "-") << " "
-             << it.rhs_id << " " << it.rhs_begin << " " << it.rhs_end << " " << annotation_extract(it.lhs_id, it.lhs_begin, it.lhs_end, sequences[it.lhs_id]->inflated_len, it.strand).size() << " " << std::endl;
       }
 
       auto tail = nodes_[sequence_to_node[it.lhs_id]].get();
@@ -1353,7 +1289,7 @@ std::uint32_t Graph::RemoveBubbles() {
             static_cast<double>(std::max(l.size(), r.size()));
         edlibFreeAlignResult(result);
       }
-      if (score < 0.5) {
+      if (score < (accurate_ ? 0.9 : 0.5)) {
         return std::unordered_set<std::uint32_t>{};
       }
     }
