@@ -636,6 +636,46 @@ void Graph::Construct(
                   false,  // minhash
                   &filtered);
               piles_[sequences[i]->id]->AddKmers(filtered, kmer_len, sequences[i]); // NOLINT
+
+              std::uint32_t k = 0;
+              for (std::uint32_t j = 0; j < dst.size(); ++j) {
+                if (!overlap_update(dst[j])) {
+                  continue;
+                }
+
+                const auto& jt = dst[j];
+
+                auto lhs = sequences[sequences_map[jt.lhs_id]]->InflateData(
+                    jt.lhs_begin,
+                    jt.lhs_end - jt.lhs_begin);
+
+                auto rhs = sequences[sequences_map[jt.rhs_id]]->InflateData(
+                    jt.rhs_begin,
+                    jt.rhs_end - jt.rhs_begin);
+                if (!jt.strand) {
+                  biosoup::NucleicAcid rhs_{"", rhs};
+                  rhs_.ReverseAndComplement();
+                  rhs = rhs_.InflateData();
+                }
+
+                auto result = edlibAlign(
+                    lhs.c_str(), lhs.size(),
+                    rhs.c_str(), rhs.size(),
+                    edlibDefaultAlignConfig());
+
+                auto score = result.status == EDLIB_STATUS_OK ?
+                    1. - static_cast<double>(result.editDistance) / std::max(lhs.size(), rhs.size()) :  // NOLINT
+                    0.;
+
+                edlibFreeAlignResult(result);
+
+                if (score < identity) {
+                  continue;
+                }
+                dst[k++] = dst[j];
+              }
+              dst.resize(k);
+
               return dst;
             },
             k));
@@ -643,34 +683,6 @@ void Graph::Construct(
       for (auto& it : thread_futures) {
         for (auto& jt : it.get()) {
           if (!overlap_update(jt)) {
-            continue;
-          }
-
-          auto lhs = sequences[sequences_map[jt.lhs_id]]->InflateData(
-              jt.lhs_begin,
-              jt.lhs_end - jt.lhs_begin);
-
-          auto rhs = sequences[sequences_map[jt.rhs_id]]->InflateData(
-              jt.rhs_begin,
-              jt.rhs_end - jt.rhs_begin);
-          if (!jt.strand) {
-            biosoup::NucleicAcid rhs_{"", rhs};
-            rhs_.ReverseAndComplement();
-            rhs = rhs_.InflateData();
-          }
-
-          auto result = edlibAlign(
-              lhs.c_str(), lhs.size(),
-              rhs.c_str(), rhs.size(),
-              edlibDefaultAlignConfig());
-
-          auto score = result.status == EDLIB_STATUS_OK ?
-              1. - static_cast<double>(result.editDistance) / std::max(lhs.size(), rhs.size()) :  // NOLINT
-              0.;
-
-          edlibFreeAlignResult(result);
-
-          if (score < identity) {
             continue;
           }
 
