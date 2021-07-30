@@ -92,7 +92,9 @@ Graph::Graph(
       nodes_(),
       edges_() {}
 
-void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences) {  // NOLINT
+void Graph::Construct(
+    std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,  // NOLINT
+    double identity) {
   if (sequences.empty() || stage_ > -4) {
     return;
   }
@@ -411,6 +413,61 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
   if (stage_ == -5) {  // resolve contained reads
     timer.Start();
 
+    std::vector<std::future<void>> futures;
+    for (std::uint32_t i = 0; i < overlaps.size(); ++i) {
+      futures.emplace_back(thread_pool_->Submit(
+          [&] (std::uint32_t i) -> void {
+            std::uint32_t k = 0;
+            for (std::uint32_t j = 0; j < overlaps[i].size(); ++j) {
+              if (!overlap_update(overlaps[i][j])) {
+                continue;
+              }
+
+              const auto& it = overlaps[i][j];
+
+              auto lhs = sequences[it.lhs_id]->InflateData(
+                  it.lhs_begin,
+                  it.lhs_end - it.lhs_begin);
+
+              auto rhs = sequences[it.rhs_id]->InflateData(
+                  it.rhs_begin,
+                  it.rhs_end - it.rhs_begin);
+              if (!it.strand) {
+                biosoup::NucleicAcid rhs_{"", rhs};
+                rhs_.ReverseAndComplement();
+                rhs = rhs_.InflateData();
+              }
+
+              auto result = edlibAlign(
+                  lhs.c_str(), lhs.size(),
+                  rhs.c_str(), rhs.size(),
+                  edlibDefaultAlignConfig());
+
+              auto score = result.status == EDLIB_STATUS_OK ?
+                  static_cast<double>(result.editDistance) / std::max(lhs.size(), rhs.size()) :  // NOLINT
+                  0;
+
+              edlibFreeAlignResult(result);
+
+              if (score < identity) {
+                continue;
+              }
+              overlaps[i][k++] = overlaps[i][j];
+            }
+            overlaps[i].resize(k);
+          },
+          i));
+    }
+    for (const auto& it : futures) {
+      it.wait();
+    }
+
+    std::cerr << "[raven::Graph::Construct] filtered overlaps "
+              << std::fixed << timer.Stop() << "s"
+              << std::endl;
+
+    timer.Start();
+
     for (std::uint32_t i = 0; i < overlaps.size(); ++i) {
       std::uint32_t k = 0;
       for (std::uint32_t j = 0; j < overlaps[i].size(); ++j) {
@@ -530,6 +587,11 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
                 (piles_[lhs->id]->is_invalid() == piles_[rhs->id]->is_invalid() && lhs->id < rhs->id);  // NOLINT
         });
 
+    std::vector<std::uint32_t> sequences_map(sequences.size());
+    for (std::uint32_t i = 0; i < sequences.size(); ++i) {
+      sequences_map[sequences[i]->id] = i;
+    }
+
     std::uint32_t s = 0;
     for (std::uint32_t i = 0; i < sequences.size(); ++i) {
       if (piles_[sequences[i]->id]->is_invalid()) {
@@ -583,6 +645,35 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
           if (!overlap_update(jt)) {
             continue;
           }
+
+          auto lhs = sequences[sequences_map[jt.lhs_id]]->InflateData(
+              jt.lhs_begin,
+              jt.lhs_end - jt.lhs_begin);
+
+          auto rhs = sequences[sequences_map[jt.rhs_id]]->InflateData(
+              jt.rhs_begin,
+              jt.rhs_end - jt.rhs_begin);
+          if (!jt.strand) {
+            biosoup::NucleicAcid rhs_{"", rhs};
+            rhs_.ReverseAndComplement();
+            rhs = rhs_.InflateData();
+          }
+
+          auto result = edlibAlign(
+              lhs.c_str(), lhs.size(),
+              rhs.c_str(), rhs.size(),
+              edlibDefaultAlignConfig());
+
+          auto score = result.status == EDLIB_STATUS_OK ?
+              static_cast<double>(result.editDistance) / std::max(lhs.size(), rhs.size()) :  // NOLINT
+              0.;
+
+          edlibFreeAlignResult(result);
+
+          if (score < identity) {
+            continue;
+          }
+
           std::uint32_t type = overlap_type(jt);
           if (type == 0) {
             continue;

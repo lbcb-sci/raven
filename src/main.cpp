@@ -16,6 +16,7 @@ namespace {
 
 static struct option options[] = {
   {"weaken", no_argument, nullptr, 'w'},
+  {"filter", required_argument, nullptr, 'f'},
   {"polishing-rounds", required_argument, nullptr, 'p'},
   {"match", required_argument, nullptr, 'm'},
   {"mismatch", required_argument, nullptr, 'n'},
@@ -25,7 +26,7 @@ static struct option options[] = {
   {"cuda-banded-alignment", no_argument, nullptr, 'b'},
   {"cuda-alignment-batches", required_argument, nullptr, 'a'},
 #endif
-  {"graphical-fragment-assembly", required_argument, nullptr, 'f'},
+  {"graphical-fragment-assembly", required_argument, nullptr, 'F'},
   {"resume", no_argument, nullptr, 'r'},
   {"disable-checkpoints", no_argument, nullptr, 'd'},
   {"threads", required_argument, nullptr, 't'},
@@ -78,6 +79,9 @@ void Help() {
       "  options:\n"
       "    --weaken\n"
       "      use larger (k, w) when assembling highly accurate sequences\n"
+      "    -f, --filter <double>\n"
+      "      default: 0.999\n"
+      "      overlap identity threshold\n"
       "    -p, --polishing-rounds <int>\n"
       "      default: 2\n"
       "      number of times racon is invoked\n"
@@ -120,6 +124,7 @@ void Help() {
 
 int main(int argc, char** argv) {
   bool weaken = false;
+  double identity = 0.999;
 
   std::int32_t num_polishing_rounds = 2;
   std::int8_t m = 3;
@@ -136,7 +141,7 @@ int main(int argc, char** argv) {
   std::uint32_t cuda_alignment_batches = 0;
   bool cuda_banded_alignment = false;
 
-  std::string optstr = "p:m:n:g:t:h";
+  std::string optstr = "f:p:m:n:g:t:h";
 #ifdef CUDA_ENABLED
   optstr += "c:ba:";
 #endif
@@ -144,6 +149,7 @@ int main(int argc, char** argv) {
   while ((arg = getopt_long(argc, argv, optstr.c_str(), options, nullptr)) != -1) {  // NOLINT
     switch (arg) {
       case 'w': weaken = true; break;
+      case 'f': identity = atof(optarg); break;
       case 'p': num_polishing_rounds = atoi(optarg); break;
       case 'm': m = atoi(optarg); break;
       case 'n': n = atoi(optarg); break;
@@ -167,7 +173,7 @@ int main(int argc, char** argv) {
         cuda_alignment_batches = atoi(optarg);
         break;
 #endif
-      case 'f': gfa_path = optarg; break;
+      case 'F': gfa_path = optarg; break;
       case 'r': resume = true; break;
       case 'd': checkpoints = false; break;
       case 't': num_threads = atoi(optarg); break;
@@ -253,7 +259,7 @@ int main(int argc, char** argv) {
     timer.Start();
   }
 
-  graph.Construct(sequences);
+  graph.Construct(sequences, identity);
   graph.Assemble();
   graph.Polish(sequences, m, n, g, cuda_poa_batches, cuda_banded_alignment,
       cuda_alignment_batches, num_polishing_rounds);
