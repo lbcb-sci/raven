@@ -444,8 +444,8 @@ void Graph::Construct(
                   edlibDefaultAlignConfig());
 
               auto score = result.status == EDLIB_STATUS_OK ?
-                  static_cast<double>(result.editDistance) / std::max(lhs.size(), rhs.size()) :  // NOLINT
-                  0;
+                  1. - static_cast<double>(result.editDistance) / std::max(lhs.size(), rhs.size()) :  // NOLINT
+                  0.;
 
               edlibFreeAlignResult(result);
 
@@ -665,7 +665,7 @@ void Graph::Construct(
               edlibDefaultAlignConfig());
 
           auto score = result.status == EDLIB_STATUS_OK ?
-              static_cast<double>(result.editDistance) / std::max(lhs.size(), rhs.size()) :  // NOLINT
+              1. - static_cast<double>(result.editDistance) / std::max(lhs.size(), rhs.size()) :  // NOLINT
               0.;
 
           edlibFreeAlignResult(result);
