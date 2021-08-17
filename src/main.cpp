@@ -26,6 +26,7 @@ static struct option options[] = {
   {"cuda-alignment-batches", required_argument, nullptr, 'a'},
 #endif
   {"annotations", required_argument, nullptr, 'A'},
+  {"disagreement", required_argument, nullptr, 'D'},
   {"graphical-fragment-assembly", required_argument, nullptr, 'f'},
   {"resume", no_argument, nullptr, 'r'},
   {"disable-checkpoints", no_argument, nullptr, 'd'},
@@ -104,6 +105,9 @@ void Help() {
 #endif
       "    --annotations <string>\n"
       "      annotation file path\n"
+      "    --disagreement <double>\n"
+      "      default: 0.1\n"
+      "      maximal percentage of different anntoated bases in overlaps\n"
       "    --graphical-fragment-assembly <string>\n"
       "      prints the assembly graph in GFA format\n"
       "    --resume\n"
@@ -129,6 +133,7 @@ int main(int argc, char** argv) {
   std::int8_t n = -5;
   std::int8_t g = -4;
 
+  double disagreement = 0.1;
   std::string anno_path = "";
   std::string gfa_path = "";
   bool resume = false;
@@ -172,6 +177,7 @@ int main(int argc, char** argv) {
         break;
 #endif
       case 'A': anno_path = optarg; break;
+      case 'D': disagreement = std::atof(optarg); break;
       case 'f': gfa_path = optarg; break;
       case 'r': resume = true; break;
       case 'd': checkpoints = false; break;
@@ -239,7 +245,7 @@ int main(int argc, char** argv) {
     timer.Start();
   }
 
-  graph.Construct(sequences, anno_path);
+  graph.Construct(sequences, anno_path, disagreement);
   graph.Assemble();
   graph.Polish(sequences, m, n, g, cuda_poa_batches, cuda_banded_alignment,
       cuda_alignment_batches, num_polishing_rounds);

@@ -95,7 +95,8 @@ Graph::Graph(
 
 void Graph::Construct(
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,  // NOLINT
-    const std::string& annotations_path) {
+    const std::string& annotations_path,
+    double disagreement) {
   if (sequences.empty() || stage_ > -4) {
     return;
   }
@@ -282,7 +283,7 @@ void Graph::Construct(
       std::size_t id, pos;
       iss >> id;
       while (iss >> pos) {
-        annotations_[id].emplace_back(pos);
+        annotations_[id].emplace(pos);
       }
     }
     is.close();
@@ -294,22 +295,15 @@ void Graph::Construct(
       std::uint32_t begin,
       std::uint32_t end,
       std::uint32_t len,
-      bool strand) -> std::vector<std::uint32_t> {
-    std::vector<std::uint32_t> dst;
+      bool strand) -> std::unordered_set<std::uint32_t> {
+    std::unordered_set<std::uint32_t> dst;
     if (annotations_[i].empty()) {
       return dst;
     }
     for (const auto& it : annotations_[i]) {
       if (begin <= it && it <= end) {
-        dst.emplace_back(strand ? it : len - 1 - it);
-        // += sequences[i]->InflateData(it, 1);
+        dst.emplace(strand ? it : len - 1 - it);
       }
-    }
-    if (!strand) {
-      std::reverse(dst.begin(), dst.end());
-      // biosoup::NucleicAcid na{"", dst};
-      // na.ReverseAndComplement();
-      // dst = na.InflateData();
     }
     return dst;
   };
@@ -471,34 +465,51 @@ void Graph::Construct(
 
               const auto& it = overlaps[i][j];
 
-              auto la = annotation_extract(it.lhs_id, it.lhs_begin, it.lhs_end, sequences[it.lhs_id]->inflated_len, 1);  // NOLINT
-              auto ra = annotation_extract(it.rhs_id, it.rhs_begin, it.rhs_end, sequences[it.rhs_id]->inflated_len, it.strand);  // NOLINT
+              auto lhs_anno = annotation_extract(
+                  it.lhs_id,
+                  it.lhs_begin,
+                  it.lhs_end,
+                  sequences[it.lhs_id]->inflated_len,
+                  true);
 
-              if (!la.empty() || !ra.empty()) {
-                auto lhs = sequences[it.lhs_id]->InflateData(it.lhs_begin, it.lhs_end - it.lhs_begin);  // NOLINT
-                auto rhs = sequences[it.rhs_id]->InflateData(it.rhs_begin, it.rhs_end - it.rhs_begin);  // NOLINT
+              auto rhs_anno = annotation_extract(
+                  it.rhs_id,
+                  it.rhs_begin,
+                  it.rhs_end,
+                  sequences[it.rhs_id]->inflated_len,
+                  it.strand);
+
+              if (!lhs_anno.empty() || !rhs_anno.empty()) {
+                auto lhs = sequences[it.lhs_id]->InflateData(
+                    it.lhs_begin,
+                    it.lhs_end - it.lhs_begin);
+
+                auto rhs = sequences[it.rhs_id]->InflateData(
+                    it.rhs_begin,
+                    it.rhs_end - it.rhs_begin);
                 if (!it.strand) {
                   biosoup::NucleicAcid rhs_{"", rhs};
                   rhs_.ReverseAndComplement();
                   rhs = rhs_.InflateData();
                 }
+
                 EdlibAlignResult result = edlibAlign(
                     lhs.c_str(), lhs.size(),
                     rhs.c_str(), rhs.size(),
                     edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_PATH, nullptr, 0));  // NOLINT
+
                 if (result.status == EDLIB_STATUS_OK) {
                   std::uint32_t lhs_pos = it.lhs_begin;
-                  std::uint32_t la_pos = 0;
-
-                  std::uint32_t rhs_pos = it.strand ? it.rhs_begin : sequences[it.rhs_id]->inflated_len - it.rhs_end;  // NOLINT
-                  std::uint32_t ra_pos = 0;
+                  std::uint32_t rhs_pos = it.strand ?
+                      it.rhs_begin :
+                      sequences[it.rhs_id]->inflated_len - it.rhs_end;
 
                   std::uint32_t mismatches = 0;
                   std::uint32_t snps = 0;
 
                   for (int a = 0; a < result.alignmentLength; ++a) {
-                    if ((la_pos < la.size() && lhs_pos == la[la_pos]) ||
-                        (ra_pos < ra.size() && rhs_pos == ra[ra_pos])) {
+                    if (lhs_anno.find(lhs_pos) != lhs_anno.end() ||
+                        rhs_anno.find(rhs_pos) != rhs_anno.end()) {
                       ++snps;
                       if (result.alignment[a] == 3) {
                         ++mismatches;
@@ -521,20 +532,11 @@ void Graph::Construct(
                       }
                       default: break;
                     }
-                    for (; la_pos < la.size() && la[la_pos] < lhs_pos; ++la_pos) {  // NOLINT
-                      continue;
-                    }
-                    for (; ra_pos < ra.size() && ra[ra_pos] < rhs_pos; ++ra_pos) {  // NOLINT
-                      continue;
-                    }
-                    if (la_pos >= la.size() && ra_pos >= ra.size()) {
-                      break;
-                    }
                   }
 
                   edlibFreeAlignResult(result);
 
-                  if (mismatches / static_cast<double>(snps) > (accurate_ ? 0.01 : 0.1)) {  // NOLINT
+                  if (mismatches / static_cast<double>(snps) > disagreement) {
                     continue;
                   }
                 }
@@ -727,34 +729,51 @@ void Graph::Construct(
 
                 const auto& it = dst[j];
 
-                auto la = annotation_extract(it.lhs_id, it.lhs_begin, it.lhs_end, sequences[sequences_map[it.lhs_id]]->inflated_len, 1);  // NOLINT
-                auto ra = annotation_extract(it.rhs_id, it.rhs_begin, it.rhs_end, sequences[sequences_map[it.rhs_id]]->inflated_len, it.strand);  // NOLINT
+                auto lhs_anno = annotation_extract(
+                    it.lhs_id,
+                    it.lhs_begin,
+                    it.lhs_end,
+                    sequences[sequences_map[it.lhs_id]]->inflated_len,
+                    true);
 
-                if (!la.empty() || !ra.empty()) {
-                  auto lhs = sequences[sequences_map[it.lhs_id]]->InflateData(it.lhs_begin, it.lhs_end - it.lhs_begin);  // NOLINT
-                  auto rhs = sequences[sequences_map[it.rhs_id]]->InflateData(it.rhs_begin, it.rhs_end - it.rhs_begin);  // NOLINT
+                auto rhs_anno = annotation_extract(
+                    it.rhs_id,
+                    it.rhs_begin,
+                    it.rhs_end,
+                    sequences[sequences_map[it.rhs_id]]->inflated_len,
+                    it.strand);
+
+                if (!lhs_anno.empty() || !rhs_anno.empty()) {
+                  auto lhs = sequences[sequences_map[it.lhs_id]]->InflateData(
+                      it.lhs_begin,
+                      it.lhs_end - it.lhs_begin);
+
+                  auto rhs = sequences[sequences_map[it.rhs_id]]->InflateData(
+                      it.rhs_begin,
+                      it.rhs_end - it.rhs_begin);
                   if (!it.strand) {
                     biosoup::NucleicAcid rhs_{"", rhs};
                     rhs_.ReverseAndComplement();
                     rhs = rhs_.InflateData();
                   }
+
                   EdlibAlignResult result = edlibAlign(
                       lhs.c_str(), lhs.size(),
                       rhs.c_str(), rhs.size(),
                       edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_PATH, nullptr, 0));  // NOLINT
+
                   if (result.status == EDLIB_STATUS_OK) {
                     std::uint32_t lhs_pos = it.lhs_begin;
-                    std::uint32_t la_pos = 0;
-
-                    std::uint32_t rhs_pos = it.strand ? it.rhs_begin : sequences[sequences_map[it.rhs_id]]->inflated_len - it.rhs_end;  // NOLINT
-                    std::uint32_t ra_pos = 0;
+                    std::uint32_t rhs_pos = it.strand ?
+                        it.rhs_begin :
+                        sequences[sequences_map[it.rhs_id]]->inflated_len - it.rhs_end;  // NOLINT
 
                     std::uint32_t mismatches = 0;
                     std::uint32_t snps = 0;
 
                     for (int a = 0; a < result.alignmentLength; ++a) {
-                      if ((la_pos < la.size() && lhs_pos == la[la_pos]) ||
-                          (ra_pos < ra.size() && rhs_pos == ra[ra_pos])) {
+                      if (lhs_anno.find(lhs_pos) != lhs_anno.end() ||
+                          rhs_anno.find(rhs_pos) != rhs_anno.end()) {
                         ++snps;
                         if (result.alignment[a] == 3) {
                           ++mismatches;
@@ -777,20 +796,11 @@ void Graph::Construct(
                         }
                         default: break;
                       }
-                      for (; la_pos < la.size() && la[la_pos] < lhs_pos; ++la_pos) {  // NOLINT
-                        continue;
-                      }
-                      for (; ra_pos < ra.size() && ra[ra_pos] < rhs_pos; ++ra_pos) {  // NOLINT
-                        continue;
-                      }
-                      if (la_pos >= la.size() && ra_pos >= ra.size()) {
-                        break;
-                      }
                     }
 
                     edlibFreeAlignResult(result);
 
-                    if (mismatches / static_cast<double>(snps) > (accurate_ ? 0.01 : 0.1)) {  // NOLINT
+                    if (mismatches / static_cast<double>(snps) > disagreement) {
                       continue;
                     }
                   }
