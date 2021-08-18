@@ -1049,7 +1049,7 @@ void Graph::Assemble() {
     }
   }
 
-  PrintCsv("after_transitive.csv");
+  PrintGfa("after_transitive.gfa");
 
   if (stage_ == -2) {  // remove tips and bubbles
     timer.Start();
@@ -1078,7 +1078,7 @@ void Graph::Assemble() {
     }
   }
 
-  PrintCsv("after_bubble.csv");
+  PrintGfa("after_bubble.gfa");
 
   if (stage_ == -1) {  // remove long edges
     timer.Start();
@@ -2259,7 +2259,7 @@ void Graph::PrintGfa(const std::string& path) const {
       continue;
     }
     os << "S\t" << it->sequence.name
-       << "\t"  << it->sequence.InflateData()
+       << "\t"  << "*"  // it->sequence.InflateData()
        << "\tLN:i:" << it->sequence.inflated_len
        << "\tRC:i:" << it->count
        << std::endl;
