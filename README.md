@@ -76,7 +76,7 @@ usage: raven [options ...] <sequences> [<sequences> ...]
 ###### Hidden
 - lbcb-sci/racon/tree/library 3.0.2
 - rvaser/bioparser 3.0.13
-- (racon_test) google/googletest 1.10.0
+- (raven_test) google/googletest 1.10.0
 
 ### Other options
 
