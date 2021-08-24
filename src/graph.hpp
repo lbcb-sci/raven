@@ -43,7 +43,6 @@ namespace raven {
 class Graph {
  public:
   Graph(
-      bool weaken,
       bool checkpoints,
       std::shared_ptr<thread_pool::ThreadPool> thread_pool = nullptr);
 
@@ -59,14 +58,25 @@ class Graph {
     return stage_;
   }
 
-  // break chimeric sequences, remove contained sequences and overlaps not
-  // spanning bridged repeats at sequence ends
-  void Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences);  // NOLINT
+  // Overlap phase
+  // - split chimeric sequences
+  // - remove contained sequences
+  // - remove overlaps not spanning bridged repeats at sequence ends
+  void Construct(
+      std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,  // NOLINT
+      std::uint8_t kmer_len = 15,
+      std::uint8_t window_len = 5,
+      double freq = 0.001);
 
-  // simplify with transitive reduction, tip prunning and bubble popping
+  // Layout phase
+  // - remove transitive edges
+  // - remove tips
+  // - remove bubbles
+  // - remove elongated edges in 2D layout
   void Assemble();
 
-  // Racon wrapper
+  // Consensus phase
+  // - utilize Racon
   void Polish(
       const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
       std::uint8_t match,
@@ -77,19 +87,20 @@ class Graph {
       std::uint32_t cuda_alignment_batches,
       std::uint32_t num_rounds);
 
-  // ignore nodes that are less than epsilon away from any junction node
+  // shrink graph by joining paths without branches into a single node
+  // - ignore nodes less than epsilon away from a node with outdegree > 1
   std::uint32_t CreateUnitigs(std::uint32_t epsilon = 0);
 
   std::vector<std::unique_ptr<biosoup::NucleicAcid>> GetUnitigs(
       bool drop_unpolished = false);
 
-  // draw with misc/plotter.py
+  // draw pile-o-grams with misc/plotter.py
   void PrintJson(const std::string& path) const;
 
-  // draw with Cytoscape
+  // draw graph with Cytoscape
   void PrintCsv(const std::string& path) const;
 
-  // draw with Bandage
+  // draw graph with Bandage
   void PrintGfa(const std::string& path) const;
 
   // cereal load wrapper
@@ -102,14 +113,18 @@ class Graph {
   // inspired by (Myers 1995) & (Myers 2005)
   std::uint32_t RemoveTransitiveEdges();
 
+  // searh from a node with inedegree = 0 until a node with outdegree > 1
   std::uint32_t RemoveTips();
 
+  // BFS from a node with outdegree > 1 to first joint node
+  // - check path similarity with edlib
+  // - remove edges which do not remove reachability of any two nodes
   std::uint32_t RemoveBubbles();
 
-  // remove long edges in force directed layout
+  // remove elongated edges in force directed layout
   std::uint32_t RemoveLongEdges(std::uint32_t num_round);
 
-  // label small circular contigs as unitigs
+  // label small circular contigs as unitigs if they are unique
   std::uint32_t SalvagePlasmids();
 
   friend cereal::access;
@@ -265,14 +280,13 @@ class Graph {
       bool remove_nodes = false);
 
   // use (Fruchterman & Reingold 1991) with (Barnes & Hut 1986) approximation
-  // (draw with misc/plotter.py)
+  // - draw with misc/plotter.py
   void CreateForceDirectedLayout(const std::string& path = "");
 
   std::shared_ptr<thread_pool::ThreadPool> thread_pool_;
 
   int stage_;
   bool checkpoints_;
-  bool accurate_;
   std::vector<std::unique_ptr<Pile>> piles_;
   std::vector<std::shared_ptr<Node>> nodes_;
   std::vector<std::shared_ptr<Edge>> edges_;

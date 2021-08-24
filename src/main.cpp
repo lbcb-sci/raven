@@ -15,7 +15,9 @@ std::atomic<std::uint32_t> biosoup::NucleicAcid::num_objects{0};
 namespace {
 
 static struct option options[] = {
-  {"weaken", no_argument, nullptr, 'w'},
+  {"kmer-len", required_argument, nullptr, 'k'},
+  {"window-len", required_argument, nullptr, 'w'},
+  {"frequency", required_argument, nullptr, 'f'},
   {"polishing-rounds", required_argument, nullptr, 'p'},
   {"match", required_argument, nullptr, 'm'},
   {"mismatch", required_argument, nullptr, 'n'},
@@ -25,7 +27,7 @@ static struct option options[] = {
   {"cuda-banded-alignment", no_argument, nullptr, 'b'},
   {"cuda-alignment-batches", required_argument, nullptr, 'a'},
 #endif
-  {"graphical-fragment-assembly", required_argument, nullptr, 'f'},
+  {"graphical-fragment-assembly", required_argument, nullptr, 'F'},
   {"resume", no_argument, nullptr, 'r'},
   {"disable-checkpoints", no_argument, nullptr, 'd'},
   {"threads", required_argument, nullptr, 't'},
@@ -76,8 +78,15 @@ void Help() {
       "    input file in FASTA/FASTQ format (can be compressed with gzip)\n"
       "\n"
       "  options:\n"
-      "    --weaken\n"
-      "      use larger (k, w) when assembling highly accurate sequences\n"
+      "    -k, --kmer-len <int>\n"
+      "      default: 15\n"
+      "      length of minimizers used to find overlaps\n"
+      "    -w, --window-len <int>\n"
+      "      default: 5\n"
+      "      length of sliding window from which minimizers are sampled\n"
+      "    -f, --frequency <double>\n"
+      "      default: 0.001\n"
+      "      threshold for ignoring most frequent minimizers\n"
       "    -p, --polishing-rounds <int>\n"
       "      default: 2\n"
       "      number of times racon is invoked\n"
@@ -119,7 +128,9 @@ void Help() {
 }  // namespace
 
 int main(int argc, char** argv) {
-  bool weaken = false;
+  std::uint8_t kmer_len = 15;
+  std::uint8_t window_len = 5;
+  double freq = 0.001;
 
   std::int32_t num_polishing_rounds = 2;
   std::int8_t m = 3;
@@ -136,41 +147,43 @@ int main(int argc, char** argv) {
   std::uint32_t cuda_alignment_batches = 0;
   bool cuda_banded_alignment = false;
 
-  std::string optstr = "p:m:n:g:t:h";
+  std::string optstr = "k:w:f:p:m:n:g:t:h";
 #ifdef CUDA_ENABLED
   optstr += "c:ba:";
 #endif
   int arg;
   while ((arg = getopt_long(argc, argv, optstr.c_str(), options, nullptr)) != -1) {  // NOLINT
     switch (arg) {
-      case 'w': weaken = true; break;
-      case 'p': num_polishing_rounds = atoi(optarg); break;
-      case 'm': m = atoi(optarg); break;
-      case 'n': n = atoi(optarg); break;
-      case 'g': g = atoi(optarg); break;
+      case 'k': kmer_len = std::atoi(optarg); break;
+      case 'w': window_len = std::atoi(optarg); break;
+      case 'f': freq = std::atof(optarg); break;
+      case 'p': num_polishing_rounds = std::atoi(optarg); break;
+      case 'm': m = std::atoi(optarg); break;
+      case 'n': n = std::atoi(optarg); break;
+      case 'g': g = std::atoi(optarg); break;
 #ifdef CUDA_ENABLED
       case 'c':
         cuda_poa_batches = 1;
         // next text entry is not an option, assuming it's the arg for option c
         if (optarg == NULL && argv[optind] != NULL && argv[optind][0] != '-') {
-          cuda_poa_batches = atoi(argv[optind++]);
+          cuda_poa_batches = std::atoi(argv[optind++]);
         }
         // optional argument provided in the ususal way
         if (optarg != NULL) {
-          cuda_poa_batches = atoi(optarg);
+          cuda_poa_batches = std::atoi(optarg);
         }
         break;
       case 'b':
         cuda_banded_alignment = true;
         break;
       case 'a':
-        cuda_alignment_batches = atoi(optarg);
+        cuda_alignment_batches = std::atoi(optarg);
         break;
 #endif
-      case 'f': gfa_path = optarg; break;
+      case 'F': gfa_path = optarg; break;
       case 'r': resume = true; break;
       case 'd': checkpoints = false; break;
-      case 't': num_threads = atoi(optarg); break;
+      case 't': num_threads = std::atoi(optarg); break;
       case 'v': std::cout << VERSION << std::endl; return 0;
       case 'h': Help(); return 0;
       default: return 1;
@@ -192,7 +205,7 @@ int main(int argc, char** argv) {
 
   auto thread_pool = std::make_shared<thread_pool::ThreadPool>(num_threads);
 
-  raven::Graph graph{weaken, checkpoints, thread_pool};
+  raven::Graph graph{checkpoints, thread_pool};
   if (resume) {
     try {
       graph.Load();
@@ -253,7 +266,7 @@ int main(int argc, char** argv) {
     timer.Start();
   }
 
-  graph.Construct(sequences);
+  graph.Construct(sequences, kmer_len, window_len, freq);
   graph.Assemble();
   graph.Polish(sequences, m, n, g, cuda_poa_batches, cuda_banded_alignment,
       cuda_alignment_batches, num_polishing_rounds);

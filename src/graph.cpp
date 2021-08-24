@@ -79,7 +79,6 @@ std::atomic<std::uint32_t> Graph::Node::num_objects{0};
 std::atomic<std::uint32_t> Graph::Edge::num_objects{0};
 
 Graph::Graph(
-    bool weaken,
     bool checkpoints,
     std::shared_ptr<thread_pool::ThreadPool> thread_pool)
     : thread_pool_(thread_pool ?
@@ -87,12 +86,15 @@ Graph::Graph(
           std::make_shared<thread_pool::ThreadPool>(1)),
       stage_(-5),
       checkpoints_(checkpoints),
-      accurate_(weaken),
       piles_(),
       nodes_(),
       edges_() {}
 
-void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences) {  // NOLINT
+void Graph::Construct(
+    std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,  // NOLINT
+    std::uint8_t kmer_len,
+    std::uint8_t window_len,
+    double freq) {
   if (sequences.empty() || stage_ > -4) {
     return;
   }
@@ -273,12 +275,7 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
 
   biosoup::Timer timer{};
 
-  std::uint32_t kmer_len = accurate_ ? 29 : 15;
-  ram::MinimizerEngine minimizer_engine{
-      thread_pool_,
-      kmer_len,
-      accurate_ ? 9U : 5U
-  };
+  ram::MinimizerEngine minimizer_engine{thread_pool_, kmer_len, window_len};
 
   if (stage_ == -5) {  // find overlaps and create piles
     for (const auto& it : sequences) {
@@ -298,7 +295,7 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
           sequences.begin() + j,
           sequences.begin() + i + 1,
           true);
-      minimizer_engine.Filter(0.001);
+      minimizer_engine.Filter(freq);
 
       std::cerr << "[raven::Graph::Construct] minimized "
                 << j << " - " << i + 1 << " / " << sequences.size() << " "
@@ -562,7 +559,7 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequen
       timer.Start();
 
       std::vector<std::future<std::vector<biosoup::Overlap>>> thread_futures;
-      minimizer_engine.Filter(0.001);
+      minimizer_engine.Filter(freq);
       for (std::uint32_t k = 0; k < i + 1; ++k) {
         thread_futures.emplace_back(thread_pool_->Submit(
             [&] (std::uint32_t i) -> std::vector<biosoup::Overlap> {
@@ -1058,7 +1055,7 @@ std::uint32_t Graph::RemoveBubbles() {
             static_cast<double>(std::max(l.size(), r.size()));
         edlibFreeAlignResult(result);
       }
-      if (score < 0.5) {
+      if (score < 0.8) {
         return std::unordered_set<std::uint32_t>{};
       }
     }

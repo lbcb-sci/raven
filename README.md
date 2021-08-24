@@ -24,8 +24,15 @@ usage: raven [options ...] <sequences> [<sequences> ...]
     input file in FASTA/FASTQ format (can be compressed with gzip)
 
   options:
-    --weaken
-      use larger (k, w) when assembling highly accurate sequences
+    -k, --kmer-len <int>
+      default: 15
+      length of minimizers used to find overlaps
+    -w, --window-len <int>
+      default: 5
+      length of sliding window from which minimizers are sampled
+    -f, --frequency <double>
+      default: 0.001
+      threshold for ignoring most frequent minimizers
     -p, --polishing-rounds <int>
       default: 2
       number of times racon is invoked

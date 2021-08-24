@@ -43,7 +43,7 @@ class RavenTest: public ::testing::Test {
 };
 
 TEST_F(RavenTest, Assemble) {
-  Graph g{false, false, nullptr};
+  Graph g{false, nullptr};
   g.Construct(s);
   g.Assemble();
   g.Polish(s, 3, -5, -4, 0, false, 0, 2);
@@ -53,7 +53,7 @@ TEST_F(RavenTest, Assemble) {
 }
 
 TEST_F(RavenTest, Checkpoints) {
-  Graph g{false, false, nullptr};
+  Graph g{false, nullptr};
   g.Construct(s);
   g.Assemble();
   g.Polish(s, 2, -5, -2, 0, false, 0, 2);
@@ -61,18 +61,18 @@ TEST_F(RavenTest, Checkpoints) {
 
   SetUp();
 
-  g = {false, true, nullptr};
+  g = {true, nullptr};
   g.Construct(s);
 
-  g = {false, true, nullptr};
+  g = {true, nullptr};
   g.Load();
   g.Assemble();
 
-  g = {false, true, nullptr};
+  g = {true, nullptr};
   g.Load();
   g.Polish(s, 2, -5, -2, 0, false, 0, 1);
 
-  g = {false, true, nullptr};
+  g = {true, nullptr};
   g.Load();
   g.Polish(s, 2, -5, -2, 0, false, 0, 2);
 
