@@ -25,6 +25,7 @@ static struct option options[] = {
   {"cuda-banded-alignment", no_argument, nullptr, 'b'},
   {"cuda-alignment-batches", required_argument, nullptr, 'a'},
 #endif
+  {"split", required_argument, nullptr, 's'},
   {"annotations", required_argument, nullptr, 'A'},
   {"disagreement", required_argument, nullptr, 'D'},
   {"graphical-fragment-assembly", required_argument, nullptr, 'f'},
@@ -103,6 +104,9 @@ void Help() {
       "      default: 0\n"
       "      number of batches for CUDA accelerated alignment\n"
 #endif
+      "    -s, --split <int>\n"
+      "      default: 0\n"
+      "      graph coloring\n"
       "    --annotations <string>\n"
       "      annotation file path\n"
       "    --disagreement <double>\n"
@@ -127,6 +131,7 @@ void Help() {
 
 int main(int argc, char** argv) {
   bool weaken = false;
+  unsigned split = 0;
 
   std::int32_t num_polishing_rounds = 2;
   std::int8_t m = 3;
@@ -145,13 +150,14 @@ int main(int argc, char** argv) {
   std::uint32_t cuda_alignment_batches = 0;
   bool cuda_banded_alignment = false;
 
-  std::string optstr = "p:m:n:g:t:h";
+  std::string optstr = "s:p:m:n:g:t:h";
 #ifdef CUDA_ENABLED
   optstr += "c:ba:";
 #endif
   int arg;
   while ((arg = getopt_long(argc, argv, optstr.c_str(), options, nullptr)) != -1) {  // NOLINT
     switch (arg) {
+      case 's': split = std::atoi(optarg); break;
       case 'w': weaken = true; break;
       case 'p': num_polishing_rounds = atoi(optarg); break;
       case 'm': m = atoi(optarg); break;
@@ -245,7 +251,7 @@ int main(int argc, char** argv) {
     timer.Start();
   }
 
-  graph.Construct(sequences, anno_path, disagreement);
+  graph.Construct(sequences, anno_path, disagreement, split);
   graph.Assemble();
   graph.Polish(sequences, m, n, g, cuda_poa_batches, cuda_banded_alignment,
       cuda_alignment_batches, num_polishing_rounds);

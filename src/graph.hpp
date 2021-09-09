@@ -64,7 +64,8 @@ class Graph {
   void Construct(
       std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,  // NOLINT
       const std::string& annotations_path = "",
-      double disagreement = 0.1);
+      double disagreement = 0.1,
+      unsigned split = 0);
 
   // simplify with transitive reduction, tip prunning and bubble popping
   void Assemble();
@@ -210,7 +211,8 @@ class Graph {
           is_unitig,
           is_circular,
           is_polished,
-          transitive);
+          transitive,
+          color);
     }
 
     static std::atomic<std::uint32_t> num_objects;
@@ -222,6 +224,7 @@ class Graph {
     bool is_circular;
     bool is_polished;
     std::unordered_set<std::uint32_t> transitive;
+    unsigned color = 0;
     std::vector<Edge*> inedges;
     std::vector<Edge*> outedges;
     Node* pair;

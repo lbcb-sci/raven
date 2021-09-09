@@ -96,7 +96,8 @@ Graph::Graph(
 void Graph::Construct(
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,  // NOLINT
     const std::string& annotations_path,
-    double disagreement) {
+    double disagreement,
+    unsigned split) {
   if (sequences.empty() || stage_ > -4) {
     return;
   }
@@ -966,6 +967,11 @@ void Graph::Construct(
       nodes_.emplace_back(std::make_shared<Node>(sequence));
       node->pair = nodes_.back().get();
       node->pair->pair = node.get();
+
+      if (it->id() < split) {
+        node->color = 1;
+        node->pair->color = 1;
+      }
     }
 
     std::cerr << "[raven::Graph::Construct] stored " << nodes_.size() << " nodes "  // NOLINT
@@ -2262,6 +2268,7 @@ void Graph::PrintGfa(const std::string& path) const {
        << "\t"  << "*"  // it->sequence.InflateData()
        << "\tLN:i:" << it->sequence.inflated_len
        << "\tRC:i:" << it->count
+       << "\tCL:z:" << (it->color ? "blue" : "orange")
        << std::endl;
     if (it->is_circular) {
       os << "L\t" << it->sequence.name << "\t" << '+'
