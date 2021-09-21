@@ -1524,20 +1524,6 @@ std::uint32_t Graph::SalvagePlasmids() {
     }
     plasmids.emplace_back(new biosoup::NucleicAcid(it->sequence));
   }
-  if (plasmids.empty()) {
-    return 0;
-  }
-
-  std::vector<std::unique_ptr<biosoup::NucleicAcid>> unitigs;
-  for (const auto& it : nodes_) {
-    if (!it || it->is_rc() || !it->is_unitig) {
-      continue;
-    }
-    unitigs.emplace_back(new biosoup::NucleicAcid(it->sequence));
-  }
-  if (unitigs.empty()) {
-    return 0;
-  }
 
   // remove duplicates within plasmids
   std::sort(plasmids.begin(), plasmids.end(),
@@ -1548,7 +1534,6 @@ std::uint32_t Graph::SalvagePlasmids() {
   for (std::uint32_t i = 0; i < plasmids.size(); ++i) {
     plasmids[i]->id = i;
   }
-
   ram::MinimizerEngine minimizer_engine{thread_pool_};
   minimizer_engine.Minimize(plasmids.begin(), plasmids.end());
   minimizer_engine.Filter(0.001);
@@ -1560,6 +1545,18 @@ std::uint32_t Graph::SalvagePlasmids() {
   plasmids.erase(
       std::remove(plasmids.begin(), plasmids.end(), nullptr),
       plasmids.end());
+
+  if (plasmids.empty()) {
+    return 0;
+  }
+
+  std::vector<std::unique_ptr<biosoup::NucleicAcid>> unitigs;
+  for (const auto& it : nodes_) {
+    if (!it || it->is_rc() || !it->is_unitig) {
+      continue;
+    }
+    unitigs.emplace_back(new biosoup::NucleicAcid(it->sequence));
+  }
 
   // remove duplicates between plasmids and unitigs
   minimizer_engine.Minimize(unitigs.begin(), unitigs.end(), true);
