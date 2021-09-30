@@ -92,6 +92,7 @@ Graph::Graph(
 
 void Graph::Construct(
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,  // NOLINT
+    bool split,
     std::uint8_t kmer_len,
     std::uint8_t window_len,
     double freq) {
@@ -517,6 +518,21 @@ void Graph::Construct(
                 << std::fixed << timer.Stop() << "s"
                 << std::endl;
     }
+  }
+
+  if (stage_ == -4 && split) {
+    std::ofstream osc("contained.txt"), osu("uncontained.txt"), osi("invalid.txt");
+    for (const auto& it : piles_) {
+      if (it->is_contained()) {
+        osc << it->id() << " " << sequences[it->id()]->name << '\n';
+      } else if (it->is_invalid()) {
+        osi << it->id() << " " << sequences[it->id()]->name << '\n';
+      } else {
+        osu << it->id() << " " << sequences[it->id()]->name << '\n';
+      }
+    }
+    osc.close(), osu.close(), osi.close();
+    exit(1);
   }
 
   if (stage_ == -4) {  // find overlaps and repetitive regions
