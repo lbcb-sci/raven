@@ -88,6 +88,7 @@ Graph::Graph(
       stage_(-5),
       checkpoints_(checkpoints),
       accurate_(weaken),
+      disagreement_(),
       annotations_(),
       piles_(),
       nodes_(),
@@ -98,6 +99,7 @@ void Graph::Construct(
     const std::string& annotations_path,
     double disagreement,
     unsigned split) {
+  disagreement_ = disagreement;
   if (sequences.empty() || stage_ > -4) {
     return;
   }
@@ -537,7 +539,7 @@ void Graph::Construct(
 
                   edlibFreeAlignResult(result);
 
-                  if (mismatches / static_cast<double>(snps) > disagreement) {
+                  if (mismatches / static_cast<double>(snps) > disagreement_) {
                     continue;
                   }
                 }
@@ -801,7 +803,7 @@ void Graph::Construct(
 
                     edlibFreeAlignResult(result);
 
-                    if (mismatches / static_cast<double>(snps) > disagreement) {
+                    if (mismatches / static_cast<double>(snps) > disagreement_) {
                       continue;
                     }
                   }
@@ -954,6 +956,14 @@ void Graph::Construct(
         continue;
       }
 
+      std::unordered_set<std::uint32_t> annotations;
+      for (const auto& jt : annotations_[it->id()]) {
+        if (it->begin() <= jt && jt < it->end()) {
+          annotations.emplace(jt - it->begin());
+        }
+      }
+      annotations_[it->id()].swap(annotations);
+
       auto sequence = biosoup::NucleicAcid{
           sequences[it->id()]->name,
           sequences[it->id()]->InflateData(it->begin(), it->end() - it->begin())};  // NOLINT
@@ -1089,7 +1099,9 @@ void Graph::Assemble() {
   if (stage_ == -1) {  // remove long edges
     timer.Start();
 
-    CreateUnitigs(42);  // speed up force directed layout
+    if (annotations_.empty()) {
+      CreateUnitigs(42);  // speed up force directed layout
+    }
     RemoveLongEdges(16);
 
     std::cerr << "[raven::Graph::Assemble] removed long edges "
@@ -1100,16 +1112,22 @@ void Graph::Assemble() {
 
     while (true) {
       std::uint32_t num_changes = RemoveTips();
-      num_changes += RemoveBubbles();
+      if (annotations_.empty()) {
+        num_changes += RemoveBubbles();
+      }
       if (num_changes == 0) {
         break;
       }
     }
 
-    SalvagePlasmids();
+    if (annotations_.empty()) {
+      SalvagePlasmids();
+    }
 
     timer.Stop();
   }
+
+  PrintGfa("after_force.gfa");
 
   if (stage_ == -1) {  // checkpoint
     ++stage_;
@@ -1227,6 +1245,26 @@ std::uint32_t Graph::RemoveBubbles() {
   std::vector<std::uint32_t> distance(nodes_.size(), 0);
   std::vector<Node*> predecessor(nodes_.size(), nullptr);
 
+  // annotations_ helper functions
+  auto annotation_extract = [&] (
+      std::uint32_t i,
+      std::uint32_t begin,
+      std::uint32_t end,
+      std::uint32_t len,
+      bool strand) -> std::unordered_set<std::uint32_t> {
+    std::unordered_set<std::uint32_t> dst;
+    if (annotations_[i].empty()) {
+      return dst;
+    }
+    for (const auto& it : annotations_[i]) {
+      if (begin <= it && it <= end) {
+        dst.emplace(strand ? it : len - 1 - it);
+      }
+    }
+    return dst;
+  };
+  // annotations_ helper functions
+
   // path helper functions
   auto path_extract = [&] (Node* begin, Node* end) -> std::vector<Node*> {
     std::vector<Node*> dst;
@@ -1261,6 +1299,37 @@ std::uint32_t Graph::RemoveBubbles() {
     }
     data += path.back()->sequence.InflateData();
     return data;
+  };
+  auto path_annotation = [&] (const std::vector<Node*>& path)
+      -> std::unordered_set<std::uint32_t> {
+    std::unordered_set<std::uint32_t> dst;
+    std::uint32_t offset = 0;
+    for (std::uint32_t i = 0; i < path.size() - 1; ++i) {
+      for (auto it : path[i]->outedges) {
+        if (it->head == path[i + 1]) {
+          const auto& annotations = annotation_extract(
+              it->tail->sequence.id,
+              0,
+              it->length,
+              it->tail->sequence.inflated_len,
+              !it->tail->is_rc());
+          for (const auto& jt : annotations) {
+            dst.emplace(offset + jt);
+          }
+          offset += it->length;
+        }
+      }
+    }
+    const auto& annotations = annotation_extract(
+        path.back()->sequence.id,
+        0,
+        path.back()->sequence.inflated_len,
+        path.back()->sequence.inflated_len,
+        !path.back()->is_rc());
+    for (const auto& jt : annotations) {
+      dst.emplace(offset + jt);
+    }
+    return dst;
   };
   auto bubble_pop = [&] (
       const std::vector<Node*>& lhs,
@@ -1305,8 +1374,80 @@ std::uint32_t Graph::RemoveBubbles() {
             static_cast<double>(std::max(l.size(), r.size()));
         edlibFreeAlignResult(result);
       }
-      if (score < (accurate_ ? 0.9 : 0.5)) {
+      if (score < 0.8) {
         return std::unordered_set<std::uint32_t>{};
+      }
+      if (!annotations_.empty()) {
+        std::unordered_set<std::uint32_t> marked_edges;
+        if (!path_is_simple(lhs)) {
+          marked_edges = FindRemovableEdges(lhs);
+          if (marked_edges.size() > 2) {
+            marked_edges.clear();
+          }
+        }
+        if (marked_edges.empty() && !path_is_simple(rhs)) {
+          marked_edges = FindRemovableEdges(rhs);
+          if (marked_edges.size() > 2) {
+            marked_edges.clear();
+          }
+        }
+        return marked_edges;
+      }
+    }
+
+    if (!annotations_.empty()) {
+      auto la = path_annotation(lhs);
+      auto ra = path_annotation(rhs);
+
+      if (!la.empty() && !ra.empty()) {
+        auto l = path_sequence(lhs);
+        auto r = path_sequence(rhs);
+
+        EdlibAlignResult result = edlibAlign(
+            l.c_str(), l.size(),
+            r.c_str(), r.size(),
+            edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_PATH, nullptr, 0));
+
+        if (result.status == EDLIB_STATUS_OK) {
+          std::uint32_t lhs_pos = 0;
+          std::uint32_t rhs_pos = 0;
+
+          std::uint32_t mismatches = 0;
+          std::uint32_t snps = 0;
+
+          for (int a = 0; a < result.alignmentLength; ++a) {
+            if (la.find(lhs_pos) != la.end() ||
+                ra.find(rhs_pos) != ra.end()) {
+              ++snps;
+              if (result.alignment[a] == 3) {
+                ++mismatches;
+              }
+            }
+            switch (result.alignment[a]) {
+              case 0:
+              case 3: {
+                ++lhs_pos;
+                ++rhs_pos;
+                break;
+              }
+              case 1: {
+                ++lhs_pos;
+                break;
+              }
+              case 2: {
+                ++rhs_pos;
+                break;
+              }
+              default: break;
+            }
+          }
+
+          edlibFreeAlignResult(result);
+
+          if (mismatches / static_cast<double>(snps) > disagreement_) {
+            return std::unordered_set<std::uint32_t>{};
+          }
+        }
       }
     }
 

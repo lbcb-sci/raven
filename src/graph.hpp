@@ -279,6 +279,7 @@ class Graph {
   int stage_;
   bool checkpoints_;
   bool accurate_;
+  double disagreement_;
   std::vector<std::unordered_set<std::uint32_t>> annotations_;
   std::vector<std::unique_ptr<Pile>> piles_;
   std::vector<std::shared_ptr<Node>> nodes_;
