@@ -116,6 +116,8 @@ class Graph {
   // label small circular contigs as unitigs
   std::uint32_t SalvagePlasmids();
 
+  void SalvageHaplotypes();
+
   friend cereal::access;
 
   Graph() = default;  // needed for cereal
