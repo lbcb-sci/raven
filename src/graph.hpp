@@ -133,14 +133,14 @@ class Graph {
       }
     }
 
-    archive(stage_, piles_, nodes_, edges_, connections);
+    archive(stage_, annotations_, piles_, nodes_, edges_, connections);
   }
 
   template<class Archive>
   void load(Archive& archive) {  // NOLINT
     std::vector<std::pair<std::uint32_t, std::uint32_t>> connections;
 
-    archive(stage_, piles_, nodes_, edges_, connections);
+    archive(stage_, annotations_, piles_, nodes_, edges_, connections);
 
     for (std::uint32_t i = 0; i < nodes_.size(); i += 2) {
       if (nodes_[i]) {

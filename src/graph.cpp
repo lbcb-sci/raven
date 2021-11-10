@@ -2128,6 +2128,9 @@ void Graph::SalvageHaplotypes() {
       }
 
       const auto& unitig = unitigs[it.front().lhs_id];
+      if (nodes_[std::atoi(&unitig->name[3])] == nullptr) {
+        continue;
+      }
 
       std::sort(it.begin(), it.end(),
           [] (const biosoup::Overlap& lhs,
@@ -2141,6 +2144,12 @@ void Graph::SalvageHaplotypes() {
       std::unordered_set<std::uint32_t> marked_edges;
       for (std::uint32_t j = 0; j < it.size() - 1; ++j) {
         auto& jt = it[j];
+
+        const auto& n = nodes_[std::atoi(&unitigs[jt.rhs_id]->name[3])];
+        if (n == nullptr) {
+          continue;
+        }
+
         if (!jt.strand) {
           unitigs[jt.rhs_id]->ReverseAndComplement();
           auto tmp = jt.rhs_begin;
@@ -2157,7 +2166,6 @@ void Graph::SalvageHaplotypes() {
               it[j + 1].lhs_begin - jt.lhs_end);
         }
 
-        const auto& n = nodes_[std::atoi(&unitigs[jt.rhs_id]->name[3])];
         for (const auto& kt : n->inedges) {
           marked_edges.emplace(kt->id);
           marked_edges.emplace(kt->pair->id);
