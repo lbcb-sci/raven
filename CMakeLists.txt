@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.11)
 
-project(raven VERSION 1.6.1
+project(raven VERSION 1.7.0
               LANGUAGES CXX
               DESCRIPTION "Raven is a de novo genome assembler for long uncorrected reads.")
 
@@ -56,7 +56,7 @@ if (NOT cereal_FOUND)
   endif ()
 endif ()
 
-find_package(racon 3.0.2 QUIET)
+find_package(racon 3.0.4 QUIET)
 if (NOT racon_FOUND)
   FetchContent_Declare(
     racon

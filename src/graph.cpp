@@ -278,6 +278,8 @@ void Graph::Construct(
   ram::MinimizerEngine minimizer_engine{thread_pool_, kmer_len, window_len};
 
   if (stage_ == -5) {  // find overlaps and create piles
+    constexpr std::size_t kMaxNumOverlaps = 32;
+
     for (const auto& it : sequences) {
       piles_.emplace_back(new Pile(it->id, it->inflated_len));
     }
@@ -347,9 +349,9 @@ void Graph::Construct(
 
                 num_overlaps[i] = std::min(
                     overlaps[i].size(),
-                    static_cast<std::size_t>(16));
+                    kMaxNumOverlaps);
 
-                if (overlaps[i].size() < 16) {
+                if (overlaps[i].size() < kMaxNumOverlaps) {
                   return;
                 }
 
@@ -360,7 +362,10 @@ void Graph::Construct(
                     });
 
                 std::vector<biosoup::Overlap> tmp;
-                tmp.insert(tmp.end(), overlaps[i].begin(), overlaps[i].begin() + 16);  // NOLINT
+                tmp.insert(
+                    tmp.end(),
+                    overlaps[i].begin(),
+                    overlaps[i].begin() + kMaxNumOverlaps);
                 tmp.swap(overlaps[i]);
               },
               it->id()));
@@ -442,66 +447,59 @@ void Graph::Construct(
   if (stage_ == -5) {  // resolve chimeric sequences
     timer.Start();
 
-    while (true) {
-      auto components = connected_components();
-      for (const auto& it : components) {
-        std::vector<std::uint16_t> medians;
-        for (const auto& jt : it) {
-          medians.emplace_back(piles_[jt]->median());
-        }
-        std::nth_element(
-            medians.begin(),
-            medians.begin() + medians.size() / 2,
-            medians.end());
-        std::uint16_t median = medians[medians.size() / 2];
-
-        std::vector<std::future<void>> thread_futures;
-        for (const auto& jt : it) {
-          thread_futures.emplace_back(thread_pool_->Submit(
-              [&] (std::uint32_t i) -> void {
-                piles_[i]->ClearChimericRegions(median);
-                if (piles_[i]->is_invalid()) {
-                  std::vector<biosoup::Overlap>().swap(overlaps[i]);
-                }
-              },
-              jt));
-          }
-        for (const auto& it : thread_futures) {
-          it.wait();
-        }
-        thread_futures.clear();
-      }
-
-      bool is_changed = false;
-      for (std::uint32_t i = 0; i < overlaps.size(); ++i) {
-        std::uint32_t k = 0;
-        for (std::uint32_t j = 0; j < overlaps[i].size(); ++j) {
-          if (overlap_update(overlaps[i][j])) {
-            overlaps[i][k++] = overlaps[i][j];
-          } else {
-            is_changed = true;
-          }
-        }
-        overlaps[i].resize(k);
-      }
-
-      if (!is_changed) {
-        for (const auto& it : overlaps) {
-          for (const auto& jt : it) {
-            std::uint32_t type = overlap_type(jt);
-            if (type == 1) {
-              piles_[jt.lhs_id]->set_is_contained();
-              piles_[jt.lhs_id]->set_is_invalid();
-            } else if (type == 2) {
-              piles_[jt.rhs_id]->set_is_contained();
-              piles_[jt.rhs_id]->set_is_invalid();
-            }
-          }
-        }
-        overlaps.clear();
-        break;
+    std::vector<std::uint16_t> medians;
+    for (const auto& it : piles_) {
+      if (it->median() != 0) {
+        medians.emplace_back(it->median());
       }
     }
+    std::nth_element(
+        medians.begin(),
+        medians.begin() + medians.size() / 2,
+        medians.end());
+    std::uint16_t median = medians[medians.size() / 2];
+
+    std::vector<std::future<void>> thread_futures;
+    for (const auto& it : piles_) {
+      if (it->is_invalid()) {
+        continue;
+      }
+      thread_futures.emplace_back(thread_pool_->Submit(
+          [&] (std::uint32_t i) -> void {
+            piles_[i]->ClearChimericRegions(median);
+            if (piles_[i]->is_invalid()) {
+              std::vector<biosoup::Overlap>().swap(overlaps[i]);
+            }
+          },
+          it->id()));
+    }
+    for (const auto& it : thread_futures) {
+      it.wait();
+    }
+
+    for (std::uint32_t i = 0; i < overlaps.size(); ++i) {
+      std::uint32_t k = 0;
+      for (std::uint32_t j = 0; j < overlaps[i].size(); ++j) {
+        if (overlap_update(overlaps[i][j])) {
+          overlaps[i][k++] = overlaps[i][j];
+        }
+      }
+      overlaps[i].resize(k);
+    }
+
+    for (const auto& it : overlaps) {
+      for (const auto& jt : it) {
+        std::uint32_t type = overlap_type(jt);
+        if (type == 1) {
+          piles_[jt.lhs_id]->set_is_contained();
+          piles_[jt.lhs_id]->set_is_invalid();
+        } else if (type == 2) {
+          piles_[jt.rhs_id]->set_is_contained();
+          piles_[jt.rhs_id]->set_is_invalid();
+        }
+      }
+    }
+    overlaps.clear();
 
     std::cerr << "[raven::Graph::Construct] removed chimeric sequences "
               << std::fixed << timer.Stop() << "s"
