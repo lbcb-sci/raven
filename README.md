@@ -51,6 +51,8 @@ usage: raven [options ...] <sequences> [<sequences> ...]
       resume previous run from last checkpoint
     --disable-checkpoints
       disable checkpoint file creation
+    --split
+      store read information and abort
     -t, --threads <int>
       default: 1
       number of threads

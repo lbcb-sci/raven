@@ -64,6 +64,7 @@ class Graph {
   // - remove overlaps not spanning bridged repeats at sequence ends
   void Construct(
       std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,  // NOLINT
+      bool split = false,
       std::uint8_t kmer_len = 15,
       std::uint8_t window_len = 5,
       double freq = 0.001);
