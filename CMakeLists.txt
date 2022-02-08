@@ -94,8 +94,22 @@ if (raven_build_tests)
 endif ()
 
 add_library(raven
-  src/graph.cpp
-  src/pile.cpp)
+  src/pile.cpp
+  src/Graph/Graph.hpp
+  src/Graph/Graph.cpp
+  src/Graph/OverlapUtils.hpp
+  src/Graph/GraphAssemble.hpp
+  src/Graph/GraphAssemble.cpp
+  src/Graph/GraphPolish.hpp
+  src/Graph/GraphPolish.cpp
+  src/Graph/GraphShared.hpp
+  src/Graph/GraphShared.cpp
+  src/Graph/GraphConstruct.cpp
+  src/Graph/GraphConstruct.hpp
+  src/Graph/Serialization/GraphBinarySerialization.hpp
+  src/Graph/Serialization/GraphBinarySerialization.cpp
+  src/Graph/Serialization/GraphOutputs.hpp
+)
 
 target_link_libraries(raven
   cereal::cereal
