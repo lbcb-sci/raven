@@ -26,3 +26,9 @@ include(${CMAKE_CURRENT_LIST_DIR}/RavenLib/RavenLib.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/Demo/Demo.cmake)
 
 include(${CMAKE_CURRENT_LIST_DIR}/RavenTest/RavenTest.cmake)
+
+
+if (RAVEN_BUILD_PYTHON)
+  include(${CMAKE_CURRENT_LIST_DIR}/PythonLib/RavenPy.cmake)
+endif()
+
