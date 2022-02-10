@@ -1,6 +1,6 @@
 #include "GraphPolish.hpp"
 
-#include "Graph/Serialization/GraphBinarySerialization.hpp"
+#include "Serialization/GraphBinarySerialization.hpp"
 
 #include "GraphShared.hpp"
 #include "racon/polisher.hpp"

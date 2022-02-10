@@ -4,16 +4,16 @@
 
 #include <iostream>
 
-#include "bioparser/fasta_parser.hpp"
-#include "bioparser/fastq_parser.hpp"
-#include "biosoup/timer.hpp"
+#include <bioparser/fasta_parser.hpp>
+#include <bioparser/fastq_parser.hpp>
+#include <biosoup/timer.hpp>
 
-#include "Graph/GraphConstruct.hpp"
-#include "Graph/GraphAssemble.hpp"
-#include "Graph/GraphPolish.hpp"
-#include "Graph/Serialization/GraphBinarySerialization.hpp"
-#include "Graph/Serialization/GraphOutputs.hpp"
-#include "Graph/GraphShared.hpp"
+#include <Graph/GraphConstruct.hpp>
+#include <Graph/GraphAssemble.hpp>
+#include <Graph/GraphPolish.hpp>
+#include <Graph/Serialization/GraphBinarySerialization.hpp>
+#include <Graph/Serialization/GraphOutputs.hpp>
+#include <Graph/GraphShared.hpp>
 
 std::atomic<std::uint32_t> biosoup::NucleicAcid::num_objects{0};
 

@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-#include "./Graph/Graph.hpp"
+#include "Graph.hpp"
 
 namespace raven {
 

@@ -1,7 +1,7 @@
 #pragma once
 
 
-#include "Graph/Graph.hpp"
+#include "../Graph.hpp"
 
 namespace raven {
 

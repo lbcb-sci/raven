@@ -1,6 +1,8 @@
 
-#include "biosoup/nucleic_acid.hpp"
-#include "./Graph/Graph.hpp"
+#include <string>
+
+#include "Graph.hpp"
+
 
 namespace raven {
 
@@ -54,7 +56,7 @@ Graph::Edge::Edge(Graph::Node* tail, Graph::Node* head, std::uint32_t length) : 
     head->inedges.emplace_back(this);
 }
 
-Graph::Graph(): stage(-5), piles(), nodes(), edges() {
+Graph::Graph() : stage(-5), piles(), nodes(), edges() {
 
     Graph::Node::num_objects = 0;
     Graph::Edge::num_objects = 0;

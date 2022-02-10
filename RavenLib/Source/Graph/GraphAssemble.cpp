@@ -12,7 +12,7 @@
 
 #include "GraphAssemble.hpp"
 #include "GraphShared.hpp"
-#include "Graph/Serialization/GraphBinarySerialization.hpp"
+#include "Serialization/GraphBinarySerialization.hpp"
 #include "biosoup/timer.hpp"
 #include "edlib.h"  // NOLINT
 #include "ram/minimizer_engine.hpp"
@@ -881,7 +881,8 @@ void assemble(std::shared_ptr<thread_pool::ThreadPool> threadPool, Graph& graph,
         return;
     }
 
-    biosoup::Timer timer{};
+    biosoup::Timer timer;
+    timer.Start();
 
     if (graph.stage == -3) {  // remove transitive edges
         stageExecution(graph, checkpoints, removeTransitiveEdges);
@@ -896,7 +897,7 @@ void assemble(std::shared_ptr<thread_pool::ThreadPool> threadPool, Graph& graph,
     }
 
     std::cerr << "[raven::Graph::Assemble] "
-              << std::fixed << timer.elapsed_time() << "s"
+              << std::fixed << timer.Stop() << "s"
               << std::endl;
 }
 }

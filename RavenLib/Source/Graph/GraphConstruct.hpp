@@ -2,7 +2,7 @@
 
 #include <thread_pool/thread_pool.hpp>
 
-#include "./Graph/Graph.hpp"
+#include "Graph.hpp"
 
 namespace raven {
 

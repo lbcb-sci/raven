@@ -1,6 +1,6 @@
 #pragma once
 
-#include "./Graph/Graph.hpp"
+#include "Graph.hpp"
 #include "thread_pool/thread_pool.hpp"
 
 namespace raven {

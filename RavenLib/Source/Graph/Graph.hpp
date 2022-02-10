@@ -1,6 +1,7 @@
 #pragma once
 
 #include <biosoup/nucleic_acid.hpp>
+#include <unordered_set>
 
 #include "../pile.hpp"
 
@@ -126,5 +127,4 @@ struct Graph {
     std::vector<std::shared_ptr<Edge>> edges;
 
 };
-
 }

@@ -256,7 +256,7 @@ void resolveChimericSequences(const std::shared_ptr<thread_pool::ThreadPool>& th
             }
         }
     }
-    
+
     overlaps.clear();
 
     std::cerr << "[raven::Graph::Construct] removed chimeric sequences "
@@ -566,10 +566,11 @@ void constructGraph(Graph& graph,
 
         ++graph.stage;
         if (checkpoints) {
-            timer.Start();
+            biosoup::Timer localTimer;
+            localTimer.Start();
             storeGraphToFile(graph);
             std::cerr << "[raven::Graph::Construct] reached checkpoint "
-                      << std::fixed << timer.Stop() << "s"
+                      << std::fixed << localTimer.Stop() << "s"
                       << std::endl;
         }
     }
@@ -584,17 +585,18 @@ void constructGraph(Graph& graph,
 
         ++graph.stage;
         if (checkpoints) {
-            timer.Start();
+            biosoup::Timer localTimer;
+            localTimer.Start();
 
             storeGraphToFile(graph);
             std::cerr << "[raven::Graph::Construct] reached checkpoint "
-                      << std::fixed << timer.Stop() << "s"
+                      << std::fixed << localTimer.Stop() << "s"
                       << std::endl;
         }
     }
 
     std::cerr << "[raven::Graph::Construct] "
-              << std::fixed << timer.elapsed_time() << "s"
+              << std::fixed << timer.Stop() << "s"
               << std::endl;
 }
 
