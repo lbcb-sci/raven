@@ -117,11 +117,13 @@ void findOverlapsAndCreatePiles(const std::shared_ptr<thread_pool::ThreadPool>& 
                 it.wait();
             }
         }
-    }
 
-    std::cerr << "[raven::Graph::Construct] mapped sequences "
-              << std::fixed << timer.Stop() << "s"
-              << std::endl;
+        std::cerr << "[raven::Graph::Construct] mapped sequences "
+                  << std::fixed << timer.Stop() << "s"
+                  << std::endl;
+
+        j = i + 1;
+    }
 }
 
 
