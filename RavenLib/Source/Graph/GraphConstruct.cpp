@@ -1,5 +1,3 @@
-
-#include <optional>
 #include <deque>
 
 #include "OverlapUtils.hpp"
