@@ -49,5 +49,5 @@ jobs:
       - name: Test
         working-directory: ${{ github.workspace }}/build
         run: |
-          bin/raven --version
-          bin/raven_test
+          bin/Raven --version
+          bin/RavenTest
