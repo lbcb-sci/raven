@@ -30,6 +30,7 @@ std::uint32_t cudaPoaBatches            = 0;
 std::uint32_t cudaAlignmentBatches      = 0;
 bool          cudaBandedAlignment       = false;
 
+
 struct Raven {
     raven::Graph graph;
     std::vector<std::unique_ptr<biosoup::NucleicAcid>> sequences;
@@ -44,6 +45,7 @@ static std::shared_ptr<Raven> initializeRaven(std::string sequenceFile, int numb
 
     return std::shared_ptr<Raven>( new Raven { {},  std::move(sequences), std::make_shared<thread_pool::ThreadPool>(numberOfThreads)});
 }
+
 
 static std::uint8_t getKmerLength() {
     return kmerLength;
@@ -134,7 +136,9 @@ static void assemble(Raven& raven, bool checkpoints) {
 }
 
 static void polish(Raven& raven, bool checkpoints) {
+
     raven::polish(raven.threadPool, raven.graph, checkpoints, raven.sequences, polishingMatch, polishingMismatch, polishingGap, cudaPoaBatches, cudaBandedAlignment, cudaAlignmentBatches, numberOfPolishingRounds);
+
 }
 
 PYBIND11_MODULE(RavenPy, m) {
