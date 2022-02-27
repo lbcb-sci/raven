@@ -1,6 +1,6 @@
-if (NOT TARGET Demo)
+if (NOT TARGET RavenExe)
 
-    include(${CMAKE_CURRENT_LIST_DIR}/Demo.srcs.cmake)
+    include(${CMAKE_CURRENT_LIST_DIR}/Exe.srcs.cmake)
 
     add_executable(Raven ${SOURCES})
     target_link_libraries(Raven PRIVATE RavenLib bioparser::bioparser)
