@@ -1,4 +1,4 @@
-if (NOT TARGET RavenTest)
+if (NOT TARGET RavenTest AND raven_build_tests)
 
     include(${CMAKE_CURRENT_LIST_DIR}/RavenTest.srcs.cmake)
 

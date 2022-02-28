@@ -10,9 +10,10 @@ namespace raven {
 // - ignore nodes less than epsilon away from a node with outdegree > 1
 std::uint32_t createUnitigs(Graph& graph, std::uint32_t epsilon = 0);
 
-void removeEdges(Graph& graph, const std::unordered_set<std::uint32_t>& indices, bool remove_nodes = false);
+void removeEdges(Graph& graph, const std::unordered_set<std::uint32_t>& indices,
+                 bool remove_nodes = false);
 
-std::vector<std::unique_ptr<biosoup::NucleicAcid>> getUnitigs(Graph& graph, bool drop_unpolished = false);
+std::vector<std::unique_ptr<biosoup::NucleicAcid>> getUnitigs(
+    Graph& graph, bool drop_unpolished = false);
 
-}
-
+}  // namespace raven

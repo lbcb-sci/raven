@@ -7,15 +7,11 @@
 
 namespace biosoup {
 
-template<class Archive>
+template <class Archive>
 void serialize(Archive& archive, NucleicAcid& sequence) {  // NOLINT
-    archive(
-            sequence.id,
-            sequence.name,
-            sequence.deflated_data,
-            sequence.block_quality,
-            sequence.inflated_len,
-            sequence.is_reverse_complement);
+  archive(sequence.id, sequence.name, sequence.deflated_data,
+          sequence.block_quality, sequence.inflated_len,
+          sequence.is_reverse_complement);
 }
 
 }  // namespace biosoup
@@ -23,108 +19,85 @@ void serialize(Archive& archive, NucleicAcid& sequence) {  // NOLINT
 namespace raven {
 
 struct Graph {
+  Graph();
+  struct Edge;
 
-    Graph();
-    struct Edge;
+  struct Node {
+    Node() = default;  // needed for cereal
 
-    struct Node {
+    explicit Node(const biosoup::NucleicAcid& sequence);
+    Node(Node* begin, Node* end);
 
-        Node() = default;  // needed for cereal
+    Node(const Node&) = delete;
+    Node& operator=(const Node&) = delete;
 
-        explicit Node(const biosoup::NucleicAcid& sequence);
-        Node(Node* begin, Node* end);
+    Node(Node&&) = default;
+    Node& operator=(Node&&) = default;
 
-        Node(const Node&) = delete;
-        Node& operator=(const Node&) = delete;
+    ~Node() = default;
 
-        Node(Node&&) = default;
-        Node& operator=(Node&&) = default;
+    std::uint32_t indegree() const { return inedges.size(); }
+    std::uint32_t outdegree() const { return outedges.size(); }
 
-        ~Node() = default;
+    bool is_rc() const { return id & 1; }
+    bool is_junction() const { return outdegree() > 1 || indegree() > 1; }
+    bool is_tip() const {
+      return outdegree() > 0 && indegree() == 0 && count < 6;
+    }
 
-        std::uint32_t indegree() const {
-            return inedges.size();
-        }
-        std::uint32_t outdegree() const {
-            return outedges.size();
-        }
+    template <class Archive>
+    void serialize(Archive& archive) {  // NOLINT
+      archive(id, sequence, count, is_unitig, is_circular, is_polished,
+              transitive);
+    }
 
-        bool is_rc() const {
-            return id & 1;
-        }
-        bool is_junction() const {
-            return outdegree() > 1 || indegree() > 1;
-        }
-        bool is_tip() const {
-            return outdegree() > 0 && indegree() == 0 && count < 6;
-        }
+    static std::atomic<std::uint32_t> num_objects;
 
-        template<class Archive>
-        void serialize(Archive& archive) {  // NOLINT
-            archive(
-                    id,
-                    sequence,
-                    count,
-                    is_unitig,
-                    is_circular,
-                    is_polished,
-                    transitive);
-        }
+    std::uint32_t id;
+    biosoup::NucleicAcid sequence;
+    std::uint32_t count;
+    bool is_unitig;
+    bool is_circular;
+    bool is_polished;
+    std::unordered_set<std::uint32_t> transitive;
+    std::vector<Edge*> inedges;
+    std::vector<Edge*> outedges;
+    Node* pair;
+  };
 
-        static std::atomic<std::uint32_t> num_objects;
+  struct Edge {
+    Edge() = default;  // needed for cereal
+    Edge(Node* tail, Node* head, std::uint32_t length);
 
-        std::uint32_t id;
-        biosoup::NucleicAcid sequence;
-        std::uint32_t count;
-        bool is_unitig;
-        bool is_circular;
-        bool is_polished;
-        std::unordered_set<std::uint32_t> transitive;
-        std::vector<Edge*> inedges;
-        std::vector<Edge*> outedges;
-        Node* pair;
-    };
+    Edge(const Edge&) = delete;
+    Edge& operator=(const Edge&) = delete;
 
-    struct Edge {
+    ~Edge() = default;
 
-        Edge() = default;  // needed for cereal
-        Edge(Node* tail, Node* head, std::uint32_t length);
+    std::string Label() const { return tail->sequence.InflateData(0, length); }
 
-        Edge(const Edge&) = delete;
-        Edge& operator=(const Edge&) = delete;
+    bool is_rc() const { return id & 1; }
 
-        ~Edge() = default;
+    template <class Archive>
+    void serialize(Archive& archive) {  // NOLINT
+      archive(id, length, weight);
+    }
 
-        std::string Label() const {
-            return tail->sequence.InflateData(0, length);
-        }
+    static std::atomic<std::uint32_t> num_objects;
 
-        bool is_rc() const {
-            return id & 1;
-        }
+    std::uint32_t id;
+    std::uint32_t length;
+    double weight;
+    Node* tail;
+    Node* head;
+    Edge* pair;
+  };
 
+  int stage = -5;
 
-        template<class Archive>
-        void serialize(Archive& archive) {  // NOLINT
-            archive(id, length, weight);
-        }
+  std::vector<std::unique_ptr<Pile>> piles;
 
-        static std::atomic<std::uint32_t> num_objects;
-
-        std::uint32_t id;
-        std::uint32_t length;
-        double weight;
-        Node* tail;
-        Node* head;
-        Edge* pair;
-    };
-
-    int stage = -5;
-
-    std::vector<std::unique_ptr<Pile>> piles;
-
-    std::vector<std::shared_ptr<Node>> nodes;
-    std::vector<std::shared_ptr<Edge>> edges;
-
+  std::vector<std::shared_ptr<Node>> nodes;
+  std::vector<std::shared_ptr<Edge>> edges;
 };
-}
+}  // namespace raven

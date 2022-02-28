@@ -14,8 +14,11 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin)
 
+option(RAVEN_BUILD_TESTS "Build unit tests" ${RAVEN_MAIN_PROJECT})
+option(RAVEN_BUILD_PYTHON "Build python bindings to raven library using pybind11" OFF)
+
 if (CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
-  set(raven_main_project ON)
+  set(RAVEN_MAIN_PROJECT ON)
   message(STATUS "[raven] main project")
 
   if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
@@ -26,7 +29,9 @@ if (CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
   include(${CMAKE_CURRENT_LIST_DIR}/RavenExe/Exe.cmake)
 endif ()
 
-option(raven_build_tests "Build unit tests" ${raven_main_project})
+if (RAVEN_BUILD_PYTHON)
+  set(POSITION_INDEPENDENT_CODE ON)
+endif()
 
 include(${CMAKE_CURRENT_LIST_DIR}/Raven.deps.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/RavenLib/RavenLib.cmake)
@@ -35,4 +40,3 @@ include(${CMAKE_CURRENT_LIST_DIR}/RavenTest/RavenTest.cmake)
 if (RAVEN_BUILD_PYTHON)
   include(${CMAKE_CURRENT_LIST_DIR}/PythonLib/RavenPy.cmake)
 endif()
-

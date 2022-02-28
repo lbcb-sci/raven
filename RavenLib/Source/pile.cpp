@@ -9,10 +9,11 @@
 
 namespace raven {
 
-template<typename T>
+template <typename T>
 T clamp(T v) {
-  return (v < std::numeric_limits<std::uint16_t>::max()) ?
-          v : std::numeric_limits<std::uint16_t>::max();
+  return (v < std::numeric_limits<std::uint16_t>::max())
+             ? v
+             : std::numeric_limits<std::uint16_t>::max();
 }
 
 Pile::Pile(std::uint32_t id, std::uint32_t len)
@@ -29,9 +30,8 @@ Pile::Pile(std::uint32_t id, std::uint32_t len)
       chimeric_regions_(),
       repetitive_regions_() {}
 
-void Pile::AddLayers(
-    std::vector<biosoup::Overlap>::const_iterator begin,
-    std::vector<biosoup::Overlap>::const_iterator end) {
+void Pile::AddLayers(std::vector<biosoup::Overlap>::const_iterator begin,
+                     std::vector<biosoup::Overlap>::const_iterator end) {
   if (begin >= end) {
     return;
   }
@@ -40,10 +40,10 @@ void Pile::AddLayers(
   for (auto it = begin; it != end; ++it) {
     if (it->lhs_id == id_) {
       boundaries.emplace_back(((it->lhs_begin >> kPSS) + 1) << 1);
-      boundaries.emplace_back(((it->lhs_end   >> kPSS) - 1) << 1 | 1);
+      boundaries.emplace_back(((it->lhs_end >> kPSS) - 1) << 1 | 1);
     } else if (it->rhs_id == id_) {
       boundaries.emplace_back(((it->rhs_begin >> kPSS) + 1) << 1);
-      boundaries.emplace_back(((it->rhs_end   >> kPSS) - 1) << 1 | 1);
+      boundaries.emplace_back(((it->rhs_end >> kPSS) - 1) << 1 | 1);
     }
   }
   std::sort(boundaries.begin(), boundaries.end());
@@ -61,10 +61,9 @@ void Pile::AddLayers(
   }
 }
 
-void Pile::AddKmers(
-    const std::vector<std::uint32_t>& kmers,
-    std::uint32_t kmer_len,
-    const std::unique_ptr<biosoup::NucleicAcid>& sequence) {
+void Pile::AddKmers(const std::vector<std::uint32_t>& kmers,
+                    std::uint32_t kmer_len,
+                    const std::unique_ptr<biosoup::NucleicAcid>& sequence) {
   if (kmers.empty()) {
     return;
   }
@@ -79,7 +78,8 @@ void Pile::AddKmers(
     for (const auto& it : kmer) {
       polymers.emplace_back(1, it);
     }
-    polymers.erase(std::unique(polymers.begin(), polymers.end()), polymers.end());  // NOLINT
+    polymers.erase(std::unique(polymers.begin(), polymers.end()),
+                   polymers.end());  // NOLINT
     kmer = std::accumulate(polymers.begin(), polymers.end(), std::string());
     if (kmer.size() < kmer_len / 2 + 1) {
       continue;
@@ -93,7 +93,8 @@ void Pile::AddKmers(
         polymers.emplace_back(1, *it);
       }
     }
-    polymers.erase(std::unique(polymers.begin(), polymers.end()), polymers.end());  // NOLINT
+    polymers.erase(std::unique(polymers.begin(), polymers.end()),
+                   polymers.end());  // NOLINT
     kmer = std::accumulate(polymers.begin(), polymers.end(), std::string());
     if (kmer.size() < kmer_len / 2 + 1) {
       continue;
@@ -107,7 +108,8 @@ void Pile::AddKmers(
         polymers.emplace_back(1, *it);
       }
     }
-    polymers.erase(std::unique(polymers.begin(), polymers.end()), polymers.end());  // NOLINT
+    polymers.erase(std::unique(polymers.begin(), polymers.end()),
+                   polymers.end());  // NOLINT
     kmer = std::accumulate(polymers.begin(), polymers.end(), std::string());
     if (kmer.size() < kmer_len / 2 + 1) {
       continue;
@@ -177,14 +179,15 @@ void Pile::FindChimericRegions() {
 
   for (std::uint32_t i = 0; i < slopes.size() - 1; ++i) {
     if (!(slopes[i].first & 1) && (slopes[i + 1].first & 1)) {
-      chimeric_regions_.emplace_back(slopes[i].first >> 1, slopes[i + 1].second);  // NOLINT
+      chimeric_regions_.emplace_back(slopes[i].first >> 1,
+                                     slopes[i + 1].second);  // NOLINT
     }
   }
   chimeric_regions_ = MergeRegions(chimeric_regions_);
 }
 
 void Pile::ClearChimericRegions(std::uint16_t median) {
-  auto is_chimeric_region = [&] (const Region& r) -> bool {
+  auto is_chimeric_region = [&](const Region& r) -> bool {
     for (std::uint32_t i = r.first; i <= r.second; ++i) {
       if (clamp(data_[i] * 1.82) <= median) {
         return true;
@@ -257,9 +260,11 @@ void Pile::FindRepetitiveRegions(std::uint16_t median) {
   // check data_
   auto slopes = FindSlopes(1.42);
   if (!slopes.empty()) {
-    auto is_repetitive_region = [&] (const Region& begin, const Region& end) -> bool {  // NOLINT
+    auto is_repetitive_region = [&](const Region& begin,
+                                    const Region& end) -> bool {  // NOLINT
       if (((end.first >> 1) + end.second) / 2 -
-          ((begin.first >> 1) + begin.second) / 2 > 0.84 * (end_ - begin_)) {
+              ((begin.first >> 1) + begin.second) / 2 >
+          0.84 * (end_ - begin_)) {
         return false;
       }
       bool found_peak = false;
@@ -293,8 +298,11 @@ void Pile::FindRepetitiveRegions(std::uint16_t median) {
         }
         if (is_repetitive_region(slopes[i], slopes[j])) {
           repetitive_regions_.emplace_back(
-              (slopes[i].second)     - 0.336 * (slopes[i].second - (slopes[i].first >> 1)),  // NOLINT
-              (slopes[j].first >> 1) + 0.336 * (slopes[j].second - (slopes[j].first >> 1)));  // NOLINT
+              (slopes[i].second) - 0.336 * (slopes[i].second -
+                                            (slopes[i].first >> 1)),  // NOLINT
+              (slopes[j].first >> 1) +
+                  0.336 *
+                      (slopes[j].second - (slopes[j].first >> 1)));  // NOLINT
           set_is_repetitive();
         }
       }
@@ -310,11 +318,11 @@ void Pile::FindRepetitiveRegions(std::uint16_t median) {
 
 void Pile::UpdateRepetitiveRegions(const biosoup::Overlap& o) {
   if (repetitive_regions_.empty() || (id_ != o.lhs_id && id_ != o.rhs_id)) {
-      return;
+    return;
   }
 
   std::uint32_t begin = (id_ == o.lhs_id ? o.lhs_begin : o.rhs_begin) >> kPSS;
-  std::uint32_t end =   (id_ == o.lhs_id ? o.lhs_end   : o.rhs_end)   >> kPSS;
+  std::uint32_t end = (id_ == o.lhs_id ? o.lhs_end : o.rhs_end) >> kPSS;
   std::uint32_t fuzz = 420 >> kPSS;
   std::uint32_t offset = 0.1 * (end_ - begin_);
 
@@ -335,11 +343,11 @@ void Pile::UpdateRepetitiveRegions(const biosoup::Overlap& o) {
 
 bool Pile::CheckRepetitiveRegions(const biosoup::Overlap& o) {
   if (repetitive_regions_.empty() || (id_ != o.lhs_id && id_ != o.rhs_id)) {
-      return false;
+    return false;
   }
 
   std::uint32_t begin = (id_ == o.lhs_id ? o.lhs_begin : o.rhs_begin) >> kPSS;
-  std::uint32_t end =   (id_ == o.lhs_id ? o.lhs_end   : o.rhs_end)   >> kPSS;
+  std::uint32_t end = (id_ == o.lhs_id ? o.lhs_end : o.rhs_end) >> kPSS;
   std::uint32_t fuzz = 420 >> kPSS;
   std::uint32_t offset = 0.1 * (end_ - begin_);
 
@@ -360,9 +368,7 @@ bool Pile::CheckRepetitiveRegions(const biosoup::Overlap& o) {
   return false;
 }
 
-void Pile::ClearRepetitiveRegions() {
-  repetitive_regions_.clear();
-}
+void Pile::ClearRepetitiveRegions() { repetitive_regions_.clear(); }
 
 std::vector<Pile::Region> Pile::MergeRegions(const std::vector<Region>& src) {
   std::vector<Region> dst;
@@ -396,13 +402,14 @@ std::vector<Pile::Region> Pile::MergeRegions(const std::vector<Region>& src) {
 
 std::vector<Pile::Region> Pile::FindSlopes(double q) {
   using Subpile = std::deque<std::pair<std::int32_t, std::uint16_t>>;
-  auto subpile_add = [] (Subpile& s, std::uint16_t value, std::int32_t position) -> void {  // NOLINT
+  auto subpile_add = [](Subpile& s, std::uint16_t value,
+                        std::int32_t position) -> void {  // NOLINT
     while (!s.empty() && s.back().second <= value) {
       s.pop_back();
     }
     s.emplace_back(position, value);
   };
-  auto subpile_update = [] (Subpile& s, std::int32_t position) {
+  auto subpile_update = [](Subpile& s, std::int32_t position) {
     while (!s.empty() && s.front().first <= position) {
       s.pop_front();
     }
@@ -464,13 +471,13 @@ std::vector<Pile::Region> Pile::FindSlopes(double q) {
     }
   }
   if (found_down) {
-      dst.emplace_back(first_down << 1 | 0, last_down);
+    dst.emplace_back(first_down << 1 | 0, last_down);
   }
   if (found_up) {
-      dst.emplace_back(first_up << 1 | 1, last_up);
+    dst.emplace_back(first_up << 1 | 1, last_up);
   }
   if (dst.empty()) {
-      return dst;
+    return dst;
   }
 
   // separate overlaping slopes

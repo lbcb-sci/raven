@@ -74,7 +74,7 @@ if (RAVEN_BUILD_PYTHON)
     endif()
 endif()
 
-if (raven_build_tests)
+if (RAVEN_BUILD_TESTS)
     find_package(GTest 1.10.0 QUIET)
     if (NOT GTest_FOUND)
         FetchContent_Declare(
