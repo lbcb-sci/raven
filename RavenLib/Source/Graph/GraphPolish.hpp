@@ -8,7 +8,7 @@ namespace raven {
 // Consensus phase
 // - utilize Racon
 
-void polish(std::shared_ptr<thread_pool::ThreadPool> threadPool, Graph& graph,
+void Polish(std::shared_ptr<thread_pool::ThreadPool> threadPool, Graph& graph,
             bool checkpoints,
             const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
             std::uint8_t match, std::uint8_t mismatch, std::uint8_t gap,

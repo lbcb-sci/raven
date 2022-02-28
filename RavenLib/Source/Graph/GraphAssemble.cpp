@@ -22,7 +22,7 @@ namespace raven {
 
 namespace {
 
-static std::uint32_t removeTransitiveEdges(Graph& graph) {
+static std::uint32_t RemoveTransitiveEdges(Graph& graph) {
   biosoup::Timer timer;
   timer.Start();
 
@@ -32,7 +32,7 @@ static std::uint32_t removeTransitiveEdges(Graph& graph) {
            (b >= a * (1 - eps) && b <= a * (1 + eps));
   };
 
-  std::vector<Graph::Edge*> candidate(graph.nodes.size(), nullptr);
+  std::vector<Edge*> candidate(graph.nodes.size(), nullptr);
   std::unordered_set<std::uint32_t> marked_edges;
 
   for (const auto& it : graph.nodes) {
@@ -66,7 +66,7 @@ static std::uint32_t removeTransitiveEdges(Graph& graph) {
     }
   }
 
-  removeEdges(graph, marked_edges);
+  RemoveEdges(graph, marked_edges);
 
   std::cerr << "[raven::Graph::Assemble] removed transitive edges "
             << std::fixed << timer.Stop() << "s" << std::endl;
@@ -74,7 +74,7 @@ static std::uint32_t removeTransitiveEdges(Graph& graph) {
   return marked_edges.size() / 2;
 }
 
-static std::uint32_t removeTips(Graph& graph) {
+static std::uint32_t RemoveTips(Graph& graph) {
   std::uint32_t num_tips = 0;
   std::vector<char> is_visited(graph.nodes.size(), 0);
 
@@ -121,19 +121,19 @@ static std::uint32_t removeTips(Graph& graph) {
       ++num_tips;
     }
 
-    removeEdges(graph, marked_edges, true);
+    RemoveEdges(graph, marked_edges, true);
   }
 
   return num_tips;
 }
 
-static std::unordered_set<std::uint32_t> findRemovableEdges(
-    const std::vector<Graph::Node*>& path) {
+static std::unordered_set<std::uint32_t> FindRemovableEdges(
+    const std::vector<Node*>& path) {
   if (path.empty()) {
     return std::unordered_set<std::uint32_t>{};
   }
 
-  auto find_edge = [](Graph::Node* tail, Graph::Node* head) -> Graph::Edge* {
+  auto find_edge = [](Node* tail, Node* head) -> Edge* {
     for (auto it : tail->outedges) {
       if (it->head == head) {
         return it;
@@ -198,14 +198,14 @@ static std::unordered_set<std::uint32_t> findRemovableEdges(
   return dst;  // empty
 }
 
-static std::uint32_t removeBubbles(Graph& graph) {
+static std::uint32_t RemoveBubbles(Graph& graph) {
   std::vector<std::uint32_t> distance(graph.nodes.size(), 0);
-  std::vector<Graph::Node*> predecessor(graph.nodes.size(), nullptr);
+  std::vector<Node*> predecessor(graph.nodes.size(), nullptr);
 
   // path helper functions
-  auto path_extract = [&](Graph::Node* begin,
-                          Graph::Node* end) -> std::vector<Graph::Node*> {
-    std::vector<Graph::Node*> dst;
+  auto path_extract = [&](Node* begin,
+                          Node* end) -> std::vector<Node*> {
+    std::vector<Node*> dst;
     while (end != begin) {
       dst.emplace_back(end);
       end = predecessor[end->id];
@@ -214,7 +214,7 @@ static std::uint32_t removeBubbles(Graph& graph) {
     std::reverse(dst.begin(), dst.end());
     return dst;
   };
-  auto path_is_simple = [](const std::vector<Graph::Node*>& path) -> bool {
+  auto path_is_simple = [](const std::vector<Node*>& path) -> bool {
     if (path.empty()) {
       return false;
     }
@@ -226,7 +226,7 @@ static std::uint32_t removeBubbles(Graph& graph) {
     return true;  // without branches
   };
   auto path_sequence =
-      [](const std::vector<Graph::Node*>& path) -> std::string {
+      [](const std::vector<Node*>& path) -> std::string {
     std::string data{};
     for (std::uint32_t i = 0; i < path.size() - 1; ++i) {
       for (auto it : path[i]->outedges) {
@@ -239,15 +239,15 @@ static std::uint32_t removeBubbles(Graph& graph) {
     data += path.back()->sequence.InflateData();
     return data;
   };
-  auto bubble_pop = [&](const std::vector<Graph::Node*>& lhs,
-                        const std::vector<Graph::Node*>& rhs)
+  auto bubble_pop = [&](const std::vector<Node*>& lhs,
+                        const std::vector<Node*>& rhs)
       -> std::unordered_set<std::uint32_t> {
     if (lhs.empty() || rhs.empty()) {
       return std::unordered_set<std::uint32_t>{};
     }
 
     // check BFS result
-    std::unordered_set<Graph::Node*> bubble;
+    std::unordered_set<Node*> bubble;
     bubble.insert(lhs.begin(), lhs.end());
     bubble.insert(rhs.begin(), rhs.end());
     if (lhs.size() + rhs.size() - 2 != bubble.size()) {
@@ -261,7 +261,7 @@ static std::uint32_t removeBubbles(Graph& graph) {
 
     if (!path_is_simple(lhs) || !path_is_simple(rhs)) {  // complex path(s)
       // check poppability
-      if (findRemovableEdges(lhs).empty() && findRemovableEdges(rhs).empty()) {
+      if (FindRemovableEdges(lhs).empty() && FindRemovableEdges(rhs).empty()) {
         return std::unordered_set<std::uint32_t>{};
       }
 
@@ -293,9 +293,9 @@ static std::uint32_t removeBubbles(Graph& graph) {
     for (auto jt : rhs) {
       rhs_count += jt->count;
     }
-    auto marked_edges = findRemovableEdges(lhs_count > rhs_count ? rhs : lhs);
+    auto marked_edges = FindRemovableEdges(lhs_count > rhs_count ? rhs : lhs);
     if (marked_edges.empty()) {
-      marked_edges = findRemovableEdges(lhs_count > rhs_count ? lhs : rhs);
+      marked_edges = FindRemovableEdges(lhs_count > rhs_count ? lhs : rhs);
     }
     return marked_edges;
   };
@@ -308,11 +308,11 @@ static std::uint32_t removeBubbles(Graph& graph) {
     }
 
     // BFS
-    Graph::Node* begin = it.get();
-    Graph::Node* end = nullptr;
-    Graph::Node* other_end = nullptr;
-    std::deque<Graph::Node*> que{begin};
-    std::vector<Graph::Node*> visited{1, begin};
+    Node* begin = it.get();
+    Node* end = nullptr;
+    Node* other_end = nullptr;
+    std::deque<Node*> que{begin};
+    std::vector<Node*> visited{1, begin};
     while (!que.empty() && !end) {
       auto jt = que.front();
       que.pop_front();
@@ -351,14 +351,14 @@ static std::uint32_t removeBubbles(Graph& graph) {
       predecessor[jt->id] = nullptr;
     }
 
-    removeEdges(graph, marked_edges, true);
+    RemoveEdges(graph, marked_edges, true);
     num_bubbles += 1 - marked_edges.empty();
   }
 
   return num_bubbles;
 }
 
-static void createForceDirectedLayout(
+static void CreateForceDirectedLayout(
     std::shared_ptr<thread_pool::ThreadPool>& threadPool, const Graph& graph,
     const std::string& path = "") {
   std::ofstream os;
@@ -701,13 +701,13 @@ static void createForceDirectedLayout(
   }
 }
 
-static std::uint32_t removeLongEdges(
+static std::uint32_t RemoveLongEdges(
     std::shared_ptr<thread_pool::ThreadPool>& threadPool, Graph& graph,
     std::uint32_t num_rounds) {
   std::uint32_t num_long_edges = 0;
 
   for (std::uint32_t i = 0; i < num_rounds; ++i) {
-    createForceDirectedLayout(threadPool, graph);
+    CreateForceDirectedLayout(threadPool, graph);
 
     std::unordered_set<std::uint32_t> marked_edges;
     for (const auto& it : graph.nodes) {
@@ -724,18 +724,18 @@ static std::uint32_t removeLongEdges(
       }
     }
 
-    removeEdges(graph, marked_edges);
+    RemoveEdges(graph, marked_edges);
     num_long_edges += marked_edges.size() / 2;
 
-    removeTips(graph);
+    RemoveTips(graph);
   }
 
   return num_long_edges;
 }
 
-static std::uint32_t salvagePlasmids(
+static std::uint32_t SalvagePlasmids(
     std::shared_ptr<thread_pool::ThreadPool>& threadPool, Graph& graph) {
-  createUnitigs(graph);
+  CreateUnitigs(graph);
 
   std::vector<std::unique_ptr<biosoup::NucleicAcid>> plasmids;
   for (const auto& it : graph.nodes) {
@@ -798,13 +798,13 @@ static std::uint32_t salvagePlasmids(
   return plasmids.size();
 }
 
-static void removeTipsAndBubbles(Graph& graph) {
+static void RemoveTipsAndBubbles(Graph& graph) {
   biosoup::Timer timer;
   timer.Start();
 
   while (true) {
-    std::uint32_t num_changes = removeTips(graph);
-    num_changes += removeBubbles(graph);
+    std::uint32_t num_changes = RemoveTips(graph);
+    num_changes += RemoveBubbles(graph);
     if (num_changes == 0) {
       break;
     }
@@ -814,13 +814,13 @@ static void removeTipsAndBubbles(Graph& graph) {
             << std::fixed << timer.Stop() << "s" << std::endl;
 }
 
-static void removeLongEdgesStage(
+static void RemoveLongEdgesStage(
     Graph& graph, std::shared_ptr<thread_pool::ThreadPool>& threadPool) {
   biosoup::Timer timer;
   timer.Start();
 
-  createUnitigs(graph, 42);  // speed up force directed layout
-  removeLongEdges(threadPool, graph, 16);
+  CreateUnitigs(graph, 42);  // speed up force directed layout
+  RemoveLongEdges(threadPool, graph, 16);
 
   std::cerr << "[raven::Graph::Assemble] removed long edges " << std::fixed
             << timer.Stop() << "s" << std::endl;
@@ -828,20 +828,20 @@ static void removeLongEdgesStage(
   timer.Start();
 
   while (true) {
-    std::uint32_t num_changes = removeTips(graph);
-    num_changes += removeBubbles(graph);
+    std::uint32_t num_changes = RemoveTips(graph);
+    num_changes += RemoveBubbles(graph);
     if (num_changes == 0) {
       break;
     }
   }
 
-  salvagePlasmids(threadPool, graph);
+  SalvagePlasmids(threadPool, graph);
 
   timer.Stop();
 }
 
 template <typename Fun, typename... Args>
-static void stageExecution(Graph& graph, bool checkpoints, Fun fun,
+static void StageExecution(Graph& graph, bool checkpoints, Fun fun,
                            Args&... args) {
   biosoup::Timer timer;
   timer.Start();
@@ -852,14 +852,14 @@ static void stageExecution(Graph& graph, bool checkpoints, Fun fun,
 
   if (checkpoints) {
     timer.Start();
-    raven::storeGraphToFile(graph);
+    raven::StoreGraphToFile(graph);
     std::cerr << "[raven::Graph::Assemble] reached checkpoint " << std::fixed
               << timer.Stop() << "s" << std::endl;
   }
 }
 }  // namespace
 
-void assemble(std::shared_ptr<thread_pool::ThreadPool> threadPool, Graph& graph,
+void Assemble(std::shared_ptr<thread_pool::ThreadPool> threadPool, Graph& graph,
               bool checkpoints) {
   if (graph.stage < -3 || graph.stage > -1) {
     return;
@@ -869,15 +869,15 @@ void assemble(std::shared_ptr<thread_pool::ThreadPool> threadPool, Graph& graph,
   timer.Start();
 
   if (graph.stage == -3) {  // remove transitive edges
-    stageExecution(graph, checkpoints, removeTransitiveEdges);
+    StageExecution(graph, checkpoints, RemoveTransitiveEdges);
   }
 
   if (graph.stage == -2) {  // remove tips and bubbles
-    stageExecution(graph, checkpoints, removeTipsAndBubbles);
+    StageExecution(graph, checkpoints, RemoveTipsAndBubbles);
   }
 
   if (graph.stage == -1) {
-    stageExecution(graph, checkpoints, removeLongEdgesStage, threadPool);
+    StageExecution(graph, checkpoints, RemoveLongEdgesStage, threadPool);
   }
 
   std::cerr << "[raven::Graph::Assemble] " << std::fixed << timer.Stop() << "s"

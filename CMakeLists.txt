@@ -25,8 +25,6 @@ if (CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
     message(STATUS "[raven] compling with g++ and using gold linker") 
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=gold")
   endif()
-
-  include(${CMAKE_CURRENT_LIST_DIR}/RavenExe/Exe.cmake)
 endif ()
 
 if (RAVEN_BUILD_PYTHON)
@@ -36,6 +34,10 @@ endif()
 include(${CMAKE_CURRENT_LIST_DIR}/Raven.deps.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/RavenLib/RavenLib.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/RavenTest/RavenTest.cmake)
+
+if (RAVEN_MAIN_PROJECT)
+  include(${CMAKE_CURRENT_LIST_DIR}/RavenExe/Exe.cmake)
+endif()
 
 if (RAVEN_BUILD_PYTHON)
   include(${CMAKE_CURRENT_LIST_DIR}/PythonLib/RavenPy.cmake)

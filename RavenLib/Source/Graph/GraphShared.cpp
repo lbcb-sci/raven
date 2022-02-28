@@ -2,10 +2,9 @@
 
 namespace raven {
 
-void removeEdges(Graph& graph, const std::unordered_set<std::uint32_t>& indices,
+void RemoveEdges(Graph& graph, const std::unordered_set<std::uint32_t>& indices,
                  bool remove_nodes) {
-  auto erase_remove = [](std::vector<Graph::Edge*>& edges,
-                         Graph::Edge* marked) -> void {
+  auto erase_remove = [](std::vector<Edge*>& edges, Edge* marked) -> void {
     edges.erase(std::remove(edges.begin(), edges.end(), marked), edges.end());
   };
 
@@ -30,12 +29,26 @@ void removeEdges(Graph& graph, const std::unordered_set<std::uint32_t>& indices,
   }
 }
 
-std::uint32_t createUnitigs(Graph& graph, std::uint32_t epsilon) {
+std::uint32_t CreateUnitigs(Graph& graph, std::uint32_t epsilon) {
   std::unordered_set<std::uint32_t> marked_edges;
-  std::vector<std::shared_ptr<Graph::Node>> unitigs;
-  std::vector<std::shared_ptr<Graph::Edge>> unitig_edges;
+  std::vector<std::unique_ptr<Node>> unitigs;
+  std::vector<std::unique_ptr<Edge>> unitig_edges;
   std::vector<std::uint32_t> node_updates(graph.nodes.size(), 0);
   std::vector<char> is_visited(graph.nodes.size(), 0);
+
+  auto emplace_node_through_factory =
+      [&nodes = unitigs,
+       &graph](auto&&... args) -> decltype(unitigs)::reference {
+    return nodes.emplace_back(
+        graph.node_factory.MakeUnique(std::forward<decltype(args)>(args)...));
+  };
+
+  auto emplace_edge_through_factory =
+      [&edges = unitig_edges,
+       &graph](auto&&... args) -> decltype(unitig_edges)::reference {
+    return edges.emplace_back(
+        graph.edge_factory.MakeUnique(std::forward<decltype(args)>(args)...));
+  };
 
   for (const auto& it : graph.nodes) {
     if (it == nullptr || is_visited[it->id] || it->is_junction()) {
@@ -92,42 +105,47 @@ std::uint32_t createUnitigs(Graph& graph, std::uint32_t epsilon) {
       }
     }
 
-    auto unitig = std::make_shared<Graph::Node>(begin, end);
-    unitigs.emplace_back(unitig);
-    unitigs.emplace_back(std::make_shared<Graph::Node>(end->pair, begin->pair));
-    unitig->pair = unitigs.back().get();
-    unitig->pair->pair = unitig.get();
+    // auto& unitig = unitigs.emplace_back(std::make_unique<Node>(begin, end));
+
+    // auto& rc_unitig = unitigs.emplace_back(
+    //     std::make_unique<Node>(graph.nodes.size(), end->pair, begin->pair));
+
+    auto& unitig = emplace_node_through_factory(begin, end);
+    auto& rc_unitig = emplace_node_through_factory(end->pair, begin->pair);
+
+    unitig->pair = rc_unitig.get();
+    rc_unitig->pair = unitig.get();
 
     if (begin != end) {  // connect unitig to graph
       if (begin->indegree()) {
         marked_edges.emplace(begin->inedges.front()->id);
         marked_edges.emplace(begin->inedges.front()->pair->id);
 
-        auto edge = std::make_shared<Graph::Edge>(
+        auto& edge = emplace_edge_through_factory(
             begin->inedges.front()->tail, unitig.get(),
             begin->inedges.front()->length);
-        unitig_edges.emplace_back(edge);
-        unitig_edges.emplace_back(std::make_shared<Graph::Edge>(
+        auto& rc_edge = emplace_edge_through_factory(
             unitig->pair, begin->inedges.front()->pair->head,
             begin->inedges.front()->pair->length +
                 unitig->pair->sequence.inflated_len -
-                begin->pair->sequence.inflated_len));  // NOLINT
-        edge->pair = unitig_edges.back().get();
-        edge->pair->pair = edge.get();
+                begin->pair->sequence.inflated_len);  // NOLINT
+        edge->pair = rc_edge.get();
+        rc_edge->pair = edge.get();
       }
       if (end->outdegree()) {
         marked_edges.emplace(end->outedges.front()->id);
         marked_edges.emplace(end->outedges.front()->pair->id);
 
-        auto edge = std::make_shared<Graph::Edge>(
+        auto& edge = emplace_edge_through_factory(
             unitig.get(), end->outedges.front()->head,
             end->outedges.front()->length + unitig->sequence.inflated_len -
                 end->sequence.inflated_len);  // NOLINT
-        unitig_edges.emplace_back(edge);
-        unitig_edges.emplace_back(std::make_shared<Graph::Edge>(
+
+        auto& rc_edge = emplace_edge_through_factory(
             end->outedges.front()->pair->tail, unitig->pair,
-            end->outedges.front()->pair->length));
-        edge->pair = unitig_edges.back().get();
+            end->outedges.front()->pair->length);
+
+        edge->pair = rc_edge.get();
         edge->pair->pair = edge.get();
       }
     }
@@ -148,10 +166,14 @@ std::uint32_t createUnitigs(Graph& graph, std::uint32_t epsilon) {
     }
   }
 
-  graph.nodes.insert(graph.nodes.end(), unitigs.begin(), unitigs.end());
-  graph.edges.insert(graph.edges.end(), unitig_edges.begin(),
-                     unitig_edges.end());
-  removeEdges(graph, marked_edges, true);
+  graph.nodes.reserve(graph.nodes.size() + unitigs.size());
+  std::move(unitigs.begin(), unitigs.end(), std::back_inserter(graph.nodes));
+
+  graph.edges.reserve(graph.edges.size() + unitig_edges.size());
+  std::move(unitig_edges.begin(), unitig_edges.end(),
+            std::back_inserter(graph.edges));
+
+  RemoveEdges(graph, marked_edges, true);
 
   for (const auto& it : graph.nodes) {  // update transitive edges
     if (it) {
@@ -166,12 +188,11 @@ std::uint32_t createUnitigs(Graph& graph, std::uint32_t epsilon) {
   return unitigs.size() / 2;
 }
 
-std::vector<std::unique_ptr<biosoup::NucleicAcid>> getUnitigs(
+std::vector<std::unique_ptr<biosoup::NucleicAcid>> GetUnitigs(
     Graph& graph, bool drop_unpolished) {
-  createUnitigs(graph);
+  CreateUnitigs(graph);
 
   biosoup::NucleicAcid::num_objects = 0;
-
   std::vector<std::unique_ptr<biosoup::NucleicAcid>> dst;
 
   for (const auto& it : graph.nodes) {

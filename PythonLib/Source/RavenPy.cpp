@@ -128,16 +128,16 @@ static void setCudaBandedAlignment(bool newCudaBandedAlignment) {
 }
 
 static void constructGraph(Raven& raven, bool checkpoints) {
-    raven::constructGraph(raven.graph, raven.sequences, raven.threadPool, checkpoints, kmerLength, windowLength, frequency);
+    raven::ConstructGraph(raven.graph, raven.sequences, raven.threadPool, checkpoints, kmerLength, windowLength, frequency);
 }
 
 static void assemble(Raven& raven, bool checkpoints) {
-    raven::assemble(raven.threadPool, raven.graph, checkpoints);
+    raven::Assemble(raven.threadPool, raven.graph, checkpoints);
 }
 
 static void polish(Raven& raven, bool checkpoints) {
 
-    raven::polish(raven.threadPool, raven.graph, checkpoints, raven.sequences, polishingMatch, polishingMismatch, polishingGap, cudaPoaBatches, cudaBandedAlignment, cudaAlignmentBatches, numberOfPolishingRounds);
+    raven::Polish(raven.threadPool, raven.graph, checkpoints, raven.sequences, polishingMatch, polishingMismatch, polishingGap, cudaPoaBatches, cudaBandedAlignment, cudaAlignmentBatches, numberOfPolishingRounds);
 
 }
 

@@ -5,8 +5,8 @@
 
 namespace raven {
 
-Graph::Node::Node(const biosoup::NucleicAcid& sequence)
-    : id(num_objects++),
+Node::Node(const biosoup::NucleicAcid& sequence)
+    : id(),
       sequence(sequence),
       count(1),
       is_unitig(),
@@ -17,8 +17,8 @@ Graph::Node::Node(const biosoup::NucleicAcid& sequence)
       outedges(),
       pair() {}
 
-Graph::Node::Node(Graph::Node* begin, Graph::Node* end)
-    : id(num_objects++),
+Node::Node(Node* begin, Node* end)
+    : id(),
       sequence(),
       count(),
       is_unitig(),
@@ -49,23 +49,12 @@ Graph::Node::Node(Graph::Node* begin, Graph::Node* end)
       (is_unitig ? "Utg" : "Ctg") + std::to_string(id & (~1UL)), data);
 }
 
-Graph::Edge::Edge(Graph::Node* tail, Graph::Node* head, std::uint32_t length)
-    : id(num_objects++),
-      length(length),
-      weight(0),
-      tail(tail),
-      head(head),
-      pair() {
+Edge::Edge(Node* tail, Node* head, std::uint32_t length)
+    : id(), length(length), weight(0), tail(tail), head(head), pair() {
   tail->outedges.emplace_back(this);
   head->inedges.emplace_back(this);
 }
 
-Graph::Graph() : stage(-5), piles(), nodes(), edges() {
-  Graph::Node::num_objects = 0;
-  Graph::Edge::num_objects = 0;
-}
-
-std::atomic<std::uint32_t> Graph::Node::num_objects{0};
-std::atomic<std::uint32_t> Graph::Edge::num_objects{0};
+Graph::Graph() : stage(-5), piles(), nodes(), edges() {}
 
 }  // namespace raven

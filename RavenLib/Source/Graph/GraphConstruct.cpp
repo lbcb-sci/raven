@@ -10,16 +10,15 @@
 
 namespace raven {
 
-void findOverlapsAndCreatePiles(
-    const std::shared_ptr<thread_pool::ThreadPool>& threadPool,
-    ram::MinimizerEngine& minimizerEngine,
+void FindOverlapsAndCreatePiles(
+    const std::shared_ptr<thread_pool::ThreadPool>& thread_pool,
+    ram::MinimizerEngine& minimizer_engine,
     const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
     double freq, std::vector<std::unique_ptr<Pile>>& piles,
     std::vector<std::vector<biosoup::Overlap>>& overlaps) {
   constexpr std::size_t kMaxNumOverlaps = 32;
 
   piles.reserve(sequences.size());
-
   for (const auto& it : sequences) {
     piles.emplace_back(new Pile(it->id, it->inflated_len));
   }
@@ -31,16 +30,16 @@ void findOverlapsAndCreatePiles(
   for (std::uint32_t i = 0, j = 0; i < sequences.size(); ++i) {
     bytes += sequences[i]->inflated_len;
 
-    if (i != sequences.size() - 1 && bytes < (1ULL << 32)) {
+    if (i != sequences.size() - 1ULL && bytes < (1ULL << 32ULL)) {
       continue;
     }
 
     bytes = 0;
     timer.Start();
 
-    minimizerEngine.Minimize(sequences.begin() + j, sequences.begin() + i + 1,
-                             true);
-    minimizerEngine.Filter(freq);
+    minimizer_engine.Minimize(sequences.begin() + j, sequences.begin() + i + 1,
+                              true);
+    minimizer_engine.Filter(freq);
 
     std::cerr << "[raven::Graph::Construct] minimized " << j << " - " << i + 1
               << " / " << sequences.size() << " " << std::fixed << timer.Stop()
@@ -56,14 +55,14 @@ void findOverlapsAndCreatePiles(
     std::vector<std::future<std::vector<biosoup::Overlap>>> thread_futures;
 
     for (std::uint32_t k = 0; k < i + 1; ++k) {
-      thread_futures.emplace_back(threadPool->Submit(
+      thread_futures.emplace_back(thread_pool->Submit(
           [&](std::uint32_t i) -> std::vector<biosoup::Overlap> {
-            return minimizerEngine.Map(sequences[i], true, true, true);
+            return minimizer_engine.Map(sequences[i], true, true, true);
           },
           k));
 
       bytes += sequences[k]->inflated_len;
-      if (k != i && bytes < (1U << 30)) {
+      if (k != i && bytes < (1U << 30U)) {
         continue;
       }
       bytes = 0;
@@ -83,7 +82,7 @@ void findOverlapsAndCreatePiles(
           continue;
         }
 
-        void_futures.emplace_back(threadPool->Submit(
+        void_futures.emplace_back(thread_pool->Submit(
             [&](std::uint32_t i) -> void {
               piles[i]->AddLayers(overlaps[i].begin() + num_overlaps[i],
                                   overlaps[i].end());
@@ -119,8 +118,8 @@ void findOverlapsAndCreatePiles(
   }
 }
 
-void trimAndAnnotatePiles(
-    const std::shared_ptr<thread_pool::ThreadPool>& threadPool,
+void TrimAndAnnotatePiles(
+    const std::shared_ptr<thread_pool::ThreadPool>& thread_pool,
     const std::vector<std::unique_ptr<Pile>>& piles,
     std::vector<std::vector<biosoup::Overlap>>& overlaps) {
   biosoup::Timer timer;
@@ -128,7 +127,7 @@ void trimAndAnnotatePiles(
 
   std::vector<std::future<void>> thread_futures;
   for (std::uint32_t i = 0; i < piles.size(); ++i) {
-    thread_futures.emplace_back(threadPool->Submit(
+    thread_futures.emplace_back(thread_pool->Submit(
         [&](std::uint32_t i) -> void {
           piles[i]->FindValidRegion(4);
           if (piles[i]->is_invalid()) {
@@ -150,7 +149,7 @@ void trimAndAnnotatePiles(
             << timer.Stop() << "s" << std::endl;
 }
 
-void resolveContainedReads(
+void ResolveContainedReads(
     const std::vector<std::unique_ptr<Pile>>& piles,
     std::vector<std::vector<biosoup::Overlap>>& overlaps) {
   biosoup::Timer timer;
@@ -160,10 +159,10 @@ void resolveContainedReads(
   for (std::uint32_t i = 0; i < overlaps.size(); ++i) {
     std::uint32_t k = 0;
     for (std::uint32_t j = 0; j < overlaps[i].size(); ++j) {
-      if (!overlapUpdate(overlaps[i][j], piles)) {
+      if (!OverlapUpdate(overlaps[i][j], piles)) {
         continue;
       }
-      std::uint32_t type = getOverlapType(overlaps[i][j], piles);
+      std::uint32_t type = GetOverlapType(overlaps[i][j], piles);
       if (type == 1 && !piles[overlaps[i][j].rhs_id]->is_maybe_chimeric()) {
         piles[i]->set_is_contained();
       } else if (type == 2 && !piles[i]->is_maybe_chimeric()) {
@@ -186,8 +185,8 @@ void resolveContainedReads(
             << std::fixed << timer.Stop() << "s" << std::endl;
 }
 
-void resolveChimericSequences(
-    const std::shared_ptr<thread_pool::ThreadPool>& threadPool,
+void ResolveChimericSequences(
+    const std::shared_ptr<thread_pool::ThreadPool>& thread_pool,
     const std::vector<std::unique_ptr<Pile>>& piles,
     std::vector<std::vector<biosoup::Overlap>>& overlaps,
     const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences) {
@@ -210,7 +209,7 @@ void resolveChimericSequences(
     if (it->is_invalid()) {
       continue;
     }
-    thread_futures.emplace_back(threadPool->Submit(
+    thread_futures.emplace_back(thread_pool->Submit(
         [&](std::uint32_t i) -> void {
           piles[i]->ClearChimericRegions(median);
           if (piles[i]->is_invalid()) {
@@ -226,7 +225,7 @@ void resolveChimericSequences(
   for (std::uint32_t i = 0; i < overlaps.size(); ++i) {
     std::uint32_t k = 0;
     for (std::uint32_t j = 0; j < overlaps[i].size(); ++j) {
-      if (overlapUpdate(overlaps[i][j], piles)) {
+      if (OverlapUpdate(overlaps[i][j], piles)) {
         overlaps[i][k++] = overlaps[i][j];
       }
     }
@@ -235,7 +234,7 @@ void resolveChimericSequences(
 
   for (const auto& it : overlaps) {
     for (const auto& jt : it) {
-      std::uint32_t type = getOverlapType(jt, piles);
+      std::uint32_t type = GetOverlapType(jt, piles);
       if (type == 1) {
         piles[jt.lhs_id]->set_is_contained();
         piles[jt.lhs_id]->set_is_invalid();
@@ -252,9 +251,9 @@ void resolveChimericSequences(
             << std::fixed << timer.Stop() << "s" << std::endl;
 }
 
-void findOverlapsAndRepetetiveRegions(
-    const std::shared_ptr<thread_pool::ThreadPool>& threadPool,
-    ram::MinimizerEngine& minimizerEngine, double freq, std::uint8_t kmerLen,
+void FindOverlapsAndRepetetiveRegions(
+    const std::shared_ptr<thread_pool::ThreadPool>& thread_pool,
+    ram::MinimizerEngine& minimizerEngine, double freq, std::uint8_t kmer_len,
     const std::vector<std::unique_ptr<Pile>>& piles,
     std::vector<std::vector<biosoup::Overlap>>& overlaps,
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences) {
@@ -301,7 +300,7 @@ void findOverlapsAndRepetetiveRegions(
     std::vector<std::future<std::vector<biosoup::Overlap>>> thread_futures;
     minimizerEngine.Filter(freq);
     for (std::uint32_t k = 0; k < i + 1; ++k) {
-      thread_futures.emplace_back(threadPool->Submit(
+      thread_futures.emplace_back(thread_pool->Submit(
           [&](std::uint32_t i) -> std::vector<biosoup::Overlap> {
             std::vector<std::uint32_t> filtered;
             auto dst = minimizerEngine.Map(sequences[i],
@@ -309,7 +308,7 @@ void findOverlapsAndRepetetiveRegions(
                                            true,   // avoid symmetric
                                            false,  // minhash
                                            &filtered);
-            piles[sequences[i]->id]->AddKmers(filtered, kmerLen,
+            piles[sequences[i]->id]->AddKmers(filtered, kmer_len,
                                               sequences[i]);  // NOLINT
             return dst;
           },
@@ -317,10 +316,10 @@ void findOverlapsAndRepetetiveRegions(
     }
     for (auto& it : thread_futures) {
       for (auto& jt : it.get()) {
-        if (!overlapUpdate(jt, piles)) {
+        if (!OverlapUpdate(jt, piles)) {
           continue;
         }
-        std::uint32_t type = getOverlapType(jt, piles);
+        std::uint32_t type = GetOverlapType(jt, piles);
         if (type == 0) {
           continue;
         } else if (type == 1) {
@@ -361,7 +360,7 @@ void findOverlapsAndRepetetiveRegions(
   {
     std::uint32_t k = 0;
     for (std::uint32_t i = 0; i < overlaps.back().size(); ++i) {
-      if (overlapUpdate(overlaps.back()[i], piles)) {
+      if (OverlapUpdate(overlaps.back()[i], piles)) {
         overlaps.back()[k++] = overlaps.back()[i];
       }
     }
@@ -378,8 +377,8 @@ void findOverlapsAndRepetetiveRegions(
             });
 }
 
-void resolveRepeatInducedOverlaps(
-    const std::shared_ptr<thread_pool::ThreadPool>& threadPool,
+void ResolveRepeatInducedOverlaps(
+    const std::shared_ptr<thread_pool::ThreadPool>& thread_pool,
     const std::vector<std::unique_ptr<Pile>>& piles,
     std::vector<std::vector<biosoup::Overlap>>& overlaps,
     const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences) {
@@ -388,7 +387,7 @@ void resolveRepeatInducedOverlaps(
   timer.Start();
 
   while (true) {
-    auto components = connectedComponents(overlaps, sequences, piles);
+    auto components = ConnectedComponents(overlaps, sequences, piles);
     for (const auto& it : components) {
       std::vector<std::uint16_t> medians;
       for (const auto& jt : it) {
@@ -400,7 +399,7 @@ void resolveRepeatInducedOverlaps(
 
       std::vector<std::future<void>> futures;
       for (const auto& jt : it) {
-        futures.emplace_back(threadPool->Submit(
+        futures.emplace_back(thread_pool->Submit(
             [&](std::uint32_t i) -> void {
               piles[i]->FindRepetitiveRegions(median);
             },
@@ -446,7 +445,7 @@ void resolveRepeatInducedOverlaps(
   timer.Start();
 }
 
-void constructAssemblyGraph(
+void ConstructAssemblyGraph(
     Graph& graph, const std::vector<std::unique_ptr<Pile>>& piles,
     std::vector<std::vector<biosoup::Overlap>>& overlaps,
     const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences) {
@@ -455,11 +454,20 @@ void constructAssemblyGraph(
 
   std::vector<std::int32_t> sequence_to_node(piles.size(), -1);
 
-  std::vector<std::shared_ptr<Graph::Node>> nodes;
-  std::vector<std::shared_ptr<Graph::Edge>> edges;
+  std::vector<std::unique_ptr<Node>> nodes;
+  std::vector<std::unique_ptr<Edge>> edges;
 
-  Graph::Node::num_objects = 0;
-  Graph::Edge::num_objects = 0;
+  auto emplace_node_through_factory =
+      [&nodes, &graph](auto&&... args) -> decltype(nodes)::reference {
+    return nodes.emplace_back(
+        graph.node_factory.MakeUnique(std::forward<decltype(args)>(args)...));
+  };
+
+  auto emplace_edge_through_factory =
+      [&edges, &graph](auto&&... args) -> decltype(edges)::reference {
+    return edges.emplace_back(
+        graph.edge_factory.MakeUnique(std::forward<decltype(args)>(args)...));
+  };
 
   for (const auto& it : piles) {  // create nodes
     if (it->is_invalid()) {
@@ -471,14 +479,14 @@ void constructAssemblyGraph(
         sequences[it->id()]->InflateData(it->begin(),
                                          it->end() - it->begin())};  // NOLINT
 
-    sequence_to_node[it->id()] = Graph::Node::num_objects;
+    sequence_to_node[it->id()] = nodes.size();
+    auto& node = emplace_node_through_factory(sequence);
 
-    auto node = std::make_shared<Graph::Node>(sequence);
     sequence.ReverseAndComplement();
-    nodes.emplace_back(node);
-    nodes.emplace_back(std::make_shared<Graph::Node>(sequence));
-    node->pair = nodes.back().get();
-    node->pair->pair = node.get();
+    auto& rc_node = emplace_node_through_factory(sequence);
+
+    node->pair = rc_node.get();
+    rc_node.get()->pair = node.get();
   }
 
   std::cerr << "[raven::Graph::Construct] stored " << nodes.size()
@@ -486,7 +494,7 @@ void constructAssemblyGraph(
             << std::fixed << timer.Stop() << "s" << std::endl;
 
   for (auto& it : overlaps.back()) {  // create edges
-    if (!overlapFinalize(it, piles)) {
+    if (!OverlapFinalize(it, piles)) {
       continue;
     }
 
@@ -503,25 +511,24 @@ void constructAssemblyGraph(
       length_pair *= -1;
     }
 
-    auto edge = std::make_shared<Graph::Edge>(tail, head, length);
-    edges.emplace_back(edge);
-    edges.emplace_back(std::make_shared<Graph::Edge>(head->pair, tail->pair,
-                                                     length_pair));  // NOLINT
-    edge->pair = edges.back().get();
-    edge->pair->pair = edge.get();
+    auto& edge = emplace_edge_through_factory(tail, head, length);
+    auto& rc_edge =
+        emplace_edge_through_factory(head->pair, tail->pair, length_pair);
+
+    edge->pair = rc_edge.get();
+    rc_edge->pair = edge.get();
   }
 
-  std::cerr << "[raven::Graph::Construct] stored " << edges.size()
-            << " edges "  // NOLINT
+  std::cerr << "[raven::Graph::Construct] stored " << edges.size() << " edges "
             << std::fixed << timer.Stop() << "s" << std::endl;
 
   graph.nodes = std::move(nodes);
   graph.edges = std::move(edges);
 }
 
-void constructGraph(
+void ConstructGraph(
     Graph& graph, std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
-    std::shared_ptr<thread_pool::ThreadPool>& threadPool, bool checkpoints,
+    std::shared_ptr<thread_pool::ThreadPool>& thread_pool, bool checkpoints,
     std::uint8_t kmerLen, std::uint8_t windowLen, double freq) {
   if (sequences.empty() || graph.stage > -4) {
     return;
@@ -530,43 +537,43 @@ void constructGraph(
   biosoup::Timer timer;
   timer.Start();
 
-  ram::MinimizerEngine minimizerEngine{threadPool, kmerLen, windowLen};
+  ram::MinimizerEngine minimizerEngine{thread_pool, kmerLen, windowLen};
 
   std::vector<std::vector<biosoup::Overlap>> overlaps;
 
   overlaps.resize(sequences.size());
 
   if (graph.stage == -5) {
-    findOverlapsAndCreatePiles(threadPool, minimizerEngine, sequences, freq,
+    FindOverlapsAndCreatePiles(thread_pool, minimizerEngine, sequences, freq,
                                graph.piles, overlaps);
-    trimAndAnnotatePiles(threadPool, graph.piles, overlaps);
+    TrimAndAnnotatePiles(thread_pool, graph.piles, overlaps);
 
-    resolveContainedReads(graph.piles, overlaps);
-    resolveChimericSequences(threadPool, graph.piles, overlaps, sequences);
+    ResolveContainedReads(graph.piles, overlaps);
+    ResolveChimericSequences(thread_pool, graph.piles, overlaps, sequences);
 
     ++graph.stage;
     if (checkpoints) {
       biosoup::Timer localTimer;
       localTimer.Start();
-      storeGraphToFile(graph);
+      StoreGraphToFile(graph);
       std::cerr << "[raven::Graph::Construct] reached checkpoint " << std::fixed
                 << localTimer.Stop() << "s" << std::endl;
     }
   }
 
   if (graph.stage == -4) {
-    findOverlapsAndRepetetiveRegions(threadPool, minimizerEngine, freq, kmerLen,
-                                     graph.piles, overlaps, sequences);
-    resolveRepeatInducedOverlaps(threadPool, graph.piles, overlaps, sequences);
+    FindOverlapsAndRepetetiveRegions(thread_pool, minimizerEngine, freq,
+                                     kmerLen, graph.piles, overlaps, sequences);
+    ResolveRepeatInducedOverlaps(thread_pool, graph.piles, overlaps, sequences);
 
-    constructAssemblyGraph(graph, graph.piles, overlaps, sequences);
+    ConstructAssemblyGraph(graph, graph.piles, overlaps, sequences);
 
     ++graph.stage;
     if (checkpoints) {
       biosoup::Timer localTimer;
       localTimer.Start();
 
-      storeGraphToFile(graph);
+      StoreGraphToFile(graph);
       std::cerr << "[raven::Graph::Construct] reached checkpoint " << std::fixed
                 << localTimer.Stop() << "s" << std::endl;
     }

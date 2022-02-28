@@ -7,17 +7,17 @@
 
 namespace raven {
 
-static biosoup::Overlap overlapReverse(const biosoup::Overlap& o) {
+inline biosoup::Overlap overlapReverse(const biosoup::Overlap& o) {
   return {o.rhs_id,    o.rhs_begin, o.rhs_end, o.lhs_id,
           o.lhs_begin, o.lhs_end,   o.score,   o.strand};
 }
 
-std::uint32_t getOverlapLength(const biosoup::Overlap& o) {
+inline std::uint32_t getOverlapLength(const biosoup::Overlap& o) {
   return std::max(o.rhs_end - o.rhs_begin, o.lhs_end - o.lhs_begin);
 }
 
-bool overlapUpdate(biosoup::Overlap& o,
-                   const std::vector<std::unique_ptr<Pile>>& piles) {
+inline bool OverlapUpdate(biosoup::Overlap& o,
+                          const std::vector<std::unique_ptr<Pile>>& piles) {
   if (piles[o.lhs_id]->is_invalid() || piles[o.rhs_id]->is_invalid()) {
     return false;
   }
@@ -84,7 +84,7 @@ bool overlapUpdate(biosoup::Overlap& o,
   return true;
 }
 
-std::uint32_t getOverlapType(const biosoup::Overlap& o,
+std::uint32_t GetOverlapType(const biosoup::Overlap& o,
                              const std::vector<std::unique_ptr<Pile>>& piles) {
   std::uint32_t lhs_length = piles[o.lhs_id]->end() - piles[o.lhs_id]->begin();
   std::uint32_t lhs_begin = o.lhs_begin - piles[o.lhs_id]->begin();
@@ -117,9 +117,9 @@ std::uint32_t getOverlapType(const biosoup::Overlap& o,
   return 4;  // rhs -> lhs
 }
 
-bool overlapFinalize(biosoup::Overlap& o,
+inline bool OverlapFinalize(biosoup::Overlap& o,
                      const std::vector<std::unique_ptr<Pile>>& piles) {
-  o.score = getOverlapType(o, piles);
+  o.score = GetOverlapType(o, piles);
   if (o.score < 3) {
     return false;
   }
@@ -137,7 +137,7 @@ bool overlapFinalize(biosoup::Overlap& o,
   return true;
 }
 
-std::vector<std::vector<std::uint32_t>> connectedComponents(
+inline std::vector<std::vector<std::uint32_t>> ConnectedComponents(
     const std::vector<std::vector<biosoup::Overlap>>& overlaps,
     const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
     const std::vector<std::unique_ptr<Pile>>& piles) {
@@ -145,7 +145,7 @@ std::vector<std::vector<std::uint32_t>> connectedComponents(
 
   for (const auto& it : overlaps) {
     for (const auto& jt : it) {
-      if (getOverlapType(jt, piles) > 2) {
+      if (GetOverlapType(jt, piles) > 2) {
         connections[jt.lhs_id].emplace_back(jt.rhs_id);
         connections[jt.rhs_id].emplace_back(jt.lhs_id);
       }

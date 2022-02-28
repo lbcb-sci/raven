@@ -7,7 +7,7 @@
 
 namespace raven {
 
-void polish(std::shared_ptr<thread_pool::ThreadPool> threadPool, Graph& graph,
+void Polish(std::shared_ptr<thread_pool::ThreadPool> thread_pool, Graph& graph,
             bool checkpoints,
             const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
             std::uint8_t match, std::uint8_t mismatch, std::uint8_t gap,
@@ -17,7 +17,7 @@ void polish(std::shared_ptr<thread_pool::ThreadPool> threadPool, Graph& graph,
     return;
   }
 
-  auto unitigs = getUnitigs(graph);
+  auto unitigs = GetUnitigs(graph);
 
   if (unitigs.empty()) {
     return;
@@ -43,8 +43,8 @@ void polish(std::shared_ptr<thread_pool::ThreadPool> threadPool, Graph& graph,
   }
 
   auto polisher = racon::Polisher::Create(
-      threadPool, avg_q, 0.3, 500, true, match, mismatch, gap, cuda_poa_batches,
-      cuda_banded_alignment, cuda_alignment_batches);
+      thread_pool, avg_q, 0.3, 500, true, match, mismatch, gap,
+      cuda_poa_batches, cuda_banded_alignment, cuda_alignment_batches);
 
   while (graph.stage < static_cast<std::int32_t>(num_rounds)) {
     auto polished = polisher->Polish(unitigs, sequences, false);
@@ -75,7 +75,7 @@ void polish(std::shared_ptr<thread_pool::ThreadPool> threadPool, Graph& graph,
     if (checkpoints) {
       biosoup::Timer timer{};
       timer.Start();
-      storeGraphToFile(graph);
+      StoreGraphToFile(graph);
 
       std::cerr << "[raven::Graph::Polish] reached checkpoint " << std::fixed
                 << timer.Stop() << "s" << std::endl;

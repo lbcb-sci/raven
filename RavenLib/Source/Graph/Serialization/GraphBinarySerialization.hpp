@@ -4,7 +4,7 @@
 
 namespace raven {
 
-void storeGraphToFile(const Graph& graph);
-Graph loadGraphFromFile();
+void StoreGraphToFile(const Graph& graph);
+Graph LoadGraphFromFile();
 
 }  // namespace raven

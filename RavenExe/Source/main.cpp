@@ -242,7 +242,7 @@ int main(int argc, char** argv) {
 
   if (resume) {
     try {
-      graph = raven::loadGraphFromFile();
+      graph = raven::LoadGraphFromFile();
     } catch (std::exception& exception) {
       std::cerr << exception.what() << std::endl;
       return 1;
@@ -297,16 +297,16 @@ int main(int argc, char** argv) {
     timer.Start();
   }
 
-  raven::constructGraph(graph, sequences, thread_pool, checkpoints, kmer_len,
+  raven::ConstructGraph(graph, sequences, thread_pool, checkpoints, kmer_len,
                         window_len, freq);
-  raven::assemble(thread_pool, graph, checkpoints);
-  raven::polish(thread_pool, graph, checkpoints, sequences, m, n, g,
+  raven::Assemble(thread_pool, graph, checkpoints);
+  raven::Polish(thread_pool, graph, checkpoints, sequences, m, n, g,
                 cuda_poa_batches, cuda_banded_alignment, cuda_alignment_batches,
                 num_polishing_rounds);
 
   printGfa(graph, gfa_path);
 
-  for (const auto& it : raven::getUnitigs(graph, num_polishing_rounds > 0)) {
+  for (const auto& it : raven::GetUnitigs(graph, num_polishing_rounds > 0)) {
     std::cout << ">" << it->name << std::endl;
     std::cout << it->InflateData() << std::endl;
   }

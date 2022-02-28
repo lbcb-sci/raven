@@ -10,12 +10,12 @@
 #include "cereal/types/vector.hpp"
 
 template <class Archive>
-void serialize(Archive& archive, raven::Graph::Edge& edge) {
+void serialize(Archive& archive, raven::Edge& edge) {
   archive(edge.id, edge.length, edge.weight);
 }
 
 template <class Archive>
-void serialize(Archive& archive, raven::Graph::Node& node) {
+void serialize(Archive& archive, raven::Node& node) {
   archive(node.id, node.sequence, node.count, node.is_unitig, node.is_circular,
           node.is_polished, node.transitive);
 }
@@ -64,13 +64,11 @@ void load(Archive& archive, raven::Graph& graph) {
     }
   }
 
-  raven::Graph::Node::num_objects = graph.nodes.size();
-  raven::Graph::Edge::num_objects = graph.edges.size();
 }
 
 namespace raven {
 
-void storeGraphToFile(const Graph& graph) {
+void StoreGraphToFile(const Graph& graph) {
   std::ofstream os("raven.cereal");
   try {
     cereal::BinaryOutputArchive archive(os);
@@ -81,7 +79,7 @@ void storeGraphToFile(const Graph& graph) {
   }
 }
 
-Graph loadGraphFromFile() {
+Graph LoadGraphFromFile() {
   Graph graph;
   std::ifstream is("raven.cereal");
   try {
