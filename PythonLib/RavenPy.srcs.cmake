@@ -1,7 +1,7 @@
 set(SOURCES "")
 
 set(SOURCES
-        ${CMAKE_CURRENT_LIST_DIR}/Source/RavenPy.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/src/ravenpy.cc
         )
 
 source_group("Sources" FILES ${SOURCES})

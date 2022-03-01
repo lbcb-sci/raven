@@ -1,9 +1,9 @@
-#include "GraphBinarySerialization.hpp"
+#include "raven/graph/serialization/binary.h"
 
-#include <cereal/archives/binary.hpp>
 #include <fstream>
 
 #include "cereal/access.hpp"
+#include "cereal/archives/binary.hpp"
 #include "cereal/types/memory.hpp"
 #include "cereal/types/string.hpp"
 #include "cereal/types/unordered_set.hpp"
@@ -63,7 +63,6 @@ void load(Archive& archive, raven::Graph& graph) {
       graph.edges[i + 1]->head->inedges.emplace_back(graph.edges[i + 1].get());
     }
   }
-
 }
 
 namespace raven {

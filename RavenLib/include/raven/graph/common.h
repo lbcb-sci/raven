@@ -1,8 +1,9 @@
-#pragma once
+#ifndef RAVEN_GRAPH_COMMON_H_
+#define RAVEN_GRAPH_COMMON_H_
 
 #include <cstdint>
 
-#include "Graph.hpp"
+#include "raven/graph/graph.h"
 
 namespace raven {
 
@@ -17,3 +18,5 @@ std::vector<std::unique_ptr<biosoup::NucleicAcid>> GetUnitigs(
     Graph& graph, bool drop_unpolished = false);
 
 }  // namespace raven
+
+#endif  // RAVEN_GRAPH_COMMON_H_

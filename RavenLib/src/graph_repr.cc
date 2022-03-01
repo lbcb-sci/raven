@@ -1,11 +1,8 @@
-#pragma once
+#include "raven/graph/serialization/graph_repr.h"
 
-#include <cereal/archives/json.hpp>
-#include <fstream>
+namespace raven {
 
-#include "../Graph.hpp"
-
-void printGfa(const raven::Graph& graph, const std::string& path) {
+void PrintGfa(const Graph& graph, const std::string& path) {
   if (path.empty()) {
     return;
   }
@@ -38,7 +35,7 @@ void printGfa(const raven::Graph& graph, const std::string& path) {
   os.close();
 }
 
-void printCsv(const raven::Graph& graph, const std::string& path) {
+void PrintCsv(const Graph& graph, const std::string& path) {
   if (path.empty()) {
     return;
   }
@@ -80,7 +77,7 @@ void printCsv(const raven::Graph& graph, const std::string& path) {
   os.close();
 }
 
-void printJson(const raven::Graph& graph, const std::string& path) {
+void PrintJson(const raven::Graph& graph, const std::string& path) {
   if (path.empty()) {
     return;
   }
@@ -96,3 +93,5 @@ void printJson(const raven::Graph& graph, const std::string& path) {
     archive(cereal::make_nvp(std::to_string(it->id()), *(it.get())));
   }
 }
+
+}  // namespace raven

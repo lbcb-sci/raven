@@ -39,7 +39,10 @@ endif()
 
 include(${CMAKE_CURRENT_LIST_DIR}/Raven.deps.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/RavenLib/RavenLib.cmake)
-include(${CMAKE_CURRENT_LIST_DIR}/RavenTest/RavenTest.cmake)
+
+if (RAVEN_BUILD_TESTS)
+  include(${CMAKE_CURRENT_LIST_DIR}/RavenTest/RavenTest.cmake)
+endif()
 
 if (RAVEN_MAIN_PROJECT)
   include(${CMAKE_CURRENT_LIST_DIR}/RavenExe/Exe.cmake)

@@ -2,17 +2,13 @@
 
 #include <getopt.h>
 
-#include <Graph/GraphAssemble.hpp>
-#include <Graph/GraphConstruct.hpp>
-#include <Graph/GraphPolish.hpp>
-#include <Graph/GraphShared.hpp>
-#include <Graph/Serialization/GraphBinarySerialization.hpp>
-#include <Graph/Serialization/GraphOutputs.hpp>
-#include <bioparser/fasta_parser.hpp>
-#include <bioparser/fastq_parser.hpp>
-#include <biosoup/timer.hpp>
 #include <iostream>
+#include <cstdlib>
 
+#include "bioparser/fasta_parser.hpp"
+#include "bioparser/fastq_parser.hpp"
+#include "biosoup/timer.hpp"
+#include "raven/raven.h"
 std::atomic<std::uint32_t> biosoup::NucleicAcid::num_objects{0};
 
 namespace {
@@ -37,42 +33,6 @@ static struct option options[] = {
     {"version", no_argument, nullptr, 'v'},
     {"help", no_argument, nullptr, 'h'},
     {nullptr, 0, nullptr, 0}};
-
-std::unique_ptr<bioparser::Parser<biosoup::NucleicAcid>> CreateParser(
-    const std::string& path) {
-  auto is_suffix = [](const std::string& s, const std::string& suff) {
-    return s.size() < suff.size()
-               ? false
-               : s.compare(s.size() - suff.size(), suff.size(), suff) == 0;
-  };
-
-  if (is_suffix(path, ".fasta") || is_suffix(path, ".fa") ||
-      is_suffix(path, ".fasta.gz") || is_suffix(path, ".fa.gz")) {
-    try {
-      return bioparser::Parser<biosoup::NucleicAcid>::Create<
-          bioparser::FastaParser>(path);  // NOLINT
-    } catch (const std::invalid_argument& exception) {
-      std::cerr << exception.what() << std::endl;
-      return nullptr;
-    }
-  }
-  if (is_suffix(path, ".fastq") || is_suffix(path, ".fq") ||
-      is_suffix(path, ".fastq.gz") || is_suffix(path, ".fq.gz")) {
-    try {
-      return bioparser::Parser<biosoup::NucleicAcid>::Create<
-          bioparser::FastqParser>(path);  // NOLINT
-    } catch (const std::invalid_argument& exception) {
-      std::cerr << exception.what() << std::endl;
-      return nullptr;
-    }
-  }
-
-  std::cerr << "[raven::CreateParser] error: file " << path
-            << " has unsupported format extension (valid extensions: .fasta, "
-            << ".fasta.gz, .fa, .fa.gz, .fastq, .fastq.gz, .fq, .fq.gz)"
-            << std::endl;
-  return nullptr;
-}
 
 void Help() {
   std::cout
@@ -137,7 +97,7 @@ int main(int argc, char** argv) {
   std::uint8_t window_len = 5;
   double freq = 0.001;
 
-  std::int32_t num_polishing_rounds = 2;
+  std::uint32_t num_polishing_rounds = 2;
   std::int8_t m = 3;
   std::int8_t n = -5;
   std::int8_t g = -4;
@@ -214,23 +174,23 @@ int main(int argc, char** argv) {
         break;
       case 'v':
         std::cout << VERSION << std::endl;
-        return 0;
+        return EXIT_SUCCESS;
       case 'h':
         Help();
-        return 0;
+        return EXIT_SUCCESS;
       default:
-        return 1;
+        return EXIT_FAILURE;
     }
   }
 
   if (argc == 1) {
     Help();
-    return 0;
+    return EXIT_SUCCESS;
   }
 
   if (optind >= argc) {
     std::cerr << "[raven::] error: missing input file(s)!" << std::endl;
-    return 1;
+    return EXIT_FAILURE;
   }
 
   biosoup::Timer timer{};
@@ -245,7 +205,7 @@ int main(int argc, char** argv) {
       graph = raven::LoadGraphFromFile();
     } catch (std::exception& exception) {
       std::cerr << exception.what() << std::endl;
-      return 1;
+      return EXIT_FAILURE;
     }
 
     std::cerr << "[raven::] loaded previous run " << std::fixed << timer.Stop()
@@ -257,9 +217,9 @@ int main(int argc, char** argv) {
   std::vector<std::unique_ptr<biosoup::NucleicAcid>> sequences;
   if (graph.stage < -3 || num_polishing_rounds > std::max(0, graph.stage)) {
     for (int i = optind; i < argc; ++i) {
-      auto sparser = CreateParser(argv[i]);
+      auto sparser = raven::CreateParser(argv[i]);
       if (sparser == nullptr) {
-        return 1;
+        return EXIT_FAILURE;
       }
 
       std::vector<std::unique_ptr<biosoup::NucleicAcid>> chunk;
@@ -267,7 +227,7 @@ int main(int argc, char** argv) {
         chunk = sparser->Parse(-1);
       } catch (const std::invalid_argument& exception) {
         std::cerr << exception.what() << " (" << argv[i] << ")" << std::endl;
-        return 1;
+        return EXIT_FAILURE;
       }
 
       if (chunk.empty()) {
@@ -287,7 +247,7 @@ int main(int argc, char** argv) {
 
     if (sequences.empty()) {
       std::cerr << "[raven::] error: empty sequences set" << std::endl;
-      return 1;
+      return EXIT_FAILURE;
     }
 
     std::cerr << "[raven::] loaded " << sequences.size()
@@ -297,14 +257,26 @@ int main(int argc, char** argv) {
     timer.Start();
   }
 
-  raven::ConstructGraph(graph, sequences, thread_pool, checkpoints, kmer_len,
-                        window_len, freq);
-  raven::Assemble(thread_pool, graph, checkpoints);
-  raven::Polish(thread_pool, graph, checkpoints, sequences, m, n, g,
-                cuda_poa_batches, cuda_banded_alignment, cuda_alignment_batches,
-                num_polishing_rounds);
+  raven::ConstructGraph(
+      graph, sequences, thread_pool, checkpoints,
+      raven::OverlapPhaseCfg{
+          .kmer_len = kmer_len, .window_len = window_len, .freq = freq});
 
-  printGfa(graph, gfa_path);
+  raven::Assemble(thread_pool, graph, checkpoints);
+
+  raven::Polish(
+      thread_pool, graph, checkpoints, sequences,
+      raven::PolishCfg{
+          .align_cfg = raven::AlignCfg{.match = m, .mismatch = n, .gap = g},
+          .cuda_cfg =
+              raven::CudaCfg{.poa_batches = cuda_poa_batches,
+                             .alignment_batches = cuda_alignment_batches,
+                             .banded_alignment = cuda_banded_alignment},
+          .num_rounds = num_polishing_rounds}
+
+  );
+
+  raven::PrintGfa(graph, gfa_path);
 
   for (const auto& it : raven::GetUnitigs(graph, num_polishing_rounds > 0)) {
     std::cout << ">" << it->name << std::endl;
@@ -315,5 +287,5 @@ int main(int argc, char** argv) {
   std::cerr << "[raven::] " << std::fixed << timer.elapsed_time() << "s"
             << std::endl;
 
-  return 0;
+  return EXIT_SUCCESS;
 }

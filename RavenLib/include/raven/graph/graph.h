@@ -1,10 +1,11 @@
-#pragma once
+#ifndef RAVEN_GRAPH_GRAPH_H_
+#define RAVEN_GRAPH_GRAPH_H_
 
-#include <biosoup/nucleic_acid.hpp>
 #include <type_traits>
 #include <unordered_set>
 
-#include "../pile.hpp"
+#include "biosoup/nucleic_acid.hpp"
+#include "raven/pile.h"
 
 namespace biosoup {
 
@@ -167,4 +168,7 @@ struct Graph {
   std::vector<std::unique_ptr<Node>> nodes;
   std::vector<std::unique_ptr<Edge>> edges;
 };
+
 }  // namespace raven
+
+#endif  // RAVEN_GRAPH_GRAPH_H_

@@ -1,12 +1,12 @@
-#include "GraphConstruct.hpp"
+#include "raven/graph/construct.h"
 
 #include <deque>
 
-#include "OverlapUtils.hpp"
-#include "Serialization/GraphBinarySerialization.hpp"
 #include "biosoup/overlap.hpp"
 #include "biosoup/timer.hpp"
 #include "ram/minimizer_engine.hpp"
+#include "raven/graph/overlap_utils.h"
+#include "raven/graph/serialization/binary.h"
 
 namespace raven {
 
@@ -70,7 +70,7 @@ void FindOverlapsAndCreatePiles(
       for (auto& it : thread_futures) {
         for (const auto& jt : it.get()) {
           overlaps[jt.lhs_id].emplace_back(jt);
-          overlaps[jt.rhs_id].emplace_back(overlapReverse(jt));
+          overlaps[jt.rhs_id].emplace_back(OverlapReverse(jt));
         }
       }
       thread_futures.clear();
@@ -96,7 +96,7 @@ void FindOverlapsAndCreatePiles(
               std::sort(overlaps[i].begin(), overlaps[i].end(),
                         [&](const biosoup::Overlap& lhs,
                             const biosoup::Overlap& rhs) -> bool {
-                          return getOverlapLength(lhs) > getOverlapLength(rhs);
+                          return GetOverlapLength(lhs) > GetOverlapLength(rhs);
                         });
 
               std::vector<biosoup::Overlap> tmp;
@@ -330,8 +330,8 @@ void FindOverlapsAndRepetetiveRegions(
           if (!overlaps.back().empty() &&
               overlaps.back().back().lhs_id == jt.lhs_id &&
               overlaps.back().back().rhs_id == jt.rhs_id) {
-            if (getOverlapLength(overlaps.back().back()) <
-                getOverlapLength(jt)) {
+            if (GetOverlapLength(overlaps.back().back()) <
+                GetOverlapLength(jt)) {
               overlaps.back().back() = jt;
             }
           } else {
@@ -529,7 +529,7 @@ void ConstructAssemblyGraph(
 void ConstructGraph(
     Graph& graph, std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
     std::shared_ptr<thread_pool::ThreadPool>& thread_pool, bool checkpoints,
-    std::uint8_t kmerLen, std::uint8_t windowLen, double freq) {
+    OverlapPhaseCfg const cfg) {
   if (sequences.empty() || graph.stage > -4) {
     return;
   }
@@ -537,15 +537,16 @@ void ConstructGraph(
   biosoup::Timer timer;
   timer.Start();
 
-  ram::MinimizerEngine minimizerEngine{thread_pool, kmerLen, windowLen};
+  ram::MinimizerEngine minimizerEngine{thread_pool, cfg.kmer_len,
+                                       cfg.window_len};
 
   std::vector<std::vector<biosoup::Overlap>> overlaps;
 
   overlaps.resize(sequences.size());
 
   if (graph.stage == -5) {
-    FindOverlapsAndCreatePiles(thread_pool, minimizerEngine, sequences, freq,
-                               graph.piles, overlaps);
+    FindOverlapsAndCreatePiles(thread_pool, minimizerEngine, sequences,
+                               cfg.freq, graph.piles, overlaps);
     TrimAndAnnotatePiles(thread_pool, graph.piles, overlaps);
 
     ResolveContainedReads(graph.piles, overlaps);
@@ -562,8 +563,9 @@ void ConstructGraph(
   }
 
   if (graph.stage == -4) {
-    FindOverlapsAndRepetetiveRegions(thread_pool, minimizerEngine, freq,
-                                     kmerLen, graph.piles, overlaps, sequences);
+    FindOverlapsAndRepetetiveRegions(thread_pool, minimizerEngine, cfg.freq,
+                                     cfg.kmer_len, graph.piles, overlaps,
+                                     sequences);
     ResolveRepeatInducedOverlaps(thread_pool, graph.piles, overlaps, sequences);
 
     ConstructAssemblyGraph(graph, graph.piles, overlaps, sequences);

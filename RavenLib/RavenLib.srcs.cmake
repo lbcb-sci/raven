@@ -2,23 +2,17 @@
 set(SOURCES "")
 
 set(SOURCES
-        ${CMAKE_CURRENT_LIST_DIR}/Source/pile.cpp
-        ${CMAKE_CURRENT_LIST_DIR}/Source/pile.hpp
-        ${CMAKE_CURRENT_LIST_DIR}/Source/Graph/Graph.hpp
-        ${CMAKE_CURRENT_LIST_DIR}/Source/Graph/Graph.cpp
-        ${CMAKE_CURRENT_LIST_DIR}/Source/Graph/OverlapUtils.hpp
-        ${CMAKE_CURRENT_LIST_DIR}/Source/Graph/GraphAssemble.hpp
-        ${CMAKE_CURRENT_LIST_DIR}/Source/Graph/GraphAssemble.cpp
-        ${CMAKE_CURRENT_LIST_DIR}/Source/Graph/GraphPolish.hpp
-        ${CMAKE_CURRENT_LIST_DIR}/Source/Graph/GraphPolish.cpp
-        ${CMAKE_CURRENT_LIST_DIR}/Source/Graph/GraphShared.hpp
-        ${CMAKE_CURRENT_LIST_DIR}/Source/Graph/GraphShared.cpp
-        ${CMAKE_CURRENT_LIST_DIR}/Source/Graph/GraphConstruct.cpp
-        ${CMAKE_CURRENT_LIST_DIR}/Source/Graph/GraphConstruct.hpp
-        ${CMAKE_CURRENT_LIST_DIR}/Source/Graph/Serialization/GraphBinarySerialization.hpp
-        ${CMAKE_CURRENT_LIST_DIR}/Source/Graph/Serialization/GraphBinarySerialization.cpp
-        ${CMAKE_CURRENT_LIST_DIR}/Source/Graph/Serialization/GraphOutputs.hpp
-        )
+  ${CMAKE_CURRENT_LIST_DIR}/src/assemble.cc 
+  ${CMAKE_CURRENT_LIST_DIR}/src/binary.cc 
+  ${CMAKE_CURRENT_LIST_DIR}/src/common.cc 
+  ${CMAKE_CURRENT_LIST_DIR}/src/construct.cc 
+  ${CMAKE_CURRENT_LIST_DIR}/src/graph_repr.cc
+  ${CMAKE_CURRENT_LIST_DIR}/src/graph.cc 
+  ${CMAKE_CURRENT_LIST_DIR}/src/io.cc
+  ${CMAKE_CURRENT_LIST_DIR}/src/overlap_utils.cc
+  ${CMAKE_CURRENT_LIST_DIR}/src/pile.cc 
+  ${CMAKE_CURRENT_LIST_DIR}/src/polish.cc 
+)
 
 source_group("Sources" FILES ${SOURCES})
 list(APPEND SOURCES ${Sources})

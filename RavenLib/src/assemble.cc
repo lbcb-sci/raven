@@ -1,5 +1,4 @@
-
-#include "GraphAssemble.hpp"
+#include "raven/graph//assemble.h"
 
 #include <algorithm>
 #include <deque>
@@ -12,11 +11,12 @@
 #include <stdexcept>
 #include <thread_pool/thread_pool.hpp>
 
-#include "GraphShared.hpp"
-#include "Serialization/GraphBinarySerialization.hpp"
+#include "raven/graph/common.h"
+#include "raven/graph/serialization/binary.h"
 #include "biosoup/timer.hpp"
 #include "edlib.h"  // NOLINT
 #include "ram/minimizer_engine.hpp"
+#include "raven/graph/graph.h"
 
 namespace raven {
 
@@ -203,8 +203,7 @@ static std::uint32_t RemoveBubbles(Graph& graph) {
   std::vector<Node*> predecessor(graph.nodes.size(), nullptr);
 
   // path helper functions
-  auto path_extract = [&](Node* begin,
-                          Node* end) -> std::vector<Node*> {
+  auto path_extract = [&](Node* begin, Node* end) -> std::vector<Node*> {
     std::vector<Node*> dst;
     while (end != begin) {
       dst.emplace_back(end);
@@ -225,8 +224,7 @@ static std::uint32_t RemoveBubbles(Graph& graph) {
     }
     return true;  // without branches
   };
-  auto path_sequence =
-      [](const std::vector<Node*>& path) -> std::string {
+  auto path_sequence = [](const std::vector<Node*>& path) -> std::string {
     std::string data{};
     for (std::uint32_t i = 0; i < path.size() - 1; ++i) {
       for (auto it : path[i]->outedges) {
@@ -239,9 +237,9 @@ static std::uint32_t RemoveBubbles(Graph& graph) {
     data += path.back()->sequence.InflateData();
     return data;
   };
-  auto bubble_pop = [&](const std::vector<Node*>& lhs,
-                        const std::vector<Node*>& rhs)
-      -> std::unordered_set<std::uint32_t> {
+  auto bubble_pop =
+      [&](const std::vector<Node*>& lhs,
+          const std::vector<Node*>& rhs) -> std::unordered_set<std::uint32_t> {
     if (lhs.empty() || rhs.empty()) {
       return std::unordered_set<std::uint32_t>{};
     }

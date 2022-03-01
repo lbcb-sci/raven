@@ -1,23 +1,18 @@
-
-#include <deque>
-
-#include "../pile.hpp"
-#include "biosoup/overlap.hpp"
-#include "biosoup/timer.hpp"
+#include "raven/graph/overlap_utils.h"
 
 namespace raven {
 
-inline biosoup::Overlap overlapReverse(const biosoup::Overlap& o) {
+biosoup::Overlap OverlapReverse(const biosoup::Overlap& o) {
   return {o.rhs_id,    o.rhs_begin, o.rhs_end, o.lhs_id,
           o.lhs_begin, o.lhs_end,   o.score,   o.strand};
 }
 
-inline std::uint32_t getOverlapLength(const biosoup::Overlap& o) {
+std::uint32_t GetOverlapLength(const biosoup::Overlap& o) {
   return std::max(o.rhs_end - o.rhs_begin, o.lhs_end - o.lhs_begin);
 }
 
-inline bool OverlapUpdate(biosoup::Overlap& o,
-                          const std::vector<std::unique_ptr<Pile>>& piles) {
+bool OverlapUpdate(biosoup::Overlap& o,
+                   const std::vector<std::unique_ptr<Pile>>& piles) {
   if (piles[o.lhs_id]->is_invalid() || piles[o.rhs_id]->is_invalid()) {
     return false;
   }
@@ -117,8 +112,8 @@ std::uint32_t GetOverlapType(const biosoup::Overlap& o,
   return 4;  // rhs -> lhs
 }
 
-inline bool OverlapFinalize(biosoup::Overlap& o,
-                     const std::vector<std::unique_ptr<Pile>>& piles) {
+ bool OverlapFinalize(biosoup::Overlap& o,
+                            const std::vector<std::unique_ptr<Pile>>& piles) {
   o.score = GetOverlapType(o, piles);
   if (o.score < 3) {
     return false;
@@ -137,7 +132,7 @@ inline bool OverlapFinalize(biosoup::Overlap& o,
   return true;
 }
 
-inline std::vector<std::vector<std::uint32_t>> ConnectedComponents(
+ std::vector<std::vector<std::uint32_t>> ConnectedComponents(
     const std::vector<std::vector<biosoup::Overlap>>& overlaps,
     const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
     const std::vector<std::unique_ptr<Pile>>& piles) {
@@ -181,4 +176,5 @@ inline std::vector<std::vector<std::uint32_t>> ConnectedComponents(
 
   return dst;
 }
+
 }  // namespace raven

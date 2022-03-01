@@ -1,4 +1,4 @@
-#include "GraphShared.hpp"
+#include "raven/graph/common.h"
 
 namespace raven {
 

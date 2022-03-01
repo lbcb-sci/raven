@@ -1,19 +1,17 @@
-#include "GraphPolish.hpp"
+#include "raven/graph/polish.hpp"
 
-#include "GraphShared.hpp"
-#include "Serialization/GraphBinarySerialization.hpp"
 #include "biosoup/timer.hpp"
 #include "racon/polisher.hpp"
+#include "raven/graph/common.h"
+#include "raven/graph/serialization/binary.h"
 
 namespace raven {
 
 void Polish(std::shared_ptr<thread_pool::ThreadPool> thread_pool, Graph& graph,
             bool checkpoints,
             const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
-            std::uint8_t match, std::uint8_t mismatch, std::uint8_t gap,
-            std::uint32_t cuda_poa_batches, bool cuda_banded_alignment,
-            std::uint32_t cuda_alignment_batches, std::uint32_t num_rounds) {
-  if (sequences.empty() || num_rounds == 0) {
+            const PolishCfg& cfg) {
+  if (sequences.empty() || cfg.num_rounds == 0) {
     return;
   }
 
@@ -43,10 +41,13 @@ void Polish(std::shared_ptr<thread_pool::ThreadPool> thread_pool, Graph& graph,
   }
 
   auto polisher = racon::Polisher::Create(
-      thread_pool, avg_q, 0.3, 500, true, match, mismatch, gap,
-      cuda_poa_batches, cuda_banded_alignment, cuda_alignment_batches);
+      thread_pool, avg_q, 0.3, 500, true, cfg.align_cfg.match,
+      cfg.align_cfg.mismatch, cfg.align_cfg.gap,
 
-  while (graph.stage < static_cast<std::int32_t>(num_rounds)) {
+      cfg.cuda_cfg.poa_batches, cfg.cuda_cfg.banded_alignment,
+      cfg.cuda_cfg.alignment_batches);
+
+  while (graph.stage < static_cast<std::int32_t>(cfg.num_rounds)) {
     auto polished = polisher->Polish(unitigs, sequences, false);
     unitigs.swap(polished);
 
