@@ -1,14 +1,18 @@
 cmake_minimum_required(VERSION 3.11)
 
-set(CXX_VISIBILITY_PRESET)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-project(raven VERSION 1.8
-        LANGUAGES C CXX
-        DESCRIPTION "Raven is a de novo genome assembler for long uncorrected reads.")
+if (NOT DEFINED CMAKE_CXX_VISIBLITY_PRESET AND
+    NOT DEFINED CMAKE_VISIBILITY_INLINES_HIDDEN)
+  set(CMAKE_CXX_VISIBLITY_PRESET hidden)
+  set(CMAKE_VISIBILITY_INLINES_HIDDEN YES)
+endif()
 
+project(raven VERSION 1.8
+        LANGUAGES CXX
+        DESCRIPTION "Raven is a de novo genome assembler for long uncorrected reads.")
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib)
@@ -28,7 +32,9 @@ if (CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
 endif ()
 
 if (RAVEN_BUILD_PYTHON)
-  set(POSITION_INDEPENDENT_CODE ON)
+  if (UNIX AND NOT APPLE)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
+  endif()
 endif()
 
 include(${CMAKE_CURRENT_LIST_DIR}/Raven.deps.cmake)
