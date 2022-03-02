@@ -1,4 +1,7 @@
 cmake_minimum_required(VERSION 3.11)
+project(raven VERSION 1.8
+        LANGUAGES CXX
+        DESCRIPTION "Raven is a de novo genome assembler for long uncorrected reads.")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -9,10 +12,6 @@ if (NOT DEFINED CMAKE_CXX_VISIBLITY_PRESET AND
   set(CMAKE_CXX_VISIBLITY_PRESET hidden)
   set(CMAKE_VISIBILITY_INLINES_HIDDEN YES)
 endif()
-
-project(raven VERSION 1.8
-        LANGUAGES CXX
-        DESCRIPTION "Raven is a de novo genome assembler for long uncorrected reads.")
 
 option(RAVEN_BUILD_TESTS "Build unit tests" OFF)
 option(RAVEN_BUILD_PYTHON "Build python bindings to raven library using pybind11" OFF)
