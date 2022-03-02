@@ -30,7 +30,7 @@ class IndexManager {
       std::conjunction_v<std::is_integral<ValueType>,
                          std::negation<std::is_same<ValueType, bool>>>);
 
-  IndexManager(const ValueType init_val) : next_idx_val_(init_val) {}
+  explicit IndexManager(const ValueType init_val) : next_idx_val_(init_val) {}
 
   IndexManager(const IndexManager&) = delete;
   IndexManager& operator=(const IndexManager&) = delete;
@@ -57,7 +57,10 @@ class IndexedFactory {
   using IndexType = typename IndexManagerT::ValueType;
   using ValueType = T;
 
-  IndexedFactory() : idx_manager_(0) {}
+  explicit IndexedFactory() : idx_manager_(0) {}
+
+  explicit IndexedFactory(const IndexType init_index)
+      : idx_manager_(init_index) {}
 
   template <class... Args>
   ValueType Make(Args... args) {

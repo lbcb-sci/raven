@@ -36,18 +36,20 @@ std::uint32_t CreateUnitigs(Graph& graph, std::uint32_t epsilon) {
   std::vector<std::uint32_t> node_updates(graph.nodes.size(), 0);
   std::vector<char> is_visited(graph.nodes.size(), 0);
 
-  auto emplace_node_through_factory =
-      [&nodes = unitigs,
-       &graph](auto&&... args) -> decltype(unitigs)::reference {
-    return nodes.emplace_back(
-        graph.node_factory.MakeUnique(std::forward<decltype(args)>(args)...));
+  auto emplace_node_through_factory = [&nodes = unitigs,
+                                       &graph](auto&&... args) -> Node* {
+    return nodes
+        .emplace_back(graph.node_factory.MakeUnique(
+            std::forward<decltype(args)>(args)...))
+        .get();
   };
 
-  auto emplace_edge_through_factory =
-      [&edges = unitig_edges,
-       &graph](auto&&... args) -> decltype(unitig_edges)::reference {
-    return edges.emplace_back(
-        graph.edge_factory.MakeUnique(std::forward<decltype(args)>(args)...));
+  auto emplace_edge_through_factory = [&edges = unitig_edges,
+                                       &graph](auto&&... args) -> Edge* {
+    return edges
+        .emplace_back(graph.edge_factory.MakeUnique(
+            std::forward<decltype(args)>(args)...))
+        .get();
   };
 
   for (const auto& it : graph.nodes) {
@@ -110,43 +112,43 @@ std::uint32_t CreateUnitigs(Graph& graph, std::uint32_t epsilon) {
     // auto& rc_unitig = unitigs.emplace_back(
     //     std::make_unique<Node>(graph.nodes.size(), end->pair, begin->pair));
 
-    auto& unitig = emplace_node_through_factory(begin, end);
-    auto& rc_unitig = emplace_node_through_factory(end->pair, begin->pair);
+    auto unitig = emplace_node_through_factory(begin, end);
+    auto rc_unitig = emplace_node_through_factory(end->pair, begin->pair);
 
-    unitig->pair = rc_unitig.get();
-    rc_unitig->pair = unitig.get();
+    unitig->pair = rc_unitig;
+    rc_unitig->pair = unitig;
 
     if (begin != end) {  // connect unitig to graph
       if (begin->indegree()) {
         marked_edges.emplace(begin->inedges.front()->id);
         marked_edges.emplace(begin->inedges.front()->pair->id);
 
-        auto& edge = emplace_edge_through_factory(
-            begin->inedges.front()->tail, unitig.get(),
-            begin->inedges.front()->length);
-        auto& rc_edge = emplace_edge_through_factory(
+        auto edge =
+            emplace_edge_through_factory(begin->inedges.front()->tail, unitig,
+                                         begin->inedges.front()->length);
+        auto rc_edge = emplace_edge_through_factory(
             unitig->pair, begin->inedges.front()->pair->head,
             begin->inedges.front()->pair->length +
                 unitig->pair->sequence.inflated_len -
                 begin->pair->sequence.inflated_len);  // NOLINT
-        edge->pair = rc_edge.get();
-        rc_edge->pair = edge.get();
+        edge->pair = rc_edge;
+        rc_edge->pair = edge;
       }
       if (end->outdegree()) {
         marked_edges.emplace(end->outedges.front()->id);
         marked_edges.emplace(end->outedges.front()->pair->id);
 
-        auto& edge = emplace_edge_through_factory(
-            unitig.get(), end->outedges.front()->head,
+        auto edge = emplace_edge_through_factory(
+            unitig, end->outedges.front()->head,
             end->outedges.front()->length + unitig->sequence.inflated_len -
                 end->sequence.inflated_len);  // NOLINT
 
-        auto& rc_edge = emplace_edge_through_factory(
+        auto rc_edge = emplace_edge_through_factory(
             end->outedges.front()->pair->tail, unitig->pair,
             end->outedges.front()->pair->length);
 
-        edge->pair = rc_edge.get();
-        edge->pair->pair = edge.get();
+        edge->pair = rc_edge;
+        edge->pair->pair = edge;
       }
     }
 

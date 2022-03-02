@@ -63,6 +63,9 @@ void load(Archive& archive, raven::Graph& graph) {
       graph.edges[i + 1]->head->inedges.emplace_back(graph.edges[i + 1].get());
     }
   }
+
+  graph.node_factory = raven::NodeFactory(graph.nodes.size());
+  graph.edge_factory = raven::EdgeFactory(graph.edges.size());
 }
 
 namespace raven {

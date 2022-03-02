@@ -4,13 +4,17 @@ if (NOT TARGET RavenLib)
   add_library(RavenLib STATIC ${SOURCES})
 
   if (RAVEN_MAIN_PROJECT OR RAVEN_BUILD_PYTHON)
-    if (CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
-      set(ASAN_FLAGS -fno-omit-frame-pointer -fsanitize=address)
-      set(WARNINGS -Wall -Wextra -pedantic -fvisibility=hidden)
+    set(ASAN_FLAGS -fno-omit-frame-pointer -fsanitize=address)
+    set(DEBUG_WANINGS -Wall -Wextra -pedantic)
 
-      target_compile_options("${ASAN_FLAGS} ${WARNINGS}")
-      target_link_options(${ASAN_FLAGS})
-    endif()
+    target_compile_options(RavenLib PUBLIC ${DEBUG_WANINGS})
+    target_compile_options(RavenLib PUBLIC 
+      "$<$<CONFIG:Debug>:${ASAN_FLAGS}>"
+      "$<$<CONFIG:RelWithDebInfo>:${ASAN_FLAGS}>")
+
+    target_link_options(RavenLib PUBLIC
+      "$<$<CONFIG:Debug>:${ASAN_FLAGS}>"
+      "$<$<CONFIG:RelWithDebInfo>:${ASAN_FLAGS}>")
   endif()
 
   target_include_directories(RavenLib PUBLIC 

@@ -457,16 +457,20 @@ void ConstructAssemblyGraph(
   std::vector<std::unique_ptr<Node>> nodes;
   std::vector<std::unique_ptr<Edge>> edges;
 
-  auto emplace_node_through_factory =
-      [&nodes, &graph](auto&&... args) -> decltype(nodes)::reference {
-    return nodes.emplace_back(
-        graph.node_factory.MakeUnique(std::forward<decltype(args)>(args)...));
+  auto emplace_node_through_factory = [&nodes,
+                                       &graph](auto&&... args) -> Node* {
+    return nodes
+        .emplace_back(graph.node_factory.MakeUnique(
+            std::forward<decltype(args)>(args)...))
+        .get();
   };
 
-  auto emplace_edge_through_factory =
-      [&edges, &graph](auto&&... args) -> decltype(edges)::reference {
-    return edges.emplace_back(
-        graph.edge_factory.MakeUnique(std::forward<decltype(args)>(args)...));
+  auto emplace_edge_through_factory = [&edges,
+                                       &graph](auto&&... args) -> Edge* {
+    return edges
+        .emplace_back(graph.edge_factory.MakeUnique(
+            std::forward<decltype(args)>(args)...))
+        .get();
   };
 
   for (const auto& it : piles) {  // create nodes
@@ -480,13 +484,13 @@ void ConstructAssemblyGraph(
                                          it->end() - it->begin())};  // NOLINT
 
     sequence_to_node[it->id()] = nodes.size();
-    auto& node = emplace_node_through_factory(sequence);
+    auto node = emplace_node_through_factory(sequence);
 
     sequence.ReverseAndComplement();
-    auto& rc_node = emplace_node_through_factory(sequence);
+    auto rc_node = emplace_node_through_factory(sequence);
 
-    node->pair = rc_node.get();
-    rc_node.get()->pair = node.get();
+    node->pair = rc_node;
+    rc_node->pair = node;
   }
 
   std::cerr << "[raven::Graph::Construct] stored " << nodes.size()
@@ -511,12 +515,12 @@ void ConstructAssemblyGraph(
       length_pair *= -1;
     }
 
-    auto& edge = emplace_edge_through_factory(tail, head, length);
-    auto& rc_edge =
+    auto edge = emplace_edge_through_factory(tail, head, length);
+    auto rc_edge =
         emplace_edge_through_factory(head->pair, tail->pair, length_pair);
 
-    edge->pair = rc_edge.get();
-    rc_edge->pair = edge.get();
+    edge->pair = rc_edge;
+    rc_edge->pair = edge;
   }
 
   std::cerr << "[raven::Graph::Construct] stored " << edges.size() << " edges "

@@ -18,4 +18,5 @@ void ConstructGraph(
     Graph& graph, std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
     std::shared_ptr<thread_pool::ThreadPool>& thread_pool, bool checkpoints,
     OverlapPhaseCfg const cfg);
+
 }  // namespace raven
