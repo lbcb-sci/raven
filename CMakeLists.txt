@@ -14,22 +14,13 @@ project(raven VERSION 1.8
         LANGUAGES CXX
         DESCRIPTION "Raven is a de novo genome assembler for long uncorrected reads.")
 
+option(RAVEN_BUILD_TESTS "Build unit tests" OFF)
+option(RAVEN_BUILD_PYTHON "Build python bindings to raven library using pybind11" OFF)
+option(RAVEN_BUILD_EXE "Build raven executable" OFF)
+
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin)
-
-option(RAVEN_BUILD_TESTS "Build unit tests" ${RAVEN_MAIN_PROJECT})
-option(RAVEN_BUILD_PYTHON "Build python bindings to raven library using pybind11" OFF)
-
-if (CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
-  set(RAVEN_MAIN_PROJECT ON)
-  message(STATUS "[raven] main project")
-
-  if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    message(STATUS "[raven] compling with g++ and using gold linker") 
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=gold")
-  endif()
-endif ()
 
 if (RAVEN_BUILD_PYTHON)
   if (UNIX AND NOT APPLE)
@@ -44,7 +35,11 @@ if (RAVEN_BUILD_TESTS)
   include(${CMAKE_CURRENT_LIST_DIR}/RavenTest/RavenTest.cmake)
 endif()
 
-if (RAVEN_MAIN_PROJECT)
+if (RAVEN_BUILD_EXE)
+  if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    message(STATUS "[raven] compling with g++ and using gold linker") 
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=gold")
+  endif()
   include(${CMAKE_CURRENT_LIST_DIR}/RavenExe/Exe.cmake)
 endif()
 

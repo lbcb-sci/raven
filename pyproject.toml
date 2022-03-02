@@ -1,7 +1,8 @@
 [build-system]
 requires = [
   "setuptools>=60",
-  "wheel"
+  "cmake>=3.11",
+  "ninja"
 ]
 
 build-backend = "setuptools.build_meta"

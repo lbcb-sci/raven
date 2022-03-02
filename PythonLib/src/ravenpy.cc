@@ -60,7 +60,7 @@ struct SequencesHandle {
 };
 
 PYBIND11_MODULE(ravenpy, m) {
-  m.doc() = "Raven";
+  m.doc() = "raven";
 
   py::class_<raven::AlignCfg>(m, "AlignCfg")
       .def(py::init<std::int8_t, std::int8_t, std::int8_t>())
@@ -93,6 +93,9 @@ PYBIND11_MODULE(ravenpy, m) {
   py::class_<SequencesHandle, std::shared_ptr<SequencesHandle>>(
       m, "SequencesHandle")
       .def(py::init<const std::vector<std::string>&>());
+
+  m.def("reset_seq_id_cnt",
+        []() -> void { biosoup::NucleicAcid::num_objects.store(0); });
 
   py::class_<raven::Graph>(m, "Graph").def(py::init<>());
 

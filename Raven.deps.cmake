@@ -1,7 +1,6 @@
 include(FetchContent)
 include(GNUInstallDirs)
 
-
 find_package(bioparser 3.0.13 QUIET)
 if (NOT bioparser_FOUND)
     FetchContent_Declare(

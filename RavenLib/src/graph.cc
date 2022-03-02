@@ -4,8 +4,10 @@
 
 namespace raven {
 
-Node::Node(const biosoup::NucleicAcid& sequence)
-    : id(),
+Node::Node(const biosoup::NucleicAcid& sequence) : Node(0, sequence) {}
+
+Node::Node(const std::uint32_t id, const biosoup::NucleicAcid& sequence)
+    : id(id),
       sequence(sequence),
       count(1),
       is_unitig(),
@@ -16,8 +18,10 @@ Node::Node(const biosoup::NucleicAcid& sequence)
       outedges(),
       pair() {}
 
-Node::Node(Node* begin, Node* end)
-    : id(),
+Node::Node(Node* begin, Node* end) : Node(0, begin, end) {}
+
+Node::Node(const std::uint32_t id, Node* begin, Node* end)
+    : id(id),
       sequence(),
       count(),
       is_unitig(),
@@ -49,7 +53,10 @@ Node::Node(Node* begin, Node* end)
 }
 
 Edge::Edge(Node* tail, Node* head, std::uint32_t length)
-    : id(), length(length), weight(0), tail(tail), head(head), pair() {
+    : Edge(0, tail, head, length) {}
+
+Edge::Edge(const std::uint32_t id, Node* tail, Node* head, std::uint32_t length)
+    : id(id), length(length), weight(0), tail(tail), head(head), pair() {
   tail->outedges.emplace_back(this);
   head->inedges.emplace_back(this);
 }

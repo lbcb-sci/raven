@@ -42,7 +42,7 @@ class IndexManager {
 
   ValueType FetchAndIncrement() noexcept { return next_idx_val_++; }
 
-  ValueType Fetch() const noexcept { return next_idx_val_.load(); }
+  ValueType Fetch() const noexcept { return next_idx_val_; }
 
  private:
   ValueType next_idx_val_;
@@ -62,6 +62,8 @@ class IndexedFactory {
   explicit IndexedFactory(const IndexType init_index)
       : idx_manager_(init_index) {}
 
+  IndexType NextIndex() const noexcept { return idx_manager_.Fetch(); }
+
   template <class... Args>
   ValueType Make(Args... args) {
     ValueType dst(std::forward<Args>(args)...);
@@ -72,8 +74,8 @@ class IndexedFactory {
 
   template <class... Args>
   std::unique_ptr<ValueType> MakeUnique(Args... args) {
-    auto dst = std::make_unique<ValueType>(std::forward<Args>(args)...);
-    dst->id = idx_manager_.FetchAndIncrement();
+    auto dst = std::make_unique<ValueType>(idx_manager_.FetchAndIncrement(),
+                                           std::forward<Args>(args)...);
 
     return dst;
   }
@@ -93,7 +95,10 @@ struct Node {
   Node() = default;  // needed for cereal
 
   explicit Node(const biosoup::NucleicAcid& sequence);
-  Node(Node* begin, Node* end);
+  explicit Node(Node* begin, Node* end);
+
+  explicit Node(const std::uint32_t id, const biosoup::NucleicAcid& sequence);
+  explicit Node(const std::uint32_t id, Node* begin, Node* end);
 
   Node(const Node&) = delete;
   Node& operator=(const Node&) = delete;
@@ -133,6 +138,7 @@ struct Node {
 struct Edge {
   Edge() = default;  // needed for cereal
   Edge(Node* tail, Node* head, std::uint32_t length);
+  Edge(const std::uint32_t id, Node* tail, Node* head, std::uint32_t length);
 
   Edge(const Edge&) = delete;
   Edge& operator=(const Edge&) = delete;

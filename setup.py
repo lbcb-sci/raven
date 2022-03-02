@@ -1,89 +1,57 @@
-from distutils.errors import DistutilsExecError
-from typing import List, Optional
-
-from collections.abc import Mapping
-
-import pathlib
-import shutil
 import os
+import pathlib
+import subprocess
 
 from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
 
 from distutils import log
 
-EXTENSION_NAME = "RavenPy"
+EXTENSION_NAME = "ravenpy"
 
 class CMakeExtension(Extension):
-  ''' Addapter class for setuptools Extension.
-      Used for naming; assumes source files are handled by CMakeBuildExt'''
+  def __init__(self, name, sourcedir=""):
+    Extension.__init__(self, name, sources=[])
+    self.sourcedir = os.path.abspath(sourcedir)
 
-  def __init__(self, name: str):
-    super().__init__(name=name, sources=[])
+class CMakeBuild(build_ext):
+  def build_extension(self, ext):
+    install_dir = pathlib.Path(self.get_ext_fullpath(ext.name)).absolute().parent
+    build_dir = install_dir.joinpath('ravenpy_build')
 
-class CMakeBuildExt(build_ext):
-  ''' Executes cmake build procedure '''
+    self.announce(f'[ravenpy::setup.py] extdir: {install_dir}', level=log.INFO)
 
-  def run(self) -> None:
-    for ext in self.extensions:
-      if ext.name == EXTENSION_NAME:
-        self.__cmake_build(ext)
-
-  @staticmethod
-  def __find_cmake() -> Optional[str]:
-    return shutil.which('cmake')
-
-  def __cmake_build(self, ext):
-    cmake_path_str: Optional[str] = self.__find_cmake()
-    if cmake_path_str is None:
-      raise DistutilsExecError('[RavenPy::setup.py] failed to locate cmake')
-
-    base_build_dir = pathlib.Path(self.build_temp).absolute()
-
-    ravenpy_build_path: pathlib.Path = base_build_dir.joinpath('ravenpy_build')
-    ravenpy_install_path: pathlib.Path = base_build_dir.joinpath('ravenpy_install')
-
-    os.makedirs(base_build_dir, exist_ok=True)
-    self.announce(f'[RavenPy::setup.py] build directory {ravenpy_build_path}', level=log.INFO)
-    self.announce(f'[RavenPy::setup.py] install directory {ravenpy_install_path}', level=log.INFO)
-
-
-    build_type: str = 'Debug' if self.debug else 'Release'
-
-    install_libdir: str = 'lib'
-    install_includedir = 'include'
-
-    cmake_config: List[str] = [
-      '-H./',
-      f'-B{ravenpy_build_path}',
-      f'-DCMAKE_BUILD_TYPE={build_type}',
-
+    cmake_generator = os.environ.get("CMAKE_GENERATOR", "")
+    cmake_args = [
       f'-DRAVEN_BUILD_PYTHON=1',
+      f'-DRAVENPY_EXT_DIR={install_dir}',
 
-      f'-DCMAKE_INSTALL_PREFIX={ravenpy_install_path}',
-      f'-DCMAKE_INSTALL_INCLUDEDIR={install_includedir}',
-      f'-DCMAKE_INSTALL_LIBDIR={install_libdir}'
+      f'-DCMAKE_BUILD_TYPE=Release'
     ]
 
     try:
-      self.announce(f'[RavenPy::setup.py] generating cmake files', level=log.INFO)
-      self.spawn([cmake_path_str, *cmake_config])
-    except DistutilsExecError as dee:
-      self.announce(f'[RavenPy::setup.py] failed to configure cmake', level=log.FATAL)
-      raise dee
+      import ninja
+      cmake_args += ["-GNinja"]
+    except ImportError:
+      pass
+    
+    build_args = ['--target', 'install']
+    if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
+    # self.parallel is a Python 3 only way to set parallel jobs by hand
+    # using -j in the build_ext call, not supported by pip or PyPA-build.
+      if hasattr(self, "parallel") and self.parallel:
+          # CMake 3.12+ only.
+          build_args += [f"-j{self.parallel}"]
 
-    cmake_build_args: List[str] = [
-        '--build', str(ravenpy_build_path),
-        '--config', build_type,
-        '--target', 'install'
-      ]
+    if not os.path.exists(self.build_temp):
+        os.makedirs(self.build_temp)
 
-    try:
-      self.announce(f'[RavenPy::setup.py]')
-      self.spawn([cmake_path_str, *cmake_build_args])
-    except DistutilsExecError as dee:
-      self.announce(f'[RavenPy::setup.py] failed to build binaries', level=log.FATAL) 
-      raise dee
+    subprocess.check_call(
+        ["cmake", ext.sourcedir] + cmake_args, cwd=self.build_temp
+    )
+    subprocess.check_call(
+        ["cmake", "--build", ".", '--target', 'install'] + build_args, cwd=self.build_temp
+    )
 
 if __name__ == '__main__':
   setup(
@@ -96,6 +64,6 @@ if __name__ == '__main__':
 
     ext_modules=[CMakeExtension(EXTENSION_NAME)],
     cmdclass= {
-      'build_ext': CMakeBuildExt
+      'build_ext': CMakeBuild
     }
   )

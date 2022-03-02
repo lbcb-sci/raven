@@ -483,7 +483,7 @@ void ConstructAssemblyGraph(
         sequences[it->id()]->InflateData(it->begin(),
                                          it->end() - it->begin())};  // NOLINT
 
-    sequence_to_node[it->id()] = nodes.size();
+    sequence_to_node[it->id()] = graph.node_factory.NextIndex();
     auto node = emplace_node_through_factory(sequence);
 
     sequence.ReverseAndComplement();

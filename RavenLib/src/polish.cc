@@ -10,7 +10,7 @@ namespace raven {
 void Polish(std::shared_ptr<thread_pool::ThreadPool> thread_pool, Graph& graph,
             bool checkpoints,
             const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
-            const PolishCfg& cfg) {
+            const PolishCfg cfg) {
   if (sequences.empty() || cfg.num_rounds == 0) {
     return;
   }
@@ -52,7 +52,8 @@ void Polish(std::shared_ptr<thread_pool::ThreadPool> thread_pool, Graph& graph,
     unitigs.swap(polished);
 
     for (const auto& it : unitigs) {  // store unitigs
-      const auto& node = graph.nodes[std::atoi(&it->name[3])];
+      const auto node = graph.nodes[std::atoi(&it->name[3])].get();
+
       std::size_t tag;
       if ((tag = it->name.rfind(':')) != std::string::npos) {
         if (std::atof(&it->name[tag + 1]) > 0) {

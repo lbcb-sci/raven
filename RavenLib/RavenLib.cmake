@@ -25,6 +25,7 @@ if (NOT TARGET RavenLib)
     PUBLIC 
       bioparser::bioparser
       cereal::cereal 
+      ram::ram
       racon::racon)
 
 endif()

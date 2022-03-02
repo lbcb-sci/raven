@@ -107,11 +107,6 @@ std::uint32_t CreateUnitigs(Graph& graph, std::uint32_t epsilon) {
       }
     }
 
-    // auto& unitig = unitigs.emplace_back(std::make_unique<Node>(begin, end));
-
-    // auto& rc_unitig = unitigs.emplace_back(
-    //     std::make_unique<Node>(graph.nodes.size(), end->pair, begin->pair));
-
     auto unitig = emplace_node_through_factory(begin, end);
     auto rc_unitig = emplace_node_through_factory(end->pair, begin->pair);
 
@@ -168,10 +163,7 @@ std::uint32_t CreateUnitigs(Graph& graph, std::uint32_t epsilon) {
     }
   }
 
-  graph.nodes.reserve(graph.nodes.size() + unitigs.size());
   std::move(unitigs.begin(), unitigs.end(), std::back_inserter(graph.nodes));
-
-  graph.edges.reserve(graph.edges.size() + unitig_edges.size());
   std::move(unitig_edges.begin(), unitig_edges.end(),
             std::back_inserter(graph.edges));
 
