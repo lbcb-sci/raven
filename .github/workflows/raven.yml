@@ -17,7 +17,7 @@ jobs:
           - g++
           - g++-7
           - clang++
-          - clang++8
+          - clang++-8
 
     runs-on: ubuntu-18.04
 
