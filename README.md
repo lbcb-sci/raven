@@ -130,6 +130,8 @@ target_link_libraries(<YourTarget> <PRIVATE|PUBLIC|INTERFACE> RavenLib)
 
 ### Other options
 
+**NOTE**: not updated for 1.8 release
+
 #### Brew
 Install [Linuxbrew](https://docs.brew.sh/Homebrew-on-Linux) and run the following command:
 
