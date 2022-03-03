@@ -10,10 +10,10 @@
 
 #include "biosoup/nucleic_acid.hpp"
 #include "biosoup/overlap.hpp"
-#include "cereal/cereal.hpp"
 #include "cereal/access.hpp"
-#include "cereal/types/vector.hpp"
+#include "cereal/cereal.hpp"
 #include "cereal/types/utility.hpp"
+#include "cereal/types/vector.hpp"
 
 namespace raven {
 
@@ -31,72 +31,41 @@ class Pile {
 
   ~Pile() = default;
 
-  std::uint32_t id() const {
-    return id_;
-  }
+  std::uint32_t id() const { return id_; }
 
-  std::uint32_t begin() const {
-    return begin_ << kPSS;
-  }
+  std::uint32_t begin() const { return begin_ << kPSS; }
 
-  std::uint32_t end() const {
-    return end_ << kPSS;
-  }
+  std::uint32_t end() const { return end_ << kPSS; }
 
-  std::uint32_t length() const {
-    return end() - begin();
-  }
+  std::uint32_t length() const { return end() - begin(); }
 
-  std::uint16_t median() const {
-    return median_;
-  }
+  std::uint16_t median() const { return median_; }
 
-  bool is_invalid() const {
-    return is_invalid_;
-  }
+  bool is_invalid() const { return is_invalid_; }
 
-  void set_is_invalid() {
-    is_invalid_ = true;
-  }
+  void set_is_invalid() { is_invalid_ = true; }
 
-  bool is_contained() const {
-    return is_contained_;
-  }
+  bool is_contained() const { return is_contained_; }
 
-  void set_is_contained() {
-    is_contained_ = true;
-  }
+  void set_is_contained() { is_contained_ = true; }
 
-  bool is_chimeric() const {
-    return is_chimeric_;
-  }
+  bool is_chimeric() const { return is_chimeric_; }
 
-  bool is_maybe_chimeric() const {
-    return !chimeric_regions_.empty();
-  }
+  bool is_maybe_chimeric() const { return !chimeric_regions_.empty(); }
 
-  void set_is_chimeric() {
-    is_chimeric_ = true;
-  }
+  void set_is_chimeric() { is_chimeric_ = true; }
 
-  bool is_repetitive() const {
-    return is_repetitive_;
-  }
+  bool is_repetitive() const { return is_repetitive_; }
 
-  void set_is_repetitive() {
-    is_repetitive_ = true;
-  }
+  void set_is_repetitive() { is_repetitive_ = true; }
 
   // add coverage
-  void AddLayers(
-      std::vector<biosoup::Overlap>::const_iterator begin,
-      std::vector<biosoup::Overlap>::const_iterator end);
+  void AddLayers(std::vector<biosoup::Overlap>::const_iterator begin,
+                 std::vector<biosoup::Overlap>::const_iterator end);
 
   // mark repetitive k-mers
-  void AddKmers(
-      const std::vector<std::uint32_t>& kmers,
-      std::uint32_t kmer_len,
-      const std::unique_ptr<biosoup::NucleicAcid>& sequence);
+  void AddKmers(const std::vector<std::uint32_t>& kmers, std::uint32_t kmer_len,
+                const std::unique_ptr<biosoup::NucleicAcid>& sequence);
 
   // store longest region with values greater or equal than given coverage
   void FindValidRegion(std::uint16_t coverage);
@@ -132,21 +101,13 @@ class Pile {
  private:
   Pile() = default;
 
-  template<class Archive>
+  template <class Archive>
   void serialize(Archive& archive) {  // NOLINT
-    archive(
-        CEREAL_NVP(id_),
-        CEREAL_NVP(begin_),
-        CEREAL_NVP(end_),
-        CEREAL_NVP(median_),
-        CEREAL_NVP(is_invalid_),
-        CEREAL_NVP(is_contained_),
-        CEREAL_NVP(is_chimeric_),
-        CEREAL_NVP(is_repetitive_),
-        CEREAL_NVP(data_),
-        CEREAL_NVP(kmers_),
-        CEREAL_NVP(chimeric_regions_),
-        CEREAL_NVP(repetitive_regions_));
+    archive(CEREAL_NVP(id_), CEREAL_NVP(begin_), CEREAL_NVP(end_),
+            CEREAL_NVP(median_), CEREAL_NVP(is_invalid_),
+            CEREAL_NVP(is_contained_), CEREAL_NVP(is_chimeric_),
+            CEREAL_NVP(is_repetitive_), CEREAL_NVP(data_), CEREAL_NVP(kmers_),
+            CEREAL_NVP(chimeric_regions_), CEREAL_NVP(repetitive_regions_));
   }
 
   friend cereal::access;
