@@ -278,6 +278,8 @@ int main(int argc, char** argv) {
 
   raven::PrintGfa(graph, gfa_path);
 
+  raven::PrintCsv(graph, gfa_path + ".csv");
+
   for (const auto& it : raven::GetUnitigs(graph, num_polishing_rounds > 0)) {
     std::cout << ">" << it->name << std::endl;
     std::cout << it->InflateData() << std::endl;
