@@ -870,6 +870,8 @@ void Assemble(std::shared_ptr<thread_pool::ThreadPool> threadPool, Graph& graph,
     StageExecution(graph, checkpoints, RemoveTransitiveEdges);
   }
 
+/****************************************************************************
+
   if (graph.stage == -2) {  // remove tips and bubbles
     StageExecution(graph, checkpoints, RemoveTipsAndBubbles);
   }
@@ -877,6 +879,8 @@ void Assemble(std::shared_ptr<thread_pool::ThreadPool> threadPool, Graph& graph,
   if (graph.stage == -1) {
     StageExecution(graph, checkpoints, RemoveLongEdgesStage, threadPool);
   }
+
+*****************************************************************************/
 
   std::cerr << "[raven::Graph::Assemble] " << std::fixed << timer.Stop() << "s"
             << std::endl;
