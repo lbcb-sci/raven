@@ -262,6 +262,8 @@ int main(int argc, char** argv) {
       raven::OverlapPhaseCfg{
           .kmer_len = kmer_len, .window_len = window_len, .freq = freq});
 
+/****************************************************************************
+
   raven::Assemble(thread_pool, graph, checkpoints);
 
   raven::Polish(
@@ -275,6 +277,8 @@ int main(int argc, char** argv) {
           .num_rounds = num_polishing_rounds}
 
   );
+
+*****************************************************************************/
 
   raven::PrintGfa(graph, gfa_path);
 
