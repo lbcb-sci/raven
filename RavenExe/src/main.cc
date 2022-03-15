@@ -262,9 +262,9 @@ int main(int argc, char** argv) {
       raven::OverlapPhaseCfg{
           .kmer_len = kmer_len, .window_len = window_len, .freq = freq});
 
-/****************************************************************************
-
   raven::Assemble(thread_pool, graph, checkpoints);
+
+/****************************************************************************
 
   raven::Polish(
       thread_pool, graph, checkpoints, sequences,
