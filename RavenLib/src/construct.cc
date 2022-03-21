@@ -152,6 +152,7 @@ void TrimAndAnnotatePiles(
 void ResolveContainedReads(
     const std::vector<std::unique_ptr<Pile>>& piles,
     std::vector<std::vector<biosoup::Overlap>>& overlaps,
+    const std::shared_ptr<thread_pool::ThreadPool>& thread_pool,
     double identity) {
   biosoup::Timer timer;
 
@@ -159,7 +160,7 @@ void ResolveContainedReads(
 
   std::vector<std::future<void>> futures;
   for (std::uint32_t i = 0; i < overlaps.size(); ++i) {
-    futures.emplace_back(thread_pool_->Submit(
+    futures.emplace_back(thread_pool->Submit(
         [&] (std::uint32_t i) -> void {
           std::uint32_t k = 0;
           for (std::uint32_t j = 0; j < overlaps[i].size(); ++j) {
@@ -649,7 +650,7 @@ void ConstructGraph(
                                cfg.freq, graph.piles, overlaps);
     TrimAndAnnotatePiles(thread_pool, graph.piles, overlaps);
 
-    ResolveContainedReads(graph.piles, overlaps, cfg.identity);
+    ResolveContainedReads(graph.piles, overlaps, thread_pool, cfg.identity);
     ResolveChimericSequences(thread_pool, graph.piles, overlaps, sequences);
 
     ++graph.stage;
