@@ -7,6 +7,7 @@
 #include "ram/minimizer_engine.hpp"
 #include "raven/graph/overlap_utils.h"
 #include "raven/graph/serialization/binary.h"
+#include "edlib.h"
 
 namespace raven {
 
