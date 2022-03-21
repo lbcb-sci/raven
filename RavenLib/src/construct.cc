@@ -328,6 +328,11 @@ void FindOverlapsAndRepetetiveRegions(
                 lhs->id < rhs->id);  // NOLINT
       });
 
+  std::vector<std::uint32_t> sequences_map(sequences.size());
+  for (std::uint32_t i = 0; i < sequences.size(); ++i) {
+    sequences_map[sequences[i]->id] = i;
+  }
+
   std::uint32_t s = 0;
   for (std::uint32_t i = 0; i < sequences.size(); ++i) {
     if (piles[sequences[i]->id]->is_invalid()) {
