@@ -312,7 +312,7 @@ void ResolveChimericSequences(
 
 void FindOverlapsAndRepetetiveRegions(
     const std::shared_ptr<thread_pool::ThreadPool>& thread_pool,
-    ram::MinimizerEngine& minimizerEngine, double freq, std::uint8_t kmer_len, double identity
+    ram::MinimizerEngine& minimizerEngine, double freq, std::uint8_t kmer_len, double identity,
     const std::vector<std::unique_ptr<Pile>>& piles,
     std::vector<std::vector<biosoup::Overlap>>& overlaps,
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences) {
@@ -667,7 +667,7 @@ void ConstructGraph(
 
   if (graph.stage == -4) {
     FindOverlapsAndRepetetiveRegions(thread_pool, minimizerEngine, cfg.freq,
-                                     cfg.kmer_len, cfg.identity graph.piles, overlaps,
+                                     cfg.kmer_len, cfg.identity, graph.piles, overlaps,
                                      sequences);
     ResolveRepeatInducedOverlaps(thread_pool, graph.piles, overlaps, sequences);
 
