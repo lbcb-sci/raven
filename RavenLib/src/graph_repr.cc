@@ -74,8 +74,8 @@ void PrintCsv(const Graph& graph, const std::string& path, bool printEdgeSimilar
         continue;
       }
       
-      std::string lhs{it->tail->sequence->InflateData(it->length)};
-      std::string rhs{it->head->sequence->InflateData(0, lhs.size())};
+      std::string lhs{it->tail->sequence.InflateData(it->length)};
+      std::string rhs{it->head->sequence.InflateData(0, lhs.size())};
       EdlibAlignResult result = edlibAlign(
         lhs.c_str(), lhs.size(),
         rhs.c_str(), rhs.size(),
