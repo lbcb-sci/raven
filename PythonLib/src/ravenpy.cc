@@ -84,7 +84,8 @@ PYBIND11_MODULE(ravenpy, m) {
       .def(py::init<std::uint8_t, std::uint8_t, double>())
       .def_readwrite("kmer_len", &raven::OverlapPhaseCfg::kmer_len)
       .def_readwrite("window_len", &raven::OverlapPhaseCfg::window_len)
-      .def_readwrite("freq", &raven::OverlapPhaseCfg::freq);
+      .def_readwrite("freq", &raven::OverlapPhaseCfg::freq)
+      .def_readwrite("identity", &raven::OverlapPhaseCfg::identity);
 
   py::class_<thread_pool::ThreadPool, std::shared_ptr<thread_pool::ThreadPool>>(
       m, "ThreadPool")
