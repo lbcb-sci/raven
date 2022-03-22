@@ -69,7 +69,7 @@ void PrintCsv(const Graph& graph, const std::string& path, bool printEdgeSimilar
         << " " << it->weight << std::endl;
     }
   } else {
-    for (const auto& it : edges_) {
+    for (const auto& it : graph.edges) {
       if (it == nullptr) {
         continue;
       }
