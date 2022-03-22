@@ -54,7 +54,7 @@ void Help() {
          "      default: 0.001\n"
          "      threshold for ignoring most frequent minimizers\n"
          "    -i, --identity <double>\n"
-         "      default: 0.999\n"
+         "      default: 0\n"
          "      threshold for overlap between two reads in order to construct an edge between them\n"
          "    -p, --polishing-rounds <int>\n"
          "      default: 2\n"
@@ -100,7 +100,7 @@ int main(int argc, char** argv) {
   std::uint8_t kmer_len = 15;
   std::uint8_t window_len = 5;
   double freq = 0.001;
-  double identity = 0.999;
+  double identity = 0;
 
   std::uint32_t num_polishing_rounds = 2;
   std::int8_t m = 3;
