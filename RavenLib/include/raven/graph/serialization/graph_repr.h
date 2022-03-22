@@ -9,7 +9,7 @@
 namespace raven {
 
 void PrintGfa(const Graph& graph, const std::string& path);
-void PrintCsv(const Graph& graph, const std::string& path);
+void PrintCsv(const Graph& graph, const std::string& path, bool printEdgeSimilarity = false);
 void PrintJson(const Graph& graph, const std::string& path);
 
 }  // namespace raven

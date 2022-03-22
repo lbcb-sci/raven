@@ -1,5 +1,5 @@
 #include "raven/graph/serialization/graph_repr.h"
-
+#include "edlib.h"
 namespace raven {
 
 void PrintGfa(const Graph& graph, const std::string& path) {
@@ -35,12 +35,13 @@ void PrintGfa(const Graph& graph, const std::string& path) {
   os.close();
 }
 
-void PrintCsv(const Graph& graph, const std::string& path) {
+void PrintCsv(const Graph& graph, const std::string& path, bool printEdgeSimilarity) {
   if (path.empty()) {
     return;
   }
 
   std::ofstream os(path);
+
   for (const auto& it : graph.nodes) {
     if ((it == nullptr) || it->is_rc() ||
         (it->count == 1 && it->outdegree() == 0 && it->indegree() == 0)) {
@@ -52,18 +53,46 @@ void PrintCsv(const Graph& graph, const std::string& path) {
        << " LN:i:" << it->pair->sequence.inflated_len
        << " RC:i:" << it->pair->count << ",0,-" << std::endl;
   }
-  for (const auto& it : graph.edges) {
-    if (it == nullptr) {
-      continue;
+
+  if (printEdgeSimilarity) {
+    for (const auto& it : graph.edges) {
+      if (it == nullptr) {
+        continue;
+      }
+
+      os << it->tail->id << " [" << it->tail->id / 2 << "]"
+        << " LN:i:" << it->tail->sequence.inflated_len
+        << " RC:i:" << it->tail->count << "," << it->head->id << " ["
+        << it->head->id / 2 << "]"
+        << " LN:i:" << it->head->sequence.inflated_len
+        << " RC:i:" << it->head->count << ",1," << it->id << " " << it->length
+        << " " << it->weight << std::endl;
     }
-    os << it->tail->id << " [" << it->tail->id / 2 << "]"
-       << " LN:i:" << it->tail->sequence.inflated_len
-       << " RC:i:" << it->tail->count << "," << it->head->id << " ["
-       << it->head->id / 2 << "]"
-       << " LN:i:" << it->head->sequence.inflated_len
-       << " RC:i:" << it->head->count << ",1," << it->id << " " << it->length
-       << " " << it->weight << std::endl;
+  } else {
+    for (const auto& it : edges_) {
+      if (it == nullptr) {
+        continue;
+      }
+      
+      std::string lhs{it->tail->sequence->InflateData(it->length)};
+      std::string rhs{it->head->sequence->InflateData(0, lhs.size())};
+      EdlibAlignResult result = edlibAlign(
+        lhs.c_str(), lhs.size(),
+        rhs.c_str(), rhs.size(),
+        edlibDefaultAlignConfig());
+      
+      double score = 1 - result.editDistance / static_cast<double>(lhs.size());
+
+      os << it->tail->id << " [" << it->tail->id / 2 << "]"
+        << " LN:i:" << it->tail->sequence.inflated_len
+        << " RC:i:" << it->tail->count << "," << it->head->id << " ["
+        << it->head->id / 2 << "]"
+        << " LN:i:" << it->head->sequence.inflated_len
+        << " RC:i:" << it->head->count << ",1," << it->id << " " << it->length
+        << " " << it->weight << " " << score << std::endl;
+    }
   }
+
   for (const auto& it : graph.nodes) {  // circular edges TODO(rvaser): check
     if (it == nullptr || !it->is_circular) {
       continue;
@@ -74,6 +103,7 @@ void PrintCsv(const Graph& graph, const std::string& path) {
        << " LN:i:" << it->sequence.inflated_len << " RC:i:" << it->count
        << ",1,-" << std::endl;
   }
+
   os.close();
 }
 
