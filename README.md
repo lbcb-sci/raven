@@ -53,6 +53,10 @@ usage: raven [options ...] <sequences> [<sequences> ...]
     -f, --frequency <double>
       default: 0.001
       threshold for ignoring most frequent minimizers
+    -i, --identity <double>
+      default: 0
+      threshold for overlap between two reads in order to construct an edge between them
+      if set to zero, this functionality is disabled
     -p, --polishing-rounds <int>
       default: 2
       number of times racon is invoked
