@@ -1,4 +1,5 @@
 #include "ram/minimizer_engine.hpp"
+#include "raven/export.h"
 #include "raven/graph/graph.h"
 #include "thread_pool/thread_pool.hpp"
 
@@ -15,51 +16,51 @@ struct OverlapPhaseCfg {
   double freq = 0.001;
 };
 
-void FindOverlapsAndCreatePiles(
+RAVEN_EXPORT void FindOverlapsAndCreatePiles(
     const std::shared_ptr<thread_pool::ThreadPool>& thread_pool,
     ram::MinimizerEngine& minimizer_engine,
     const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
     double freq, std::vector<std::unique_ptr<Pile>>& piles,
     std::vector<std::vector<biosoup::Overlap>>& overlaps);
 
-void TrimAndAnnotatePiles(
+RAVEN_EXPORT void TrimAndAnnotatePiles(
     const std::shared_ptr<thread_pool::ThreadPool>& thread_pool,
     const std::vector<std::unique_ptr<Pile>>& piles,
     std::vector<std::vector<biosoup::Overlap>>& overlaps);
 
-void ResolveContainedReads(
+RAVEN_EXPORT void ResolveContainedReads(
     const std::vector<std::unique_ptr<Pile>>& piles,
     std::vector<std::vector<biosoup::Overlap>>& overlaps);
 
-void ResolveContainedReads(
+RAVEN_EXPORT void ResolveContainedReads(
     const std::vector<std::unique_ptr<Pile>>& piles,
     std::vector<std::vector<biosoup::Overlap>>& overlaps);
 
-void ResolveChimericSequences(
+RAVEN_EXPORT void ResolveChimericSequences(
     const std::shared_ptr<thread_pool::ThreadPool>& thread_pool,
     const std::vector<std::unique_ptr<Pile>>& piles,
     std::vector<std::vector<biosoup::Overlap>>& overlaps,
     const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences);
 
-void FindOverlapsAndRepetetiveRegions(
+RAVEN_EXPORT void FindOverlapsAndRepetetiveRegions(
     const std::shared_ptr<thread_pool::ThreadPool>& thread_pool,
     ram::MinimizerEngine& minimizerEngine, double freq, std::uint8_t kmer_len,
     const std::vector<std::unique_ptr<Pile>>& piles,
     std::vector<std::vector<biosoup::Overlap>>& overlaps,
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences);
 
-void ResolveRepeatInducedOverlaps(
+RAVEN_EXPORT void ResolveRepeatInducedOverlaps(
     const std::shared_ptr<thread_pool::ThreadPool>& thread_pool,
     const std::vector<std::unique_ptr<Pile>>& piles,
     std::vector<std::vector<biosoup::Overlap>>& overlaps,
     const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences);
 
-void ConstructAssemblyGraph(
+RAVEN_EXPORT void ConstructAssemblyGraph(
     Graph& graph, const std::vector<std::unique_ptr<Pile>>& piles,
     std::vector<std::vector<biosoup::Overlap>>& overlaps,
     const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences);
 
-void ConstructGraph(
+RAVEN_EXPORT void ConstructGraph(
     Graph& graph, std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
     std::shared_ptr<thread_pool::ThreadPool>& thread_pool, bool checkpoints,
     OverlapPhaseCfg const cfg);
