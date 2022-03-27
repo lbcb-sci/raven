@@ -870,11 +870,11 @@ void Assemble(std::shared_ptr<thread_pool::ThreadPool> threadPool, Graph& graph,
     StageExecution(graph, checkpoints, RemoveTransitiveEdges);
   }
 
-/****************************************************************************
-
   if (graph.stage == -2) {  // remove tips and bubbles
     StageExecution(graph, checkpoints, RemoveTipsAndBubbles);
   }
+
+/****************************************************************************
 
   if (graph.stage == -1) {
     StageExecution(graph, checkpoints, RemoveLongEdgesStage, threadPool);
