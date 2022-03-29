@@ -722,10 +722,12 @@ static std::uint32_t RemoveLongEdges(
       }
     }
 
+    /*****************************************
     RemoveEdges(graph, marked_edges);
     num_long_edges += marked_edges.size() / 2;
 
     RemoveTips(graph);
+    *****************************************/
   }
 
   return num_long_edges;
