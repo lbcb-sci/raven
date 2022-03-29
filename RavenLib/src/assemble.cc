@@ -722,12 +722,11 @@ static std::uint32_t RemoveLongEdges(
       }
     }
 
-    /*****************************************
     RemoveEdges(graph, marked_edges);
     num_long_edges += marked_edges.size() / 2;
 
     RemoveTips(graph);
-    *****************************************/
+    
   }
 
   return num_long_edges;
@@ -821,7 +820,8 @@ static void RemoveLongEdgesStage(
 
   CreateUnitigs(graph, 42);  // speed up force directed layout
   
-  RemoveLongEdges(threadPool, graph, 16);
+  //RemoveLongEdges(threadPool, graph, 16);
+  RemoveLongEdges(threadPool, graph, 1);
   
   std::cerr << "[raven::Graph::Assemble] removed long edges " << std::fixed
             << timer.Stop() << "s" << std::endl;
