@@ -819,10 +819,8 @@ static void RemoveLongEdgesStage(
 
   CreateUnitigs(graph, 42);  // speed up force directed layout
   
-  /***********************************************************
   RemoveLongEdges(threadPool, graph, 16);
-  ***********************************************************/
-
+  
   std::cerr << "[raven::Graph::Assemble] removed long edges " << std::fixed
             << timer.Stop() << "s" << std::endl;
 
