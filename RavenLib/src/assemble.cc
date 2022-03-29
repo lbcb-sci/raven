@@ -817,7 +817,10 @@ static void RemoveLongEdgesStage(
   biosoup::Timer timer;
   timer.Start();
 
+  /***********************************************************
   CreateUnitigs(graph, 42);  // speed up force directed layout
+  ***********************************************************/
+  
   RemoveLongEdges(threadPool, graph, 16);
 
   std::cerr << "[raven::Graph::Assemble] removed long edges " << std::fixed
@@ -833,7 +836,9 @@ static void RemoveLongEdgesStage(
     }
   }
 
+  /**********************************
   SalvagePlasmids(threadPool, graph);
+  **********************************/
 
   timer.Stop();
 }
