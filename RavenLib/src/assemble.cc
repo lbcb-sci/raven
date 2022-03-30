@@ -820,8 +820,7 @@ static void RemoveLongEdgesStage(
 
   CreateUnitigs(graph, 42);  // speed up force directed layout
   
-  //RemoveLongEdges(threadPool, graph, 16);
-  RemoveLongEdges(threadPool, graph, 1);
+  RemoveLongEdges(threadPool, graph, 16);
   
   std::cerr << "[raven::Graph::Assemble] removed long edges " << std::fixed
             << timer.Stop() << "s" << std::endl;
@@ -836,9 +835,7 @@ static void RemoveLongEdgesStage(
     }
   }
 
-  /**********************************
   SalvagePlasmids(threadPool, graph);
-  **********************************/
 
   timer.Stop();
 }
@@ -875,6 +872,8 @@ void Assemble(std::shared_ptr<thread_pool::ThreadPool> threadPool, Graph& graph,
     StageExecution(graph, checkpoints, RemoveTransitiveEdges);
   }
 
+  /****************************************************************************
+
   if (graph.stage == -2) {  // remove tips and bubbles
     StageExecution(graph, checkpoints, RemoveTipsAndBubbles);
   }
@@ -882,6 +881,8 @@ void Assemble(std::shared_ptr<thread_pool::ThreadPool> threadPool, Graph& graph,
   if (graph.stage == -1) {
     StageExecution(graph, checkpoints, RemoveLongEdgesStage, threadPool);
   }
+
+  *****************************************************************************/
 
   std::cerr << "[raven::Graph::Assemble] " << std::fixed << timer.Stop() << "s"
             << std::endl;
