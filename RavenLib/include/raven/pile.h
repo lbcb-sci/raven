@@ -11,6 +11,7 @@
 #include "biosoup/nucleic_acid.hpp"
 #include "biosoup/overlap.hpp"
 #include "cereal/access.hpp"
+#include "raven/export.h"
 #include "cereal/cereal.hpp"
 #include "cereal/types/utility.hpp"
 #include "cereal/types/vector.hpp"
@@ -19,7 +20,7 @@ namespace raven {
 
 constexpr std::uint32_t kPSS = 4;  // shrink 2 ^ kPSS times
 
-class Pile {
+class RAVEN_EXPORT Pile {
  public:
   Pile(std::uint32_t id, std::uint32_t len);
 

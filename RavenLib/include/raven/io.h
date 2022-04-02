@@ -5,11 +5,12 @@
 
 #include "bioparser/fasta_parser.hpp"
 #include "bioparser/fastq_parser.hpp"
+#include "raven/export.h"
 #include "biosoup/nucleic_acid.hpp"
 
 namespace raven {
 
-std::unique_ptr<bioparser::Parser<biosoup::NucleicAcid>> CreateParser(
+RAVEN_EXPORT std::unique_ptr<bioparser::Parser<biosoup::NucleicAcid>> CreateParser(
     const std::string& path);
 
 }

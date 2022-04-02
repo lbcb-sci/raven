@@ -5,6 +5,7 @@
 #include <unordered_set>
 
 #include "biosoup/nucleic_acid.hpp"
+#include "raven/export.h"
 #include "raven/pile.h"
 
 namespace biosoup {
@@ -23,7 +24,7 @@ namespace raven {
 namespace detail {
 
 template <class T>
-class IndexManager {
+class RAVEN_EXPORT IndexManager {
  public:
   using ValueType = T;
   static_assert(
@@ -49,7 +50,7 @@ class IndexManager {
 };
 
 template <class I, class T>
-class IndexedFactory {
+class RAVEN_EXPORT IndexedFactory {
  private:
   using IndexManagerT = IndexManager<I>;
 
@@ -88,8 +89,8 @@ class IndexedFactory {
 
 }  // namespace detail
 
-struct Edge;
-struct Node;
+struct RAVEN_EXPORT Edge;
+struct RAVEN_EXPORT Node;
 
 struct Node {
   Node() = default;  // needed for cereal
@@ -165,7 +166,7 @@ struct Edge {
 using NodeFactory = detail::IndexedFactory<std::uint32_t, Node>;
 using EdgeFactory = detail::IndexedFactory<std::uint32_t, Edge>;
 
-struct Graph {
+struct RAVEN_EXPORT Graph {
   Graph();
 
   int stage = -5;
