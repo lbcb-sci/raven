@@ -14,7 +14,7 @@ void PrintGfa(const Graph& graph, const std::string& path) {
         (it->count == 1 && it->outdegree() == 0 && it->indegree() == 0)) {
       
       if (it != nullptr) {
-        std::cout << "Ignored Node name: " << it->sequence.name;
+        std::cout << "Ignored Node name: " << it->sequence.name << std::endl;
       }
       
       continue;
@@ -31,7 +31,7 @@ void PrintGfa(const Graph& graph, const std::string& path) {
     if (it == nullptr || it->is_rc()) {
 
       if (it != nullptr) {
-        std::cout << "Ignored Edge id: " << it->id;
+        std::cout << "Ignored Edge id: " << it->id << std::endl;
       }
 
       continue;
