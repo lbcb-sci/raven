@@ -170,9 +170,11 @@ Graph LoadGfa(const std::string& path) {
       tail = findNodeForSequenceName(tailSequenceName, graph.nodes);
       if (tail != nullptr) {
         if (isTailReverseComplement == "+") {
-          tail->id = currentNodeEvenId++;
+          tail->id = currentNodeEvenId;
+          currentNodeEvenId += 2;
         } else {
-          tail->id = currentNodeOddId++;
+          tail->id = currentNodeOddId;
+          currentNodeOddId += 2;
         }
         edgeLength = tail->sequence.inflated_len - tailInflatedLengthMinusEdgeLength;
       }
@@ -181,14 +183,17 @@ Graph LoadGfa(const std::string& path) {
       head = findNodeForSequenceName(headSequenceName, graph.nodes);
       if (tail != nullptr) {
         if (isHeadReverseComplement == "+") {
-          head->id = currentNodeEvenId++;
+          head->id = currentNodeEvenId;
+          currentNodeEvenId += 2;
         } else {
-          head->id = currentNodeOddId++;
+          head->id = currentNodeOddId;
+          currentNodeOddId += 2;
         }
       }
 
       std::unique_ptr<Edge> newEdge(new Edge(tail, head, edgeLength));
       newEdge->id = currentEdgeId; // (adolmac) have no idea if this is Ok or not since I do not have info about this in GFA
+      currentEdgeId += 2;
 
       graph.edges.push_back(std::move(newEdge));
 
