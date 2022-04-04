@@ -104,14 +104,20 @@ void splitString(const std::string &inputString, char delimiter, std::vector<std
     }
 }
 
+Node* findNodeForSequenceName(std::string   tailSequenceName, std::vector<std::unique_ptr<Node>> &nodes) {
+  for (auto &node : nodes) {
+    if (node == nullptr) continue;
+    if (node->sequence.name == tailSequenceName) return node.get();
+  }
+  return nullptr;
+}
+
 Graph LoadGfa(const std::string& path) {
   Graph graph = Graph();
   
   if (path.empty()) {
     return graph;
   }
-
-  std::map<std::string, std::unique_ptr<Node>> createdNodes;
 
   std::uint32_t currentNodeEvenId = 0;
   std::uint32_t currentNodeOddId  = 1;
@@ -144,7 +150,6 @@ Graph LoadGfa(const std::string& path) {
       newNode->sequence    = sequence;
       
       graph.nodes.push_back(std::move(newNode));
-      createdNodes.emplace(sequenceName, newNode);
 
     } else if (rowValues[0] == "L") { // this is an egde
 
@@ -156,9 +161,8 @@ Graph LoadGfa(const std::string& path) {
 
       Node* tail;
       std::uint32_t edgeLength = 0;
-      auto tailIterator = createdNodes.find(tailSequenceName);
-      if (tailIterator != createdNodes.end()) {
-        tail = tailIterator->second.get();
+      tail = findNodeForSequenceName(tailSequenceName, graph.nodes);
+      if (tail != nullptr) {
         if (isTailReverseComplement == "+") {
           tail->id = currentNodeEvenId++;
         } else {
@@ -167,10 +171,11 @@ Graph LoadGfa(const std::string& path) {
         edgeLength = tail->sequence.inflated_len - tailInflatedLengthMinusEdgeLength;
       }
 
+
+
       Node* head;
-      auto headIterator = createdNodes.find(headSequenceName);
-      if (headIterator != createdNodes.end()) {
-        head = headIterator->second.get();
+      head = findNodeForSequenceName(headSequenceName, graph.nodes);
+      if (tail != nullptr) {
         if (isHeadReverseComplement == "+") {
           head->id = currentNodeEvenId++;
         } else {
