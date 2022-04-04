@@ -159,45 +159,60 @@ Graph LoadGfa(const std::string& path) {
       std::string   isHeadReverseComplement           = rowValues[4];
       std::uint32_t tailInflatedLengthMinusEdgeLength = stol(rowValues[5].substr(0, rowValues[5].size() - 1));
 
-      Node* tail;
-      std::uint32_t edgeLength = 0;
-      tail = findNodeForSequenceName(tailSequenceName, graph.nodes);
-      if (tail != nullptr) {
-        if (isTailReverseComplement == "+") { // this is done since Node is_rc() method is based on node id
-          tail->id = currentNodeEvenId;
+      if (tailInflatedLengthMinusEdgeLength == 0 && tailSequenceName == headSequenceName) { // circular
+
+        Node* node;
+        node = findNodeForSequenceName(headSequenceName, graph.nodes);
+        if (node != nullptr) {
+          node->is_circular = true;
+          node->id = currentNodeEvenId; // this is done since Node is_rc() method is based on node id
           currentNodeEvenId += 2;
-        } else {
-          tail->id = currentNodeOddId;
-          currentNodeOddId += 2;
         }
-        edgeLength = tail->sequence.inflated_len - tailInflatedLengthMinusEdgeLength;
-      }
 
-      Node* head;
-      head = findNodeForSequenceName(headSequenceName, graph.nodes);
-      if (head != nullptr) {
-        if (isHeadReverseComplement == "+") { // this is done since Node is_rc() method is based on node id
-          head->id = currentNodeEvenId;
-          currentNodeEvenId += 2;
-        } else {
-          head->id = currentNodeOddId;
-          currentNodeOddId += 2;
+      } else {
+
+        Node* tail;
+        std::uint32_t edgeLength = 0;
+        tail = findNodeForSequenceName(tailSequenceName, graph.nodes);
+        if (tail != nullptr) {
+          if (isTailReverseComplement == "+") { // this is done since Node is_rc() method is based on node id
+            tail->id = currentNodeEvenId;
+            currentNodeEvenId += 2;
+          } else {
+            tail->id = currentNodeOddId;
+            currentNodeOddId += 2;
+          }
+          edgeLength = tail->sequence.inflated_len - tailInflatedLengthMinusEdgeLength;
         }
+
+        Node* head;
+        head = findNodeForSequenceName(headSequenceName, graph.nodes);
+        if (head != nullptr) {
+          if (isHeadReverseComplement == "+") { // this is done since Node is_rc() method is based on node id
+            head->id = currentNodeEvenId;
+            currentNodeEvenId += 2;
+          } else {
+            head->id = currentNodeOddId;
+            currentNodeOddId += 2;
+          }
+        }
+
+        std::unique_ptr<Edge> newEdge(new Edge(tail, head, edgeLength));
+        newEdge->id = currentEdgeId; // (adolmac) have no idea if this is Ok or not since I do not have info about egde Id in GFA
+        currentEdgeId += 2;          // (adolmac) since edge is_rc() method is based on edge id and PrintGfa only prints !is_rc() Edges all ids are set to even numbers
+
+        if (tail != nullptr) {
+          tail->outedges.push_back(newEdge.get());
+        }
+
+        if (head != nullptr) {
+          head->inedges.push_back(newEdge.get());
+        }
+
+        graph.edges.push_back(std::move(newEdge));
+
       }
 
-      std::unique_ptr<Edge> newEdge(new Edge(tail, head, edgeLength));
-      newEdge->id = currentEdgeId; // (adolmac) have no idea if this is Ok or not since I do not have info about egde Id in GFA
-      currentEdgeId += 2;          // (adolmac) since edge is_rc() method is based on edge id and PrintGfa only prints !is_rc() Edges all ids are set to even numbers
-
-      if (tail != nullptr) {
-        tail->outedges.push_back(newEdge.get());
-      }
-
-      if (head != nullptr) {
-        head->inedges.push_back(newEdge.get());
-      }
-
-      graph.edges.push_back(std::move(newEdge));
 
     } else {
       std::cout << "Unknown element: " << inputLine << std::endl;
