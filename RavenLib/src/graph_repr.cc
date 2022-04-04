@@ -143,7 +143,7 @@ Graph LoadGfa(const std::string& path) {
       newNode->is_polished = false;
       newNode->sequence    = sequence;
       
-      graph.nodes.push_back(newNode);
+      graph.nodes.push_back(std::move(newNode));
       createdNodes.emplace(sequenceName, newNode);
 
     } else if (rowValues[0] == "L") { // this is an egde
