@@ -130,11 +130,15 @@ Graph LoadGfa(const std::string& path) {
   // TODO (adolmac) - maybe it would be a good idea to read all nodes first, then read all edges, since I need all nodes in order to create edges
   while(getline(is, inputLine)) {
 
+    std::cout << "Input line: " << inputLine << std::endl;
+
     std::vector<std::string> rowValues;
     splitString(inputLine, '\t', rowValues);
 
     if (rowValues[0] == "S") { // this is a node
       
+      std::cout << "Creating new node" << std::endl;
+
       std::string   sequenceName                = rowValues[1];
       std::string   sequenceInflatedData        = rowValues[2];
       std::uint32_t sequenceInflatedDataLength  = stoi(rowValues[3].substr(5));
@@ -152,6 +156,8 @@ Graph LoadGfa(const std::string& path) {
       graph.nodes.push_back(std::move(newNode));
 
     } else if (rowValues[0] == "L") { // this is an egde
+
+      std::cout << "Creating new edge" << std::endl;
 
       std::string   tailSequenceName                  = rowValues[1];
       std::string   isTailReverseComplement           = rowValues[2];
@@ -171,8 +177,6 @@ Graph LoadGfa(const std::string& path) {
         edgeLength = tail->sequence.inflated_len - tailInflatedLengthMinusEdgeLength;
       }
 
-
-
       Node* head;
       head = findNodeForSequenceName(headSequenceName, graph.nodes);
       if (tail != nullptr) {
@@ -189,8 +193,9 @@ Graph LoadGfa(const std::string& path) {
       graph.edges.push_back(std::move(newEdge));
 
     } else {
-      // TODO(adolmac) print this out for debugging purposes
+      std::cout << "Unknown element: " << inputLine << std::endl;
     }
+  
   }
 
   graph.stage = -3;
