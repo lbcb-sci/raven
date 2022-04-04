@@ -1,3 +1,4 @@
+#include <map>
 #include "raven/graph/serialization/graph_repr.h"
 
 namespace raven {
@@ -92,6 +93,107 @@ void PrintJson(const raven::Graph& graph, const std::string& path) {
 
     archive(cereal::make_nvp(std::to_string(it->id()), *(it.get())));
   }
+}
+
+Graph LoadGfa(const std::string& path) {
+  if (path.empty()) {
+    return;
+  }
+
+  Graph graph = Graph();
+  std::map<std::string, std::unique_ptr<Node>> createdNodes;
+
+  std::uint32_t currentNodeEvenId = 0;
+  std::uint32_t currentNodeOddId  = 1;
+
+  std::uint32_t currentEdgeId     = 0;
+
+  std::ifstream is(path);
+  std::string inputLine;
+  
+  // TODO (adolmac) - maybe it would be a good idea to read all nodes first, then read all edges, since I need all nodes in order to create edges
+  while(getline(is, inputLine)) {
+
+    std::vector<std::string> rowValues;
+    splitString(inputLine, '\t', rowValues);
+
+    if (rowValues[0] == "S") { // this is a node
+      
+      std::string   sequenceName                = rowValues[1];
+      std::string   sequenceInflatedData        = rowValues[2];
+      std::uint32_t sequenceInflatedDataLength  = stoi(rowValues[3].substr(5));
+      std::uint32_t count                       = stoi(rowValues[4].substr(5));
+
+      biosoup::NucleicAcid sequence = biosoup::NucleicAcid(sequenceName, sequenceInflatedData);
+      Node newNode = Node();
+      
+      newNode.count       = count;
+      newNode.is_unitig   = false;
+      newNode.is_circular = false;
+      newNode.is_polished = false;
+      newNode.sequence    = sequence;
+      
+      std::unique_ptr<Node> nodePointer {&newNode};
+      graph.nodes.push_back(nodePointer);
+      createdNodes.emplace(sequenceName, nodePointer);
+
+    } else if (rowValues[0] == "L") { // this is an egde
+
+      std::string   tailSequenceName                  = rowValues[1];
+      std::string   isTailReverseComplement           = rowValues[2];
+      std::string   headSequenceName                  = rowValues[3];
+      std::string   isHeadReverseComplement           = rowValues[4];
+      std::uint32_t tailInflatedLengthMinusEdgeLength = stoi(rowValues[5].substr(0, rowValues[5].size() - 2));
+
+      Node* tail;
+      std::uint32_t edgeLength = 0;
+      auto tailIterator = createdNodes.find(tailSequenceName);
+      if (tailIterator != createdNodes.end()) {
+        tail = tailIterator->second.get();
+        if (isTailReverseComplement == "+") {
+          tail->id = currentNodeEvenId++;
+        } else {
+          tail->id = currentNodeOddId++;
+        }
+        edgeLength = tail->sequence.inflated_len - tailInflatedLengthMinusEdgeLength;
+      }
+
+      Node* head;
+      auto headIterator = createdNodes.find(headSequenceName);
+      if (headIterator != createdNodes.end()) {
+        head = headIterator->second.get();
+        if (isHeadReverseComplement == "+") {
+          head->id = currentNodeEvenId++;
+        } else {
+          head->id = currentNodeOddId++;
+        }
+      }
+
+      Edge newEdge = Edge(tail, head, edgeLength);
+      newEdge.id = currentEdgeId; // (adolmac) have no idea if this is Ok or not since I do not have info about this in GFA
+
+      std::unique_ptr<Edge> edgePointer {&newEdge};
+      graph.edges.push_back(edgePointer);
+
+    } else {
+      // TODO(adolmac) print this out for debugging purposes
+    }
+  }
+
+  graph.stage = -3;
+
+  is.close();
+
+  return graph;
+}
+
+void splitString(const std::string &inputString, char delimiter, std::vector<std::string> &elems) {
+    std::stringstream stringStream;
+    stringStream.str(inputString);
+    std::string item;
+    while (std::getline(stringStream, item, delimiter)) {
+        elems.push_back(item);
+    }
 }
 
 }  // namespace raven
