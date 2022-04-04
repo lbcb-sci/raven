@@ -200,6 +200,8 @@ int main(int argc, char** argv) {
 
   raven::Graph graph;
 
+  /*************************************************************************
+
   if (resume) {
     try {
       graph = raven::LoadGraphFromFile();
@@ -287,8 +289,7 @@ int main(int argc, char** argv) {
   std::cerr << "[raven::] " << std::fixed << timer.elapsed_time() << "s"
             << std::endl;
 
-  
-  /*************************************************************************
+  *************************************************************************/
   
   raven::PrintGfa(graph, "graph_before_loading.gfa");
 
@@ -296,7 +297,7 @@ int main(int argc, char** argv) {
 
   raven::PrintGfa(graph, "graph_new.gfa");
 
-  *************************************************************************/
+
 
   return EXIT_SUCCESS;
 
