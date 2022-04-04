@@ -163,7 +163,7 @@ Graph LoadGfa(const std::string& path) {
       std::string   isTailReverseComplement           = rowValues[2];
       std::string   headSequenceName                  = rowValues[3];
       std::string   isHeadReverseComplement           = rowValues[4];
-      std::uint32_t tailInflatedLengthMinusEdgeLength = stoi(rowValues[5].substr(0, rowValues[5].size() - 2));
+      std::uint32_t tailInflatedLengthMinusEdgeLength = stoi(rowValues[5].substr(0, rowValues[5].size() - 1));
 
       Node* tail;
       std::uint32_t edgeLength = 0;
