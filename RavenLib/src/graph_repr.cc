@@ -135,17 +135,16 @@ Graph LoadGfa(const std::string& path) {
       std::uint32_t count                       = stoi(rowValues[4].substr(5));
 
       biosoup::NucleicAcid sequence = biosoup::NucleicAcid(sequenceName, sequenceInflatedData);
-      Node newNode = Node();
+      std::unique_ptr<Node> newNode(new Node());
       
-      newNode.count       = count;
-      newNode.is_unitig   = false;
-      newNode.is_circular = false;
-      newNode.is_polished = false;
-      newNode.sequence    = sequence;
+      newNode->count       = count;
+      newNode->is_unitig   = false;
+      newNode->is_circular = false;
+      newNode->is_polished = false;
+      newNode->sequence    = sequence;
       
-      std::unique_ptr<Node> nodePointer {&newNode};
-      graph.nodes.push_back(nodePointer);
-      createdNodes.emplace(sequenceName, nodePointer);
+      graph.nodes.push_back(newNode);
+      createdNodes.emplace(sequenceName, newNode);
 
     } else if (rowValues[0] == "L") { // this is an egde
 
