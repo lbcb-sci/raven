@@ -95,12 +95,22 @@ void PrintJson(const raven::Graph& graph, const std::string& path) {
   }
 }
 
+void splitString(const std::string &inputString, char delimiter, std::vector<std::string> &elems) {
+    std::stringstream stringStream;
+    stringStream.str(inputString);
+    std::string item;
+    while (std::getline(stringStream, item, delimiter)) {
+        elems.push_back(item);
+    }
+}
+
 Graph LoadGfa(const std::string& path) {
+  Graph graph = Graph();
+  
   if (path.empty()) {
-    return;
+    return graph;
   }
 
-  Graph graph = Graph();
   std::map<std::string, std::unique_ptr<Node>> createdNodes;
 
   std::uint32_t currentNodeEvenId = 0;
@@ -185,15 +195,6 @@ Graph LoadGfa(const std::string& path) {
   is.close();
 
   return graph;
-}
-
-void splitString(const std::string &inputString, char delimiter, std::vector<std::string> &elems) {
-    std::stringstream stringStream;
-    stringStream.str(inputString);
-    std::string item;
-    while (std::getline(stringStream, item, delimiter)) {
-        elems.push_back(item);
-    }
 }
 
 }  // namespace raven
