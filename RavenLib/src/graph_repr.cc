@@ -130,15 +130,11 @@ Graph LoadGfa(const std::string& path) {
   // TODO (adolmac) - maybe it would be a good idea to read all nodes first, then read all edges, since I need all nodes in order to create edges
   while(getline(is, inputLine)) {
 
-    std::cout << "Input line: " << inputLine << std::endl;
-
     std::vector<std::string> rowValues;
     splitString(inputLine, '\t', rowValues);
 
     if (rowValues[0] == "S") { // this is a node
       
-      std::cout << "Creating new node" << std::endl;
-
       std::string   sequenceName                = rowValues[1];
       std::string   sequenceInflatedData        = rowValues[2];
       std::uint32_t sequenceInflatedDataLength  = stol(rowValues[3].substr(5));
@@ -157,8 +153,6 @@ Graph LoadGfa(const std::string& path) {
 
     } else if (rowValues[0] == "L") { // this is an egde
 
-      std::cout << "Creating new edge" << std::endl;
-
       std::string   tailSequenceName                  = rowValues[1];
       std::string   isTailReverseComplement           = rowValues[2];
       std::string   headSequenceName                  = rowValues[3];
@@ -169,7 +163,7 @@ Graph LoadGfa(const std::string& path) {
       std::uint32_t edgeLength = 0;
       tail = findNodeForSequenceName(tailSequenceName, graph.nodes);
       if (tail != nullptr) {
-        if (isTailReverseComplement == "+") {
+        if (isTailReverseComplement == "+") { // this is done since Node is_rc() method is based on node id
           tail->id = currentNodeEvenId;
           currentNodeEvenId += 2;
         } else {
@@ -181,8 +175,8 @@ Graph LoadGfa(const std::string& path) {
 
       Node* head;
       head = findNodeForSequenceName(headSequenceName, graph.nodes);
-      if (tail != nullptr) {
-        if (isHeadReverseComplement == "+") {
+      if (head != nullptr) {
+        if (isHeadReverseComplement == "+") { // this is done since Node is_rc() method is based on node id
           head->id = currentNodeEvenId;
           currentNodeEvenId += 2;
         } else {
@@ -192,8 +186,16 @@ Graph LoadGfa(const std::string& path) {
       }
 
       std::unique_ptr<Edge> newEdge(new Edge(tail, head, edgeLength));
-      newEdge->id = currentEdgeId; // (adolmac) have no idea if this is Ok or not since I do not have info about this in GFA
-      currentEdgeId += 2;
+      newEdge->id = currentEdgeId; // (adolmac) have no idea if this is Ok or not since I do not have info about egde Id in GFA
+      currentEdgeId += 2;          // (adolmac) since edge is_rc() method is based on edge id and PrintGfa only prints !is_rc() Edges all ids are set to even numbers
+
+      if (tail != nullptr) {
+        tail->outedges.push_back(newEdge.get());
+      }
+
+      if (head != nullptr) {
+        head->inedges.push_back(newEdge.get());
+      }
 
       graph.edges.push_back(std::move(newEdge));
 
