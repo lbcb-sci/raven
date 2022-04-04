@@ -12,6 +12,7 @@ namespace raven {
 RAVEN_EXPORT void PrintGfa(const Graph& graph, const std::string& path);
 RAVEN_EXPORT void PrintCsv(const Graph& graph, const std::string& path);
 RAVEN_EXPORT void PrintJson(const Graph& graph, const std::string& path);
+RAVEN_EXPORT Graph LoadGfa(const std::string& path);
 
 }  // namespace raven
 
