@@ -12,6 +12,11 @@ void PrintGfa(const Graph& graph, const std::string& path) {
   for (const auto& it : graph.nodes) {
     if ((it == nullptr) || it->is_rc() ||
         (it->count == 1 && it->outdegree() == 0 && it->indegree() == 0)) {
+      
+      if (it != nullptr) {
+        std::cout << "Ignored Node name: " << it->sequence.name;
+      }
+      
       continue;
     }
     os << "S\t" << it->sequence.name << "\t" << it->sequence.InflateData()
@@ -24,6 +29,11 @@ void PrintGfa(const Graph& graph, const std::string& path) {
   }
   for (const auto& it : graph.edges) {
     if (it == nullptr || it->is_rc()) {
+
+      if (it != nullptr) {
+        std::cout << "Ignored Edge id: " << it->id;
+      }
+
       continue;
     }
     os << "L\t" << it->tail->sequence.name << "\t"
