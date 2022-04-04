@@ -23,6 +23,12 @@ void PrintGfa(const Graph& graph, const std::string& path) {
       
       continue;
     }
+
+    if (it->sequence.name == "36656") {
+      std::cout << "FOUND Node: " << it->sequence.name << std::endl;
+      std::cout << "\t is_rc      : " << it->is_rc() << std::endl;
+    }
+
     os << "S\t" << it->sequence.name << "\t" << it->sequence.InflateData()
        << "\tLN:i:" << it->sequence.inflated_len << "\tRC:i:" << it->count
        << std::endl;
