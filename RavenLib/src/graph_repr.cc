@@ -178,11 +178,10 @@ Graph LoadGfa(const std::string& path) {
         }
       }
 
-      Edge newEdge = Edge(tail, head, edgeLength);
-      newEdge.id = currentEdgeId; // (adolmac) have no idea if this is Ok or not since I do not have info about this in GFA
+      std::unique_ptr<Edge> newEdge(new Edge(tail, head, edgeLength));
+      newEdge->id = currentEdgeId; // (adolmac) have no idea if this is Ok or not since I do not have info about this in GFA
 
-      std::unique_ptr<Edge> edgePointer {&newEdge};
-      graph.edges.push_back(edgePointer);
+      graph.edges.push_back(std::move(newEdge));
 
     } else {
       // TODO(adolmac) print this out for debugging purposes
