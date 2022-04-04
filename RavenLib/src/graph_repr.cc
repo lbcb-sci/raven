@@ -141,8 +141,8 @@ Graph LoadGfa(const std::string& path) {
 
       std::string   sequenceName                = rowValues[1];
       std::string   sequenceInflatedData        = rowValues[2];
-      std::uint32_t sequenceInflatedDataLength  = stoi(rowValues[3].substr(5));
-      std::uint32_t count                       = stoi(rowValues[4].substr(5));
+      std::uint32_t sequenceInflatedDataLength  = stol(rowValues[3].substr(5));
+      std::uint32_t count                       = stol(rowValues[4].substr(5));
 
       biosoup::NucleicAcid sequence = biosoup::NucleicAcid(sequenceName, sequenceInflatedData);
       std::unique_ptr<Node> newNode(new Node());
@@ -163,7 +163,7 @@ Graph LoadGfa(const std::string& path) {
       std::string   isTailReverseComplement           = rowValues[2];
       std::string   headSequenceName                  = rowValues[3];
       std::string   isHeadReverseComplement           = rowValues[4];
-      std::uint32_t tailInflatedLengthMinusEdgeLength = stoi(rowValues[5].substr(0, rowValues[5].size() - 1));
+      std::uint32_t tailInflatedLengthMinusEdgeLength = stol(rowValues[5].substr(0, rowValues[5].size() - 1));
 
       Node* tail;
       std::uint32_t edgeLength = 0;
