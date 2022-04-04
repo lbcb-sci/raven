@@ -291,8 +291,6 @@ int main(int argc, char** argv) {
 
   *************************************************************************/
   
-  raven::PrintGfa(graph, "graph_before_loading.gfa");
-
   graph = raven::LoadGfa("graph_orig.gfa");
 
   raven::PrintGfa(graph, "graph_new.gfa");
