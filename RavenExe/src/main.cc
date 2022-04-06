@@ -288,5 +288,4 @@ int main(int argc, char** argv) {
             << std::endl;
 
   return EXIT_SUCCESS;
-
 }
