@@ -11,24 +11,9 @@ void PrintGfa(const Graph& graph, const std::string& path) {
   std::ofstream os(path);
   for (const auto& it : graph.nodes) {
     if ((it == nullptr) || it->is_rc() ||
-        (it->count == 1 && it->outdegree() == 0 && it->indegree() == 0)) {
-      
-      if (it != nullptr) {
-        std::cout << "Ignored Node name: " << it->sequence.name << std::endl;
-        std::cout << "\t id         : " << it->id << std::endl;
-        std::cout << "\t is_rc      : " << it->is_rc() << std::endl;
-        std::cout << "\t outdegree  : " << it->outdegree() << std::endl;
-        std::cout << "\t indegree   : " << it->indegree() << std::endl;
-      }
-      
+        (it->count == 1 && it->outdegree() == 0 && it->indegree() == 0)) {      
       continue;
     }
-
-    if (it->sequence.name == "36656") {
-      std::cout << "FOUND Node: " << it->sequence.name << std::endl;
-      std::cout << "\t is_rc      : " << it->is_rc() << std::endl;
-    }
-
     os << "S\t" << it->sequence.name << "\t" << it->sequence.InflateData()
        << "\tLN:i:" << it->sequence.inflated_len << "\tRC:i:" << it->count
        << std::endl;
@@ -134,10 +119,8 @@ Graph LoadGfa(const std::string& path) {
     return graph;
   }
 
-  std::uint32_t currentNodeEvenId = 0;
-  std::uint32_t currentNodeOddId  = 1;
-
-  std::uint32_t currentEdgeId     = 0;
+  std::uint32_t currentNodeId = 0;
+  std::uint32_t currentEdgeId = 0;
 
   std::ifstream is(path);
   std::string inputLine;
@@ -158,6 +141,9 @@ Graph LoadGfa(const std::string& path) {
       biosoup::NucleicAcid sequence = biosoup::NucleicAcid(sequenceName, sequenceInflatedData);
       std::unique_ptr<Node> newNode(new Node());
       
+      newNode->id          = currentNodeId;
+      currentNodeId += 2; // since node is_rc() method is based on node id and PrintGfa only prints !is_rc() Nodes all ids are set to even numbers
+
       newNode->count       = count;
       newNode->is_unitig   = false;
       newNode->is_circular = false;
@@ -180,8 +166,6 @@ Graph LoadGfa(const std::string& path) {
         node = findNodeForSequenceName(headSequenceName, graph.nodes);
         if (node != nullptr) {
           node->is_circular = true;
-          node->id = currentNodeEvenId; // this is done since Node is_rc() method is based on node id
-          currentNodeEvenId += 2;
         }
 
       } else {
@@ -190,31 +174,15 @@ Graph LoadGfa(const std::string& path) {
         std::uint32_t edgeLength = 0;
         tail = findNodeForSequenceName(tailSequenceName, graph.nodes);
         if (tail != nullptr) {
-          if (isTailReverseComplement == "+") { // this is done since Node is_rc() method is based on node id
-            tail->id = currentNodeEvenId;
-            currentNodeEvenId += 2;
-          } else {
-            tail->id = currentNodeOddId;
-            currentNodeOddId += 2;
-          }
           edgeLength = tail->sequence.inflated_len - tailInflatedLengthMinusEdgeLength;
         }
 
         Node* head;
         head = findNodeForSequenceName(headSequenceName, graph.nodes);
-        if (head != nullptr) {
-          if (isHeadReverseComplement == "+") { // this is done since Node is_rc() method is based on node id
-            head->id = currentNodeEvenId;
-            currentNodeEvenId += 2;
-          } else {
-            head->id = currentNodeOddId;
-            currentNodeOddId += 2;
-          }
-        }
 
         std::unique_ptr<Edge> newEdge(new Edge(tail, head, edgeLength));
         newEdge->id = currentEdgeId; // (adolmac) have no idea if this is Ok or not since I do not have info about egde Id in GFA
-        currentEdgeId += 2;          // (adolmac) since edge is_rc() method is based on edge id and PrintGfa only prints !is_rc() Edges all ids are set to even numbers
+        currentEdgeId += 2;          // since edge is_rc() method is based on edge id and PrintGfa only prints !is_rc() Edges all ids are set to even numbers
 
         if (tail != nullptr) {
           tail->outedges.push_back(newEdge.get());
