@@ -133,7 +133,6 @@ Graph LoadGfa(const std::string& path) {
       
       std::string   sequenceName                = rowValues[1];
       std::string   sequenceInflatedData        = rowValues[2];
-      std::uint32_t sequenceInflatedDataLength  = stol(rowValues[3].substr(5));
       std::uint32_t count                       = stol(rowValues[4].substr(5));
 
       biosoup::NucleicAcid sequence = biosoup::NucleicAcid(sequenceName, sequenceInflatedData);
