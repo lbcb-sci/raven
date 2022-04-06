@@ -1,4 +1,3 @@
-#include <map>
 #include "raven/graph/serialization/graph_repr.h"
 
 namespace raven {
@@ -125,7 +124,6 @@ Graph LoadGfa(const std::string& path) {
   std::ifstream is(path);
   std::string inputLine;
   
-  // TODO (adolmac) - maybe it would be a good idea to read all nodes first, then read all edges, since I need all nodes in order to create edges
   while(getline(is, inputLine)) {
 
     std::vector<std::string> rowValues;
