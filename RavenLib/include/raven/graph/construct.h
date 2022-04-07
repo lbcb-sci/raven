@@ -14,6 +14,7 @@ struct OverlapPhaseCfg {
   std::uint8_t kmer_len = 15;
   std::uint8_t window_len = 5;
   double freq = 0.001;
+  double identity = 0.999;
 };
 
 RAVEN_EXPORT void FindOverlapsAndCreatePiles(

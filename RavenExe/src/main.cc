@@ -17,6 +17,7 @@ static struct option options[] = {
     {"kmer-len", required_argument, nullptr, 'k'},
     {"window-len", required_argument, nullptr, 'w'},
     {"frequency", required_argument, nullptr, 'f'},
+    {"identity", required_argument, nullptr, 'i'},
     {"polishing-rounds", required_argument, nullptr, 'p'},
     {"match", required_argument, nullptr, 'm'},
     {"mismatch", required_argument, nullptr, 'n'},
@@ -52,6 +53,9 @@ void Help() {
          "    -f, --frequency <double>\n"
          "      default: 0.001\n"
          "      threshold for ignoring most frequent minimizers\n"
+         "    -i, --identity <double>\n"
+         "      default: 0\n"
+         "      threshold for overlap between two reads in order to construct an edge between them\n"
          "    -p, --polishing-rounds <int>\n"
          "      default: 2\n"
          "      number of times racon is invoked\n"
@@ -96,6 +100,7 @@ int main(int argc, char** argv) {
   std::uint8_t kmer_len = 15;
   std::uint8_t window_len = 5;
   double freq = 0.001;
+  double identity = 0;
 
   std::uint32_t num_polishing_rounds = 2;
   std::int8_t m = 3;
@@ -128,6 +133,9 @@ int main(int argc, char** argv) {
         break;
       case 'f':
         freq = std::atof(optarg);
+        break;
+      case 'i':
+        identity = std::atof(optarg);
         break;
       case 'p':
         num_polishing_rounds = std::atoi(optarg);
@@ -260,7 +268,7 @@ int main(int argc, char** argv) {
   raven::ConstructGraph(
       graph, sequences, thread_pool, checkpoints,
       raven::OverlapPhaseCfg{
-          .kmer_len = kmer_len, .window_len = window_len, .freq = freq});
+          .kmer_len = kmer_len, .window_len = window_len, .freq = freq, .identity = identity});
 
   raven::Assemble(thread_pool, graph, checkpoints);
 
