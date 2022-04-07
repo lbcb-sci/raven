@@ -10,7 +10,7 @@ void PrintGfa(const Graph& graph, const std::string& path) {
   std::ofstream os(path);
   for (const auto& it : graph.nodes) {
     if ((it == nullptr) || it->is_rc() ||
-        (it->count == 1 && it->outdegree() == 0 && it->indegree() == 0)) {
+        (it->count == 1 && it->outdegree() == 0 && it->indegree() == 0)) {      
       continue;
     }
     os << "S\t" << it->sequence.name << "\t" << it->sequence.InflateData()
@@ -122,6 +122,119 @@ void PrintJson(const raven::Graph& graph, const std::string& path) {
 
     archive(cereal::make_nvp(std::to_string(it->id()), *(it.get())));
   }
+}
+
+void splitString(const std::string &inputString, char delimiter, std::vector<std::string> &elems) {
+    std::stringstream stringStream;
+    stringStream.str(inputString);
+    std::string item;
+    while (std::getline(stringStream, item, delimiter)) {
+        elems.push_back(item);
+    }
+}
+
+Node* findNodeForSequenceName(std::string   tailSequenceName, std::vector<std::unique_ptr<Node>> &nodes) {
+  for (auto &node : nodes) {
+    if (node == nullptr) continue;
+    if (node->sequence.name == tailSequenceName) return node.get();
+  }
+  return nullptr;
+}
+
+Graph LoadGfa(const std::string& path) {
+  Graph graph = Graph();
+  
+  if (path.empty()) {
+    return graph;
+  }
+
+  std::uint32_t currentNodeId = 0;
+  std::uint32_t currentEdgeId = 0;
+
+  std::ifstream is(path);
+  std::string inputLine;
+  
+  while(getline(is, inputLine)) {
+
+    std::vector<std::string> rowValues;
+    splitString(inputLine, '\t', rowValues);
+
+    if (rowValues[0] == "S") { // this is a node
+      
+      std::string   sequenceName                = rowValues[1];
+      std::string   sequenceInflatedData        = rowValues[2];
+      std::uint32_t count                       = stol(rowValues[4].substr(5));
+
+      biosoup::NucleicAcid sequence = biosoup::NucleicAcid(sequenceName, sequenceInflatedData);
+      std::unique_ptr<Node> newNode(new Node());
+      
+      newNode->id          = currentNodeId;
+      currentNodeId += 2; // since node is_rc() method is based on node id and PrintGfa only prints !is_rc() Nodes all ids are set to even numbers
+
+      newNode->count       = count;
+      newNode->is_unitig   = false;
+      newNode->is_circular = false;
+      newNode->is_polished = false;
+      newNode->sequence    = sequence;
+      
+      graph.nodes.push_back(std::move(newNode));
+
+    } else if (rowValues[0] == "L") { // this is an egde
+
+      std::string   tailSequenceName                  = rowValues[1];
+      std::string   isTailReverseComplement           = rowValues[2];
+      std::string   headSequenceName                  = rowValues[3];
+      std::string   isHeadReverseComplement           = rowValues[4];
+      std::uint32_t tailInflatedLengthMinusEdgeLength = stol(rowValues[5].substr(0, rowValues[5].size() - 1));
+
+      if (tailInflatedLengthMinusEdgeLength == 0 && tailSequenceName == headSequenceName) { // circular
+
+        Node* node;
+        node = findNodeForSequenceName(headSequenceName, graph.nodes);
+        if (node != nullptr) {
+          node->is_circular = true;
+        }
+
+      } else {
+
+        Node* tail;
+        std::uint32_t edgeLength = 0;
+        tail = findNodeForSequenceName(tailSequenceName, graph.nodes);
+        if (tail != nullptr) {
+          edgeLength = tail->sequence.inflated_len - tailInflatedLengthMinusEdgeLength;
+        }
+
+        Node* head;
+        head = findNodeForSequenceName(headSequenceName, graph.nodes);
+
+        std::unique_ptr<Edge> newEdge(new Edge(tail, head, edgeLength));
+        newEdge->id = currentEdgeId; // (adolmac) have no idea if this is Ok or not since I do not have info about egde Id in GFA
+        currentEdgeId += 2;          // since edge is_rc() method is based on edge id and PrintGfa only prints !is_rc() Edges all ids are set to even numbers
+
+        if (tail != nullptr) {
+          tail->outedges.push_back(newEdge.get());
+        }
+
+        if (head != nullptr) {
+          head->inedges.push_back(newEdge.get());
+        }
+
+        graph.edges.push_back(std::move(newEdge));
+
+      }
+
+
+    } else {
+      std::cout << "Unknown element: " << inputLine << std::endl;
+    }
+  
+  }
+
+  graph.stage = -3;
+
+  is.close();
+
+  return graph;
 }
 
 }  // namespace raven

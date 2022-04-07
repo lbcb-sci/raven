@@ -4,13 +4,15 @@
 #include <fstream>
 
 #include "cereal/archives/json.hpp"
+#include "raven/export.h"
 #include "raven/graph/graph.h"
 
 namespace raven {
 
-void PrintGfa(const Graph& graph, const std::string& path);
-void PrintCsv(const Graph& graph, const std::string& path, bool printEdgeSimilarity = false);
-void PrintJson(const Graph& graph, const std::string& path);
+RAVEN_EXPORT void PrintGfa(const Graph& graph, const std::string& path);
+RAVEN_EXPORT void PrintCsv(const Graph& graph, const std::string& path);
+RAVEN_EXPORT void PrintJson(const Graph& graph, const std::string& path);
+RAVEN_EXPORT Graph LoadGfa(const std::string& path);
 
 }  // namespace raven
 

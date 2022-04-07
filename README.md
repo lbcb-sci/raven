@@ -11,7 +11,7 @@ To build raven executable run the following commands:
 
 ```bash
 git clone https://github.com/lbcb-sci/raven && cd raven
-cmake -H./ -B./build -DRAVEN_BUILD_EXE -DCMAKE_BUILD_TYPE=Release
+cmake -S ./ -B./build -DRAVEN_BUILD_EXE=1 -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
 
@@ -19,14 +19,14 @@ For faster build times optionally use [ninja](https://ninja-build.org/) and enab
 Eg.
 ```bash
 git clone https://github.com/lbcb-sci/raven && cd raven
-cmake -H./ -B./build -DRAVEN_BUILD_EXE -DCMAKE_BUILD_TYPE=Release -G Ninja
+cmake -S ./ -B ./build -DRAVEN_BUILD_EXE=1 -DCMAKE_BUILD_TYPE=Release -G Ninja
 cmake --build build -j 4
 ```
 
 To install the raven executable after build run:
 
 ```bash
-cmake --target install
+cmake --install ./build
 ```
 
 To install python bindings run the following:
@@ -102,7 +102,7 @@ include(FetchContent)
 FetchContent_Declare(
         raven
         GIT_REPOSITORY https://github.com/lbcb-sci/raven
-        GIT_TAG v1.8.0)
+        GIT_TAG v1.8.1)
 
 FetchContent_GetProperties(raven)
 if (NOT raven_POPULATED)
@@ -113,12 +113,14 @@ if (NOT raven_POPULATED)
             EXCLUDE_FROM_ALL)
 endif ()
 
-target_link_libraries(<YourTarget> <PRIVATE|PUBLIC|INTERFACE> RavenLib)
+target_link_libraries(<YourTarget> <PRIVATE|PUBLIC|INTERFACE> raven)
 ```
 
 #### Build options
 - `RAVEN_BUILD_TESTS`: build unit tests
 - `RAVEN_BUILD_PYTHON`: builds python module
+- `RAVEN_BUILD_SHARED_LIBS: build raven lib and it's dependencies as shared libraries`
+- `RAVEN_BUILD_EXE`: build raven executable
 - `racon_enable_cuda`: build with NVIDIA CUDA support
 
 #### Dependencies

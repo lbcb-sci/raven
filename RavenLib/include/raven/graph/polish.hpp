@@ -2,6 +2,7 @@
 #define RAVEN_GRAPH_POLISH_H_
 
 #include "raven/graph/graph.h"
+#include "raven/export.h"
 #include "thread_pool/thread_pool.hpp"
 
 namespace raven {
@@ -27,7 +28,7 @@ struct PolishCfg {
   std::uint32_t num_rounds = 2U;
 };
 
-void Polish(std::shared_ptr<thread_pool::ThreadPool> thread_pool, Graph& graph,
+RAVEN_EXPORT void Polish(std::shared_ptr<thread_pool::ThreadPool> thread_pool, Graph& graph,
             bool checkpoints,
             const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
             const PolishCfg cfg);
