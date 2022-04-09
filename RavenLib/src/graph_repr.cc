@@ -1,4 +1,6 @@
 #include "raven/graph/serialization/graph_repr.h"
+#include <string>
+#include <vector>
 #include "edlib.h"
 namespace raven {
 
@@ -13,29 +15,124 @@ void PrintGfa(const Graph& graph, const std::string& path) {
         (it->count == 1 && it->outdegree() == 0 && it->indegree() == 0)) {      
       continue;
     }
-    os << "S\t" << it->sequence.name << "\t" << it->sequence.InflateData()
-       << "\tLN:i:" << it->sequence.inflated_len << "\tRC:i:" << it->count
-       << std::endl;
+
+    os << "S"; 
+    os << "\t"; 
+    os << it->sequence.name;
+    os << "\t";
+    os << it->sequence.InflateData();
+    os << "\t"; 
+    os << "LN:i:" << it->sequence.inflated_len;
+    os << "\t";
+    os << "RC:i:" << it->count;
+    os << std::endl;
+    
     if (it->is_circular) {
-      os << "L\t" << it->sequence.name << "\t" << '+' << "\t"
-         << it->sequence.name << "\t" << '+' << "\t0M" << std::endl;
+      os << "L";
+      os << "\t";
+      os << it->sequence.name;
+      os << "\t";
+      os << '+';
+      os << "\t";
+      os << it->sequence.name;
+      os << "\t";
+      os << '+';
+      os << "\t";
+      os << "0M"; 
+      os << std::endl;
     }
   }
+
   for (const auto& it : graph.edges) {
     if (it == nullptr || it->is_rc()) {
       continue;
     }
-    os << "L\t" << it->tail->sequence.name << "\t"
-       << (it->tail->is_rc() ? '-' : '+')  // NOLINT
-       << "\t" << it->head->sequence.name << "\t"
-       << (it->head->is_rc() ? '-' : '+')  // NOLINT
-       << "\t" << it->tail->sequence.inflated_len - it->length << 'M'
-       << std::endl;
+    
+    os << "L";
+    os << "\t";
+    os << it->tail->sequence.name;
+    os << "\t";
+    os << (it->tail->is_rc() ? '-' : '+');  // NOLINT
+    os << "\t";
+    os << it->head->sequence.name;
+    os << "\t";
+    os << (it->head->is_rc() ? '-' : '+');  // NOLINT
+    os << "\t";
+    os << it->tail->sequence.inflated_len - it->length << 'M';
+    os << std::endl;
   }
+
   os.close();
 }
 
-void PrintCsv(const Graph& graph, const std::string& path, bool printEdgeSimilarity) {
+std::vector<std::string> getGfa(const Graph& graph) {
+  std::vector<std::string> resultVector;
+  std::string line;
+
+  for (const auto& it : graph.nodes) {
+    if ((it == nullptr) || it->is_rc() ||
+        (it->count == 1 && it->outdegree() == 0 && it->indegree() == 0)) {      
+      continue;
+    }
+
+    line.clear();
+
+    line += "S"; 
+    line += "\t"; 
+    line += it->sequence.name;
+    line += "\t";
+    line += it->sequence.InflateData();
+    line += "\t"; 
+    line += "LN:i:" + std::to_string(it->sequence.inflated_len);
+    line += "\t";
+    line += "RC:i:" + std::to_string(it->count);
+    
+    resultVector.push_back(line);
+
+    if (it->is_circular) {
+      line.clear();
+
+      line += "L";
+      line += "\t";
+      line += it->sequence.name;
+      line += "\t";
+      line += '+';
+      line += "\t";
+      line += it->sequence.name;
+      line += "\t";
+      line += '+';
+      line += "\t";
+      line += "0M"; 
+      
+      resultVector.push_back(line);
+    }
+  }
+
+  for (const auto& it : graph.edges) {
+    if (it == nullptr || it->is_rc()) {
+      continue;
+    }
+    line.clear();
+
+    line += "L";
+    line += "\t";
+    line += it->tail->sequence.name;
+    line += "\t";
+    line += (it->tail->is_rc() ? '-' : '+');  // NOLINT
+    line += "\t";
+    line += it->head->sequence.name;
+    line += "\t";
+    line += (it->head->is_rc() ? '-' : '+');  // NOLINT
+    line += "\t";
+    line += std::to_string(it->tail->sequence.inflated_len - it->length) + 'M';
+
+    resultVector.push_back(line);
+  }
+
+  return resultVector;
+}
+
+void PrintCsv(const Graph& graph, const std::string& path, bool printSequenceName, bool printPileBeginEnd, bool printEdgeSimilarity) {
   if (path.empty()) {
     return;
   }
@@ -47,64 +144,217 @@ void PrintCsv(const Graph& graph, const std::string& path, bool printEdgeSimilar
         (it->count == 1 && it->outdegree() == 0 && it->indegree() == 0)) {
       continue;
     }
-    os << it->id << " [" << it->id / 2 << "]"
-       << " LN:i:" << it->sequence.inflated_len << " RC:i:" << it->count << ","
-       << it->pair->id << " [" << it->pair->id / 2 << "]"
-       << " LN:i:" << it->pair->sequence.inflated_len
-       << " RC:i:" << it->pair->count << ",0,-" << std::endl;
+
+    bool addDashAtTheEnd = true;
+
+    os << it->id;
+    os << " [" << it->id / 2 << "]";
+    os << " LN:i:" << it->sequence.inflated_len;
+    os << " RC:i:" << it->count;
+    os << ",";
+    os << it->pair->id;
+    os << " [" << it->pair->id / 2 << "]";
+    os << " LN:i:" << it->pair->sequence.inflated_len;
+    os << " RC:i:" << it->pair->count;
+    os << ",";
+    os << "0";
+    os << ",";
+
+    if (printSequenceName) {
+      addDashAtTheEnd = false;
+
+      os << it->sequence.name;
+    }
+
+    if (printPileBeginEnd && it->sequence.id < graph.piles.size()) {
+      addDashAtTheEnd = false;
+
+      os << graph.piles[it->sequence.id]->begin();
+      os << " ";
+      os << graph.piles[it->sequence.id]->end();
+    } 
+
+    if (addDashAtTheEnd) {
+      os << "-";
+    }
+
+    os << std::endl;
   }
 
-  if (printEdgeSimilarity) {
-    for (const auto& it : graph.edges) {
-      if (it == nullptr) {
-        continue;
-      }
-
-      os << it->tail->id << " [" << it->tail->id / 2 << "]"
-        << " LN:i:" << it->tail->sequence.inflated_len
-        << " RC:i:" << it->tail->count << "," << it->head->id << " ["
-        << it->head->id / 2 << "]"
-        << " LN:i:" << it->head->sequence.inflated_len
-        << " RC:i:" << it->head->count << ",1," << it->id << " " << it->length
-        << " " << it->weight << std::endl;
+  for (const auto& it : graph.edges) {
+    if (it == nullptr) {
+      continue;
     }
-  } else {
-    for (const auto& it : graph.edges) {
-      if (it == nullptr) {
-        continue;
-      }
-      
+
+    os << it->tail->id;
+    os << " [" << it->tail->id / 2 << "]";
+    os << " LN:i:" << it->tail->sequence.inflated_len;
+    os << " RC:i:" << it->tail->count;
+    os << ",";
+    os << it->head->id;
+    os << " [" << it->head->id / 2 << "]";
+    os << " LN:i:" << it->head->sequence.inflated_len;
+    os << " RC:i:" << it->head->count;
+    os << ",";
+    os << "1";
+    os << ",";
+    os << it->id;
+    os << " ";
+    os << it->length;
+    os << " ";
+    os << it->weight;
+
+    if (printEdgeSimilarity) {
       std::string lhs{it->tail->sequence.InflateData(it->length)};
       std::string rhs{it->head->sequence.InflateData(0, lhs.size())};
       EdlibAlignResult result = edlibAlign(
         lhs.c_str(), lhs.size(),
         rhs.c_str(), rhs.size(),
         edlibDefaultAlignConfig());
-      
       double score = 1 - result.editDistance / static_cast<double>(lhs.size());
 
-      os << it->tail->id << " [" << it->tail->id / 2 << "]"
-        << " LN:i:" << it->tail->sequence.inflated_len
-        << " RC:i:" << it->tail->count << "," << it->head->id << " ["
-        << it->head->id / 2 << "]"
-        << " LN:i:" << it->head->sequence.inflated_len
-        << " RC:i:" << it->head->count << ",1," << it->id << " " << it->length
-        << " " << it->weight << " " << score << std::endl;
+      os << " ";
+      os << score;
     }
+
+    os << std::endl;
   }
 
   for (const auto& it : graph.nodes) {  // circular edges TODO(rvaser): check
     if (it == nullptr || !it->is_circular) {
       continue;
     }
-    os << it->id << " [" << it->id / 2 << "]"
-       << " LN:i:" << it->sequence.inflated_len << " RC:i:" << it->count << ","
-       << it->id << " [" << it->id / 2 << "]"
-       << " LN:i:" << it->sequence.inflated_len << " RC:i:" << it->count
-       << ",1,-" << std::endl;
+    os << it->id;
+    os << " [" << it->id / 2 << "]";
+    os << " LN:i:" << it->sequence.inflated_len;
+    os << " RC:i:" << it->count;
+    os << ",";
+    os << it->id;
+    os << " [" << it->id / 2 << "]";
+    os << " LN:i:" << it->sequence.inflated_len;
+    os << " RC:i:" << it->count;
+    os << ",";
+    os << "1";
+    os << ",";
+    os << "-";
+    os << std::endl;
   }
 
   os.close();
+}
+
+std::vector<std::string> getCsv(const Graph& graph, bool printSequenceName, bool printPileBeginEnd, bool printEdgeSimilarity) {
+  std::vector<std::string> resultVector;
+  std::string line;  
+
+  
+  for (const auto& it : graph.nodes) {
+    if ((it == nullptr) || it->is_rc() ||
+        (it->count == 1 && it->outdegree() == 0 && it->indegree() == 0)) {
+      continue;
+    }
+
+    line.clear();
+    bool addDashAtTheEnd = true;
+
+    line += std::to_string(it->id);
+    line += " [" + std::to_string(it->id / 2) + "]";
+    line += " LN:i:" + std::to_string(it->sequence.inflated_len);
+    line += " RC:i:" + std::to_string(it->count);
+    line += ",";
+    line += std::to_string(it->pair->id);
+    line += " [" + std::to_string(it->pair->id / 2) + "]";
+    line += " LN:i:" + std::to_string(it->pair->sequence.inflated_len);
+    line += " RC:i:" + std::to_string(it->pair->count);
+    line += ",";
+    line += "0";
+    line += ",";
+
+    if (printSequenceName) {
+      addDashAtTheEnd = false;
+      line += it->sequence.name;
+    }
+
+    if (printPileBeginEnd && it->sequence.id < graph.piles.size()) {
+      addDashAtTheEnd = false;
+      line += std::to_string(graph.piles[it->sequence.id]->begin());
+      line += " ";
+      line += std::to_string(graph.piles[it->sequence.id]->end());
+    } 
+
+    if (addDashAtTheEnd) {
+      line += "-";
+    }
+
+    resultVector.push_back(line);
+  }
+
+  for (const auto& it : graph.edges) {
+    if (it == nullptr) {
+      continue;
+    }
+
+    line.clear();
+
+    line += std::to_string(it->tail->id);
+    line += " [" + std::to_string(it->tail->id / 2) + "]";
+    line += " LN:i:" + std::to_string(it->tail->sequence.inflated_len);
+    line += " RC:i:" + std::to_string(it->tail->count);
+    line += ",";
+    line += std::to_string(it->head->id);
+    line += " [" + std::to_string(it->head->id / 2) + "]";
+    line += " LN:i:" + std::to_string(it->head->sequence.inflated_len);
+    line += " RC:i:" + std::to_string(it->head->count);
+    line += ",";
+    line += "1";
+    line += ",";
+    line += std::to_string(it->id);
+    line += " ";
+    line += std::to_string(it->length);
+    line += " ";
+    line += std::to_string(it->weight);
+
+    if (printEdgeSimilarity) {
+      std::string lhs{it->tail->sequence.InflateData(it->length)};
+      std::string rhs{it->head->sequence.InflateData(0, lhs.size())};
+      EdlibAlignResult result = edlibAlign(
+        lhs.c_str(), lhs.size(),
+        rhs.c_str(), rhs.size(),
+        edlibDefaultAlignConfig());
+      double score = 1 - result.editDistance / static_cast<double>(lhs.size());
+
+      line += " ";
+      line += std::to_string(score);
+    }
+
+    resultVector.push_back(line);
+  }
+
+  for (const auto& it : graph.nodes) {  // circular edges TODO(rvaser): check
+    if (it == nullptr || !it->is_circular) {
+      continue;
+    }
+
+    line.clear();
+
+    line += std::to_string(it->id);
+    line += " [" + std::to_string(it->id / 2) + "]";
+    line += " LN:i:" + std::to_string(it->sequence.inflated_len);
+    line += " RC:i:" + std::to_string(it->count);
+    line += ",";
+    line += std::to_string(it->id);
+    line += " [" + std::to_string(it->id / 2) + "]";
+    line += " LN:i:" + std::to_string(it->sequence.inflated_len);
+    line += " RC:i:" + std::to_string(it->count);
+    line += ",";
+    line += "1";
+    line += ",";
+    line += "-";
+
+    resultVector.push_back(line);
+  }
+
+  return resultVector;
 }
 
 void PrintJson(const raven::Graph& graph, const std::string& path) {

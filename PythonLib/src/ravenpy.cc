@@ -119,6 +119,7 @@ PYBIND11_MODULE(ravenpy, m) {
                         cfg);
         });
 
+  m.def("graph_print_csv", raven::PrintCsv);
   m.def("graph_print_gfa", raven::PrintGfa);
   m.def("graph_print_unitgs",
         [](raven::Graph& graph,
@@ -129,4 +130,7 @@ PYBIND11_MODULE(ravenpy, m) {
             std::cout << it->InflateData() << std::endl;
           }
         });
+
+  m.def("graph_get_csv", raven::getCsv);
+  m.def("graph_get_gfa", raven::getGfa);
 }
