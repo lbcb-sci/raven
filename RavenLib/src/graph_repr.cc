@@ -162,13 +162,12 @@ void PrintCsv(const Graph& graph, const std::string& path, bool printSequenceNam
 
     if (printSequenceName) {
       addDashAtTheEnd = false;
-
       os << it->sequence.name;
+      os << " ";
     }
 
     if (printPileBeginEnd && it->sequence.id < graph.piles.size()) {
       addDashAtTheEnd = false;
-
       os << graph.piles[it->sequence.id]->begin();
       os << " ";
       os << graph.piles[it->sequence.id]->end();
@@ -273,6 +272,7 @@ std::vector<std::string> getCsv(const Graph& graph, bool printSequenceName, bool
     if (printSequenceName) {
       addDashAtTheEnd = false;
       line += it->sequence.name;
+      line += " ";
     }
 
     if (printPileBeginEnd && it->sequence.id < graph.piles.size()) {
