@@ -881,4 +881,17 @@ void Assemble(std::shared_ptr<thread_pool::ThreadPool> threadPool, Graph& graph,
   std::cerr << "[raven::Graph::Assemble] " << std::fixed << timer.Stop() << "s"
             << std::endl;
 }
+
+std::uint32_t RemoveTransitiveEdgesFromGraph(Graph& graph) {
+  return RemoveTransitiveEdges(graph);
+}
+
+void RemoveTipsAndBubblesFromGraph(Graph& graph) {
+  RemoveTipsAndBubbles(graph);
+}
+
+void RemoveLongEdgesFromGraph(Graph& graph, std::shared_ptr<thread_pool::ThreadPool>& threadPool) {
+  RemoveLongEdgesStage(graph, threadPool);
+}
+
 }  // namespace raven

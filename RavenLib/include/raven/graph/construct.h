@@ -31,11 +31,10 @@ RAVEN_EXPORT void TrimAndAnnotatePiles(
 
 RAVEN_EXPORT void ResolveContainedReads(
     const std::vector<std::unique_ptr<Pile>>& piles,
-    std::vector<std::vector<biosoup::Overlap>>& overlaps);
-
-RAVEN_EXPORT void ResolveContainedReads(
-    const std::vector<std::unique_ptr<Pile>>& piles,
-    std::vector<std::vector<biosoup::Overlap>>& overlaps);
+    std::vector<std::vector<biosoup::Overlap>>& overlaps,
+    const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
+    const std::shared_ptr<thread_pool::ThreadPool>& thread_pool,
+    double identity);
 
 RAVEN_EXPORT void ResolveChimericSequences(
     const std::shared_ptr<thread_pool::ThreadPool>& thread_pool,
@@ -45,7 +44,7 @@ RAVEN_EXPORT void ResolveChimericSequences(
 
 RAVEN_EXPORT void FindOverlapsAndRepetetiveRegions(
     const std::shared_ptr<thread_pool::ThreadPool>& thread_pool,
-    ram::MinimizerEngine& minimizerEngine, double freq, std::uint8_t kmer_len,
+    ram::MinimizerEngine& minimizerEngine, double freq, std::uint8_t kmer_len, double identity,
     const std::vector<std::unique_ptr<Pile>>& piles,
     std::vector<std::vector<biosoup::Overlap>>& overlaps,
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences);

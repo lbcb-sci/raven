@@ -59,6 +59,13 @@ struct SequencesHandle {
   std::vector<std::unique_ptr<biosoup::NucleicAcid>> seqs;
 };
 
+struct OverlapsHandle {
+  OverlapsHandle(std::shared_ptr<SequencesHandle> seqs_handle)
+      : overlaps() { overlaps.resize(seqs_handle->seqs.size()); }
+
+  std::vector<std::vector<biosoup::Overlap>> overlaps;
+};
+
 PYBIND11_MODULE(ravenpy, m) {
   m.doc() = "raven";
 
@@ -94,6 +101,10 @@ PYBIND11_MODULE(ravenpy, m) {
   py::class_<SequencesHandle, std::shared_ptr<SequencesHandle>>(
       m, "SequencesHandle")
       .def(py::init<const std::vector<std::string>&>());
+
+  py::class_<OverlapsHandle, std::shared_ptr<OverlapsHandle>>(
+      m, "OverlapsHandle")
+      .def(py::init<std::shared_ptr<SequencesHandle>>());
 
   m.def("reset_seq_id_cnt",
         []() -> void { biosoup::NucleicAcid::num_objects.store(0); });
@@ -133,4 +144,66 @@ PYBIND11_MODULE(ravenpy, m) {
 
   m.def("graph_get_csv", raven::getCsv);
   m.def("graph_get_gfa", raven::getGfa);
+
+  py::class_<biosoup::Overlap>(m, "Overlap").def(py::init<>());
+  py::class_<biosoup::NucleicAcid>(m, "NucleicAcid").def(py::init<>());
+  py::class_<ram::MinimizerEngine>(m, "MinimizerEngine")
+      .def(py::init<std::shared_ptr<thread_pool::ThreadPool>, std::uint32_t, std::uint32_t>());
+ 
+  m.def("find_overlaps_and_create_piles",
+      [](std::shared_ptr<thread_pool::ThreadPool> thread_pool, ram::MinimizerEngine& minimizer_engine, std::shared_ptr<SequencesHandle> seqs_handle,
+          double freq, raven::Graph& graph, std::shared_ptr<OverlapsHandle> overlaps_handle) -> void {
+        raven::FindOverlapsAndCreatePiles(thread_pool, minimizer_engine, seqs_handle->seqs, freq, graph.piles, overlaps_handle->overlaps);
+      });
+
+  m.def("trim_and_annotate_piles",
+      [](std::shared_ptr<thread_pool::ThreadPool> thread_pool,raven::Graph& graph, std::shared_ptr<OverlapsHandle> overlaps_handle) -> void {
+        raven::TrimAndAnnotatePiles(thread_pool, graph.piles, overlaps_handle->overlaps);
+      });
+
+  m.def("resolve_contained_reads",
+      [](raven::Graph& graph, std::shared_ptr<OverlapsHandle> overlaps_handle, std::shared_ptr<SequencesHandle> seqs_handle,
+          std::shared_ptr<thread_pool::ThreadPool> thread_pool, double identity) -> void {
+        raven::ResolveContainedReads(graph.piles, overlaps_handle->overlaps, seqs_handle->seqs, thread_pool,  identity);
+      });
+
+  m.def("resolve_chimeric_sequences",
+      [](std::shared_ptr<thread_pool::ThreadPool> thread_pool,raven::Graph& graph, std::shared_ptr<OverlapsHandle> overlaps_handle,
+          std::shared_ptr<SequencesHandle> seqs_handle) -> void {
+        raven::ResolveChimericSequences(thread_pool, graph.piles, overlaps_handle->overlaps, seqs_handle->seqs);
+      });
+
+  m.def("find_overlaps_and_repetetive_regions",
+      [](std::shared_ptr<thread_pool::ThreadPool> thread_pool, ram::MinimizerEngine& minimizer_engine, double freq, std::uint8_t kmer_len,
+          double identity, raven::Graph& graph, std::shared_ptr<OverlapsHandle> overlaps_handle, std::shared_ptr<SequencesHandle> seqs_handle) -> void {
+        raven::FindOverlapsAndRepetetiveRegions(thread_pool, minimizer_engine, freq, kmer_len, identity, graph.piles, overlaps_handle->overlaps, seqs_handle->seqs);
+      });
+
+  m.def("resolve_repeat_induced_overlaps",
+      [](std::shared_ptr<thread_pool::ThreadPool> thread_pool, raven::Graph& graph, std::shared_ptr<OverlapsHandle> overlaps_handle,
+          std::shared_ptr<SequencesHandle> seqs_handle) -> void {
+        raven::ResolveRepeatInducedOverlaps(thread_pool,  graph.piles, overlaps_handle->overlaps, seqs_handle->seqs);
+      });
+
+  m.def("construct_assembly_graph",
+      [](raven::Graph& graph, std::shared_ptr<OverlapsHandle> overlaps_handle,
+          std::shared_ptr<SequencesHandle> seqs_handle) -> void {
+        raven::ConstructAssemblyGraph(graph, graph.piles, overlaps_handle->overlaps, seqs_handle->seqs);
+      });
+
+  m.def("remove_transitive_edges_from_graph",
+      [](raven::Graph& graph) -> std::uint32_t {
+        return raven::RemoveTransitiveEdgesFromGraph(graph);
+      });
+
+  m.def("remove_tips_and_bubbles_from_graph",
+      [](raven::Graph& graph) -> void {
+        raven::RemoveTipsAndBubblesFromGraph(graph);
+      });
+
+  m.def("remove_long_edges_from_graph",
+      [](raven::Graph& graph, std::shared_ptr<thread_pool::ThreadPool> thread_pool) -> void {
+        raven::RemoveLongEdgesFromGraph(graph, thread_pool);
+      });
+
 }
