@@ -15,6 +15,12 @@ namespace raven {
 RAVEN_EXPORT void Assemble(std::shared_ptr<thread_pool::ThreadPool> thread_pool,
               Graph& graph, bool checkpoints);
 
+RAVEN_EXPORT std::uint32_t RemoveTransitiveEdgesFromGraph(Graph& graph);
+
+RAVEN_EXPORT void RemoveTipsAndBubblesFromGraph(Graph& graph);
+
+RAVEN_EXPORT void RemoveLongEdgesFromGraph(Graph& graph, std::shared_ptr<thread_pool::ThreadPool>& threadPool);
+
 }  // namespace raven
 
 #endif  // RAVEN_GRAPH_ASSEMBLE_H_
