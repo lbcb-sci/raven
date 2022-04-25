@@ -145,6 +145,8 @@ PYBIND11_MODULE(ravenpy, m) {
   m.def("graph_get_csv", raven::getCsv);
   m.def("graph_get_gfa", raven::getGfa);
 
+  m.def("graph_load_gfa", raven::LoadGfa);
+
   py::class_<biosoup::Overlap>(m, "Overlap").def(py::init<>());
   py::class_<biosoup::NucleicAcid>(m, "NucleicAcid").def(py::init<>());
   py::class_<ram::MinimizerEngine>(m, "MinimizerEngine")
