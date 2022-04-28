@@ -16,9 +16,9 @@ void FindOverlapsAndCreatePiles(
     ram::MinimizerEngine& minimizer_engine,
     const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
     double freq, std::vector<std::unique_ptr<Pile>>& piles,
-    std::vector<std::vector<biosoup::Overlap>>& overlaps) {
-  constexpr std::size_t kMaxNumOverlaps = 32;
-
+    std::vector<std::vector<biosoup::Overlap>>& overlaps,
+    std::size_t kMaxNumOverlaps) {
+  
   piles.reserve(sequences.size());
   for (const auto& it : sequences) {
     piles.emplace_back(new Pile(it->id, it->inflated_len));
@@ -662,7 +662,7 @@ void ConstructGraph(
 
   if (graph.stage == -5) {
     FindOverlapsAndCreatePiles(thread_pool, minimizerEngine, sequences,
-                               cfg.freq, graph.piles, overlaps);
+                               cfg.freq, graph.piles, overlaps, cfg.kMaxNumOverlaps);
     TrimAndAnnotatePiles(thread_pool, graph.piles, overlaps);
 
     ResolveContainedReads(graph.piles, overlaps, sequences, thread_pool, cfg.identity);

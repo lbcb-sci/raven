@@ -18,6 +18,7 @@ static struct option options[] = {
     {"window-len", required_argument, nullptr, 'w'},
     {"frequency", required_argument, nullptr, 'f'},
     {"identity", required_argument, nullptr, 'i'},
+    {"kMaxNumOverlaps", required_argument, nullptr, 'o'},
     {"polishing-rounds", required_argument, nullptr, 'p'},
     {"match", required_argument, nullptr, 'm'},
     {"mismatch", required_argument, nullptr, 'n'},
@@ -56,6 +57,9 @@ void Help() {
          "    -i, --identity <double>\n"
          "      default: 0\n"
          "      threshold for overlap between two reads in order to construct an edge between them\n"
+         "    -o, --kMaxNumOverlaps <long unsigned int>\n"
+         "      default: 32\n"
+         "      maximum number of overlaps that will be taken during FindOverlapsAndCreatePiles stage\n"
          "    -p, --polishing-rounds <int>\n"
          "      default: 2\n"
          "      number of times racon is invoked\n"
@@ -101,6 +105,7 @@ int main(int argc, char** argv) {
   std::uint8_t window_len = 5;
   double freq = 0.001;
   double identity = 0;
+  std::size_t kMaxNumOverlaps = 32;
 
   std::uint32_t num_polishing_rounds = 2;
   std::int8_t m = 3;
@@ -136,6 +141,9 @@ int main(int argc, char** argv) {
         break;
       case 'i':
         identity = std::atof(optarg);
+        break;
+      case 'o':
+        kMaxNumOverlaps = std::atof(optarg);
         break;
       case 'p':
         num_polishing_rounds = std::atoi(optarg);
@@ -268,7 +276,7 @@ int main(int argc, char** argv) {
   raven::ConstructGraph(
       graph, sequences, thread_pool, checkpoints,
       raven::OverlapPhaseCfg{
-          .kmer_len = kmer_len, .window_len = window_len, .freq = freq, .identity = identity});
+          .kmer_len = kmer_len, .window_len = window_len, .freq = freq, .identity = identity, .kMaxNumOverlaps = kMaxNumOverlaps});
 
   raven::Assemble(thread_pool, graph, checkpoints);
 

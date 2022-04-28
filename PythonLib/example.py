@@ -28,7 +28,7 @@ if __name__ == '__main__':
 
   ravenpy.construct_graph(
     graph, seqs_handle, thread_pool, False, 
-    ravenpy.OverlapPhaseCfg(15, 5, 0.001))
+    ravenpy.OverlapPhaseCfg(15, 5, 0.001, 0, 32))
 
   ravenpy.assemble_graph(thread_pool, graph, False)
 

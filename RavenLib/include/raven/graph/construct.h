@@ -15,6 +15,7 @@ struct OverlapPhaseCfg {
   std::uint8_t window_len = 5;
   double freq = 0.001;
   double identity = 0;
+  std::size_t kMaxNumOverlaps = 32;
 };
 
 RAVEN_EXPORT void FindOverlapsAndCreatePiles(
@@ -22,7 +23,8 @@ RAVEN_EXPORT void FindOverlapsAndCreatePiles(
     ram::MinimizerEngine& minimizer_engine,
     const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
     double freq, std::vector<std::unique_ptr<Pile>>& piles,
-    std::vector<std::vector<biosoup::Overlap>>& overlaps);
+    std::vector<std::vector<biosoup::Overlap>>& overlaps,
+    std::size_t kMaxNumOverlaps = 32);
 
 RAVEN_EXPORT void TrimAndAnnotatePiles(
     const std::shared_ptr<thread_pool::ThreadPool>& thread_pool,

@@ -57,6 +57,9 @@ usage: raven [options ...] <sequences> [<sequences> ...]
       default: 0
       threshold for overlap between two reads in order to construct an edge between them
       if set to zero, this functionality is disabled
+    -o, --kMaxNumOverlaps <long unsigned int>
+      default: 32
+      maximum number of overlaps that will be taken during FindOverlapsAndCreatePiles stage
     -p, --polishing-rounds <int>
       default: 2
       number of times racon is invoked
