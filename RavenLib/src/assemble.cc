@@ -18,6 +18,8 @@
 #include "ram/minimizer_engine.hpp"
 #include "raven/graph/graph.h"
 
+#include "raven/graph/serialization/graph_repr.h"
+
 namespace raven {
 
 namespace {
@@ -865,6 +867,9 @@ void Assemble(std::shared_ptr<thread_pool::ThreadPool> threadPool, Graph& graph,
 
   biosoup::Timer timer;
   timer.Start();
+
+  PrintCsv(graph, "graph_1.csv", false, false, true);
+  PrintGfa(graph, "graph_1.gfa");
 
   if (graph.stage == -3) {  // remove transitive edges
     StageExecution(graph, checkpoints, RemoveTransitiveEdges);
