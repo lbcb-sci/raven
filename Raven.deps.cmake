@@ -1,6 +1,23 @@
 include(FetchContent)
 include(GNUInstallDirs)
 
+find_package(ram QUIET)
+if (NOT ram_FOUND)
+    FetchContent_Declare(
+            ram
+            GIT_REPOSITORY https://github.com/lbcb-sci/ram
+            GIT_TAG dolmac/weighted_minimizer_sampling)
+
+    FetchContent_GetProperties(ram)
+    if (NOT ram_POPULATED)
+        FetchContent_Populate(ram)
+        add_subdirectory(
+                ${ram_SOURCE_DIR}
+                ${ram_BINARY_DIR}
+                EXCLUDE_FROM_ALL)
+    endif ()
+endif ()
+
 find_package(bioparser 3.0.13 QUIET)
 if (NOT bioparser_FOUND)
     FetchContent_Declare(

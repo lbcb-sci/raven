@@ -16,6 +16,7 @@ struct OverlapPhaseCfg {
   double freq = 0.001;
   double identity = 0;
   std::size_t kMaxNumOverlaps = 32;
+  double weightedMinimizerSampling = 0;
 };
 
 RAVEN_EXPORT void FindOverlapsAndCreatePiles(
@@ -24,7 +25,8 @@ RAVEN_EXPORT void FindOverlapsAndCreatePiles(
     const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
     double freq, std::vector<std::unique_ptr<Pile>>& piles,
     std::vector<std::vector<biosoup::Overlap>>& overlaps,
-    std::size_t kMaxNumOverlaps = 32);
+    std::size_t kMaxNumOverlaps = 32,
+    double weightedMinimizerSampling = 0);
 
 RAVEN_EXPORT void TrimAndAnnotatePiles(
     const std::shared_ptr<thread_pool::ThreadPool>& thread_pool,

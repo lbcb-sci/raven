@@ -141,12 +141,13 @@ PYBIND11_MODULE(ravenpy, m) {
       .def_readwrite("num_rounds", &raven::PolishCfg::num_rounds);
 
   py::class_<raven::OverlapPhaseCfg>(m, "OverlapPhaseCfg")
-      .def(py::init<std::uint8_t, std::uint8_t, double, double, std::size_t>())
+      .def(py::init<std::uint8_t, std::uint8_t, double, double, std::size_t, double>())
       .def_readwrite("kmer_len", &raven::OverlapPhaseCfg::kmer_len)
       .def_readwrite("window_len", &raven::OverlapPhaseCfg::window_len)
       .def_readwrite("freq", &raven::OverlapPhaseCfg::freq)
       .def_readwrite("identity", &raven::OverlapPhaseCfg::identity)
-      .def_readwrite("kMaxNumOverlaps", &raven::OverlapPhaseCfg::kMaxNumOverlaps);
+      .def_readwrite("kMaxNumOverlaps", &raven::OverlapPhaseCfg::kMaxNumOverlaps)
+      .def_readwrite("weightedMinimizerSampling", &raven::OverlapPhaseCfg::weightedMinimizerSampling);
 
   py::class_<thread_pool::ThreadPool, std::shared_ptr<thread_pool::ThreadPool>>(
       m, "ThreadPool")

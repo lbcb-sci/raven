@@ -19,6 +19,7 @@ static struct option options[] = {
     {"frequency", required_argument, nullptr, 'f'},
     {"identity", required_argument, nullptr, 'i'},
     {"kMaxNumOverlaps", required_argument, nullptr, 'o'},
+    {"weightedMinimizerSampling", required_argument, nullptr, 'W'},
     {"polishing-rounds", required_argument, nullptr, 'p'},
     {"match", required_argument, nullptr, 'm'},
     {"mismatch", required_argument, nullptr, 'n'},
@@ -60,6 +61,9 @@ void Help() {
          "    -o, --kMaxNumOverlaps <long unsigned int>\n"
          "      default: 32\n"
          "      maximum number of overlaps that will be taken during FindOverlapsAndCreatePiles stage\n"
+         "    -W, --weightedMinimizerSampling <double>\n"
+         "      default: 0\n"
+         "      if value is different from 0 weighted minimizer sampling will be used (value passed defines frequency treshold for down weighting most frequent kmers)\n"
          "    -p, --polishing-rounds <int>\n"
          "      default: 2\n"
          "      number of times racon is invoked\n"
@@ -106,6 +110,7 @@ int main(int argc, char** argv) {
   double freq = 0.001;
   double identity = 0;
   std::size_t kMaxNumOverlaps = 32;
+  double weightedMinimizerSampling = 0;
 
   std::uint32_t num_polishing_rounds = 2;
   std::int8_t m = 3;
@@ -143,7 +148,10 @@ int main(int argc, char** argv) {
         identity = std::atof(optarg);
         break;
       case 'o':
-        kMaxNumOverlaps = std::atof(optarg);
+        kMaxNumOverlaps = std::atoi(optarg);
+        break;
+      case 'W':
+        weightedMinimizerSampling = std::atof(optarg);
         break;
       case 'p':
         num_polishing_rounds = std::atoi(optarg);
@@ -276,7 +284,7 @@ int main(int argc, char** argv) {
   raven::ConstructGraph(
       graph, sequences, thread_pool, checkpoints,
       raven::OverlapPhaseCfg{
-          .kmer_len = kmer_len, .window_len = window_len, .freq = freq, .identity = identity, .kMaxNumOverlaps = kMaxNumOverlaps});
+          .kmer_len = kmer_len, .window_len = window_len, .freq = freq, .identity = identity, .kMaxNumOverlaps = kMaxNumOverlaps, .weightedMinimizerSampling = weightedMinimizerSampling});
 
   raven::Assemble(thread_pool, graph, checkpoints);
 
