@@ -22,6 +22,104 @@ namespace raven {
 
 namespace {
 
+static std::uint32_t RemoveInvalidEdges(Graph& graph) {
+  biosoup::Timer timer;
+  timer.Start();
+
+  std::unordered_set<std::uint32_t> marked_edges;
+
+  for (const auto& it : graph.edges) {
+    if (it == nullptr) {
+      continue;
+    }
+
+    if (!it->tail->is_rc() && !it->head->is_rc() && it->is_rc()) {
+      marked_edges.emplace(it->id);
+      continue;
+    }
+
+    if (it->tail->is_rc() && it->head->is_rc() && !it->is_rc()) {
+      marked_edges.emplace(it->id);
+      continue;
+    }
+  }
+
+  RemoveEdges(graph, marked_edges);
+
+  std::cerr << "[raven::Graph::Assemble] remove invalid edges "
+            << "(number of removed edges: " << marked_edges.size() << ") "
+            << std::fixed << timer.Stop() << "s" << std::endl;
+
+  return marked_edges.size();
+}
+
+static std::uint32_t RemoveInvalidConnections(Graph& graph) {
+  biosoup::Timer timer;
+  timer.Start();
+  
+  std::unordered_set<std::uint32_t> marked_edges_for_deletion;
+
+  for (const auto& node : graph.nodes) {
+    if (node == nullptr) {
+      continue;
+    }
+
+    if (node->outdegree() < 2) {
+      continue;
+    }
+
+    auto startNode = node.get();
+    
+    for (auto edge : startNode->outedges) {
+      std::unordered_set<std::uint32_t> marked_edges;
+      bool shouldDeleteEdges = false;
+      bool foundChainEnd = false;      
+      auto nextEdge = edge;
+      
+      while (!foundChainEnd) {
+        if (nextEdge == nullptr) {
+          foundChainEnd = true;
+          continue;
+        }
+
+        marked_edges.emplace(nextEdge->id);
+        
+        auto nextNode = nextEdge->head;
+        
+        if (nextNode == nullptr) {
+          foundChainEnd = true;
+          continue;
+        }
+
+        if (nextNode->indegree() == 2) {
+          foundChainEnd = true;
+          shouldDeleteEdges = true;
+          continue;
+        }
+        
+        nextEdge = nextNode->outedges.front();
+      }
+      
+      if (shouldDeleteEdges) {
+        for (auto edgeId : marked_edges) {
+          marked_edges_for_deletion.emplace(edgeId);
+        }
+      }
+
+    }
+
+  }
+
+  RemoveEdges(graph, marked_edges_for_deletion);
+
+  std::cerr << "[raven::Graph::Assemble] remove invalid connections "
+            << "(number of removed edges: " << marked_edges_for_deletion.size() << ") "
+            << std::fixed << timer.Stop() << "s" << std::endl;
+
+  return marked_edges_for_deletion.size();
+
+}
+
 static std::uint32_t RemoveTransitiveEdges(Graph& graph) {
   biosoup::Timer timer;
   timer.Start();
@@ -866,6 +964,8 @@ void Assemble(std::shared_ptr<thread_pool::ThreadPool> threadPool, Graph& graph,
   biosoup::Timer timer;
   timer.Start();
 
+  StageExecution(graph, checkpoints, RemoveInvalidEdges);
+
   if (graph.stage == -3) {  // remove transitive edges
     StageExecution(graph, checkpoints, RemoveTransitiveEdges);
   }
@@ -873,6 +973,8 @@ void Assemble(std::shared_ptr<thread_pool::ThreadPool> threadPool, Graph& graph,
   if (graph.stage == -2) {  // remove tips and bubbles
     StageExecution(graph, checkpoints, RemoveTipsAndBubbles);
   }
+
+  StageExecution(graph, checkpoints, RemoveInvalidConnections);
 
   if (graph.stage == -1) {
     StageExecution(graph, checkpoints, RemoveLongEdgesStage, threadPool);
