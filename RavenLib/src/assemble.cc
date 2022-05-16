@@ -91,6 +91,11 @@ static std::uint32_t RemoveInvalidConnections(Graph& graph) {
           continue;
         }
 
+        if (nextNode == startNode) {
+          foundChainEnd = true;
+          continue;
+        }
+
         if (nextNode->indegree() == 2) {
           foundChainEnd = true;
           shouldDeleteEdges = true;
