@@ -53,6 +53,40 @@ if (NOT racon_FOUND)
     endif ()
 endif ()
 
+find_package(cxxopts 3.0.0 QUIET)
+if (NOT cxxopts_FOUND)
+  FetchContent_Declare(
+    cxxopts
+    GIT_REPOSITORY https://github.com/jarro2783/cxxopts.git
+    GIT_TAG v3.0.0)
+
+  FetchContent_GetProperties(cxxopts)
+  if (NOT cxxopts_POPULATED)
+    FetchContent_Populate(cxxopts)
+    add_subdirectory(
+      ${cxxopts_SOURCE_DIR}
+      ${cxxopts_BINARY_DIR}
+      EXCLUDE_FROM_ALL)
+  endif ()
+endif ()
+
+find_package(tsl-robin-map 1.0.1 QUIET)
+if (NOT tsl-robin-map_FOUND)
+  FetchContent_Declare(
+    tsl-robin-map
+    GIT_REPOSITORY https://github.com/Tessil/robin-map.git
+    GIT_TAG v1.0.1)
+
+  FetchContent_GetProperties(tsl-robin-map)
+  if (NOT tsl-robin-map_POPULATED)
+    FetchContent_Populate(tsl-robin-map)
+    add_subdirectory(
+      ${tsl-robin-map_SOURCE_DIR}
+      ${tsl-robin-map_BINARY_DIR}
+      EXCLUDE_FROM_ALL)
+  endif ()
+endif ()
+
 if (RAVEN_BUILD_PYTHON)
     find_package(pybind11 QUIET)
     if (NOT pybind11_FOUND)
