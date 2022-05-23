@@ -5,19 +5,9 @@
 #include <unordered_set>
 
 #include "biosoup/nucleic_acid.hpp"
+#include "tsl/robin_set.h"
 #include "raven/export.h"
 #include "raven/pile.h"
-
-namespace biosoup {
-
-template <class Archive>
-void serialize(Archive& archive, NucleicAcid& sequence) {
-  archive(sequence.id, sequence.name, sequence.deflated_data,
-          sequence.block_quality, sequence.inflated_len,
-          sequence.is_reverse_complement);
-}
-
-}  // namespace biosoup
 
 namespace raven {
 
@@ -118,19 +108,13 @@ struct Node {
     return outdegree() > 0 && indegree() == 0 && count < 6;
   }
 
-  template <class Archive>
-  void serialize(Archive& archive) {
-    archive(id, sequence, count, is_unitig, is_circular, is_polished,
-            transitive);
-  }
-
   std::uint32_t id;
   biosoup::NucleicAcid sequence;
   std::uint32_t count;
   bool is_unitig;
   bool is_circular;
   bool is_polished;
-  std::unordered_set<std::uint32_t> transitive;
+  tsl::robin_set<std::uint32_t> transitive;
   std::vector<Edge*> inedges;
   std::vector<Edge*> outedges;
   Node* pair;
@@ -149,11 +133,6 @@ struct Edge {
   std::string Label() const { return tail->sequence.InflateData(0, length); }
 
   bool is_rc() const { return id & 1; }
-
-  template <class Archive>
-  void serialize(Archive& archive) {  // NOLINT
-    archive(id, length, weight);
-  }
 
   std::uint32_t id;
   std::uint32_t length;

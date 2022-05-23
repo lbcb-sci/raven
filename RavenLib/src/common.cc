@@ -2,13 +2,13 @@
 
 namespace raven {
 
-void RemoveEdges(Graph& graph, const std::unordered_set<std::uint32_t>& indices,
+void RemoveEdges(Graph& graph, const tsl::robin_set<std::uint32_t>& indices,
                  bool remove_nodes) {
   auto erase_remove = [](std::vector<Edge*>& edges, Edge* marked) -> void {
     edges.erase(std::remove(edges.begin(), edges.end(), marked), edges.end());
   };
 
-  std::unordered_set<std::uint32_t> node_indices;
+  tsl::robin_set<std::uint32_t> node_indices;
   for (auto i : indices) {
     if (remove_nodes) {
       node_indices.emplace(graph.edges[i]->tail->id);
@@ -30,7 +30,7 @@ void RemoveEdges(Graph& graph, const std::unordered_set<std::uint32_t>& indices,
 }
 
 std::uint32_t CreateUnitigs(Graph& graph, std::uint32_t epsilon) {
-  std::unordered_set<std::uint32_t> marked_edges;
+  tsl::robin_set<std::uint32_t> marked_edges;
   std::vector<std::unique_ptr<Node>> unitigs;
   std::vector<std::unique_ptr<Edge>> unitig_edges;
   std::vector<std::uint32_t> node_updates(graph.nodes.size(), 0);
@@ -171,7 +171,7 @@ std::uint32_t CreateUnitigs(Graph& graph, std::uint32_t epsilon) {
 
   for (const auto& it : graph.nodes) {  // update transitive edges
     if (it) {
-      std::unordered_set<std::uint32_t> valid;
+      tsl::robin_set<std::uint32_t> valid;
       for (auto jt : it->transitive) {
         valid.emplace(node_updates[jt] == 0 ? jt : node_updates[jt]);
       }

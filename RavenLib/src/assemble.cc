@@ -33,7 +33,7 @@ static std::uint32_t RemoveTransitiveEdges(Graph& graph) {
   };
 
   std::vector<Edge*> candidate(graph.nodes.size(), nullptr);
-  std::unordered_set<std::uint32_t> marked_edges;
+  tsl::robin_set<std::uint32_t> marked_edges;
 
   for (const auto& it : graph.nodes) {
     if (it == nullptr) {
@@ -104,7 +104,7 @@ static std::uint32_t RemoveTips(Graph& graph) {
       continue;
     }
 
-    std::unordered_set<std::uint32_t> marked_edges;
+    tsl::robin_set<std::uint32_t> marked_edges;
     for (auto jt : end->outedges) {
       if (jt->head->indegree() > 1) {
         marked_edges.emplace(jt->id);
@@ -127,10 +127,10 @@ static std::uint32_t RemoveTips(Graph& graph) {
   return num_tips;
 }
 
-static std::unordered_set<std::uint32_t> FindRemovableEdges(
+static tsl::robin_set<std::uint32_t> FindRemovableEdges(
     const std::vector<Node*>& path) {
   if (path.empty()) {
-    return std::unordered_set<std::uint32_t>{};
+    return tsl::robin_set<std::uint32_t>{};
   }
 
   auto find_edge = [](Node* tail, Node* head) -> Edge* {
@@ -159,7 +159,7 @@ static std::unordered_set<std::uint32_t> FindRemovableEdges(
     }
   }
 
-  std::unordered_set<std::uint32_t> dst;
+  tsl::robin_set<std::uint32_t> dst;
   if (pref == -1 && suff == -1) {  // remove whole path
     for (std::uint32_t i = 0; i < path.size() - 1; ++i) {
       auto it = find_edge(path[i], path[i + 1]);
@@ -239,35 +239,35 @@ static std::uint32_t RemoveBubbles(Graph& graph) {
   };
   auto bubble_pop =
       [&](const std::vector<Node*>& lhs,
-          const std::vector<Node*>& rhs) -> std::unordered_set<std::uint32_t> {
+          const std::vector<Node*>& rhs) -> tsl::robin_set<std::uint32_t> {
     if (lhs.empty() || rhs.empty()) {
-      return std::unordered_set<std::uint32_t>{};
+      return tsl::robin_set<std::uint32_t>{};
     }
 
     // check BFS result
-    std::unordered_set<Node*> bubble;
+    tsl::robin_set<Node*> bubble;
     bubble.insert(lhs.begin(), lhs.end());
     bubble.insert(rhs.begin(), rhs.end());
     if (lhs.size() + rhs.size() - 2 != bubble.size()) {
-      return std::unordered_set<std::uint32_t>{};
+      return tsl::robin_set<std::uint32_t>{};
     }
     for (const auto& it : lhs) {
       if (bubble.count(it->pair) != 0) {
-        return std::unordered_set<std::uint32_t>{};
+        return tsl::robin_set<std::uint32_t>{};
       }
     }
 
     if (!path_is_simple(lhs) || !path_is_simple(rhs)) {  // complex path(s)
       // check poppability
       if (FindRemovableEdges(lhs).empty() && FindRemovableEdges(rhs).empty()) {
-        return std::unordered_set<std::uint32_t>{};
+        return tsl::robin_set<std::uint32_t>{};
       }
 
       // check similarity
       auto l = path_sequence(lhs);
       auto r = path_sequence(rhs);
       if (std::min(l.size(), r.size()) < std::max(l.size(), r.size()) * 0.8) {
-        return std::unordered_set<std::uint32_t>{};
+        return tsl::robin_set<std::uint32_t>{};
       }
 
       EdlibAlignResult result = edlibAlign(l.c_str(), l.size(), r.c_str(),
@@ -279,7 +279,7 @@ static std::uint32_t RemoveBubbles(Graph& graph) {
         edlibFreeAlignResult(result);
       }
       if (score < 0.8) {
-        return std::unordered_set<std::uint32_t>{};
+        return tsl::robin_set<std::uint32_t>{};
       }
     }
 
@@ -336,7 +336,7 @@ static std::uint32_t RemoveBubbles(Graph& graph) {
       }
     }
 
-    std::unordered_set<std::uint32_t> marked_edges;
+    tsl::robin_set<std::uint32_t> marked_edges;
     if (end) {
       auto lhs = path_extract(begin, end);
       auto rhs = path_extract(begin, other_end);
@@ -366,7 +366,7 @@ static void CreateForceDirectedLayout(
     os << "{" << std::endl;
   }
 
-  std::vector<std::unordered_set<std::uint32_t>> components;
+  std::vector<tsl::robin_set<std::uint32_t>> components;
   std::vector<char> is_visited(graph.nodes.size(), 0);
   for (std::uint32_t i = 0; i < graph.nodes.size(); ++i) {
     if (graph.nodes[i] == nullptr || is_visited[i]) {
@@ -399,8 +399,8 @@ static void CreateForceDirectedLayout(
   std::vector<char>().swap(is_visited);
 
   std::sort(components.begin(), components.end(),
-            [](const std::unordered_set<std::uint32_t>& lhs,
-               const std::unordered_set<std::uint32_t>& rhs) {
+            [](const tsl::robin_set<std::uint32_t>& lhs,
+               const tsl::robin_set<std::uint32_t>& rhs) {
               return lhs.size() > rhs.size();
             });
 
@@ -526,7 +526,7 @@ static void CreateForceDirectedLayout(
 
     // update transitive edges
     for (const auto& n : component) {
-      std::unordered_set<std::uint32_t> valid;
+      tsl::robin_set<std::uint32_t> valid;
       for (const auto& m : graph.nodes[n]->transitive) {
         if (component.find(m) != component.end()) {
           valid.emplace(m);
@@ -707,7 +707,7 @@ static std::uint32_t RemoveLongEdges(
   for (std::uint32_t i = 0; i < num_rounds; ++i) {
     CreateForceDirectedLayout(threadPool, graph);
 
-    std::unordered_set<std::uint32_t> marked_edges;
+    tsl::robin_set<std::uint32_t> marked_edges;
     for (const auto& it : graph.nodes) {
       if (it == nullptr || it->outdegree() < 2) {
         continue;

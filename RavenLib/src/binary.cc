@@ -6,8 +6,16 @@
 #include "cereal/archives/binary.hpp"
 #include "cereal/types/memory.hpp"
 #include "cereal/types/string.hpp"
-#include "cereal/types/unordered_set.hpp"
 #include "cereal/types/vector.hpp"
+
+namespace cereal {
+
+template <class Archive>
+void serialize(Archive& archive, biosoup::NucleicAcid& sequence) {
+  archive(sequence.id, sequence.name, sequence.deflated_data,
+          sequence.block_quality, sequence.inflated_len,
+          sequence.is_reverse_complement);
+}
 
 template <class Archive>
 void serialize(Archive& archive, raven::Edge& edge) {
@@ -15,9 +23,22 @@ void serialize(Archive& archive, raven::Edge& edge) {
 }
 
 template <class Archive>
-void serialize(Archive& archive, raven::Node& node) {
+void save(Archive& archive, const raven::Node& node) {
+  auto trans_buff = std::vector<std::uint32_t>(node.transitive.cbegin(),
+                                               node.transitive.cend());
+
   archive(node.id, node.sequence, node.count, node.is_unitig, node.is_circular,
-          node.is_polished, node.transitive);
+          node.is_polished, trans_buff);
+}
+
+template <class Archive>
+void load(Archive& archive, raven::Node& node) {
+  auto trans_buff = std::vector<std::uint32_t>();
+  archive(node.id, node.sequence, node.count, node.is_unitig, node.is_circular,
+          node.is_polished, trans_buff);
+
+  node.transitive =
+      tsl::robin_set<std::uint32_t>(trans_buff.cbegin(), trans_buff.cend());
 }
 
 template <class Archive>
@@ -67,6 +88,8 @@ void load(Archive& archive, raven::Graph& graph) {
   graph.node_factory = raven::NodeFactory(graph.nodes.size());
   graph.edge_factory = raven::EdgeFactory(graph.edges.size());
 }
+
+}  // namespace cereal
 
 namespace raven {
 
