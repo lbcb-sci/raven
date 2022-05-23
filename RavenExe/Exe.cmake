@@ -12,4 +12,7 @@ if (NOT TARGET RavenExe)
     target_compile_definitions(raven_exe PRIVATE VERSION="${PROJECT_VERSION}")
     set_property(TARGET raven_exe PROPERTY OUTPUT_NAME raven)
 
+    configure_file(
+      "${CMAKE_CURRENT_LIST_DIR}/src/raven_cfg.h.in" raven_cfg.h)
+    target_include_directories(raven_exe PRIVATE ${PROJECT_BINARY_DIR})
 endif()
