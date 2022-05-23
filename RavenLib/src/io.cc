@@ -26,8 +26,8 @@ static auto IsSuffixFor(std::string_view const suffix,
              : false;
 }
 
-static auto CreateParser(std::filesystem::path const& path)
-    -> std::unique_ptr<bioparser::Parser<biosoup::NucleicAcid>> {
+static std::unique_ptr<bioparser::Parser<biosoup::NucleicAcid>> CreateParser(
+    const std::filesystem::path& path) {
   using namespace std::placeholders;
   if (std::filesystem::exists(path)) {
     if (std::any_of(kFastaSuffxies.cbegin(), kFastaSuffxies.cend(),
@@ -47,26 +47,26 @@ static auto CreateParser(std::filesystem::path const& path)
 
 }  // namespace detail
 
-auto LoadSequences(std::filesystem::path const& path)
-    -> std::vector<std::unique_ptr<biosoup::NucleicAcid>> {
+std::vector<std::unique_ptr<biosoup::NucleicAcid>> LoadSequences(
+    const std::filesystem::path& path) {
   auto sparser = detail::CreateParser(path);
 
   return sparser->Parse(std::numeric_limits<std::uint64_t>::max());
 }
 
-auto LoadSequences(std::shared_ptr<thread_pool::ThreadPool> thread_pool,
-                   std::vector<std::filesystem::path> const& paths)
-    -> std::vector<std::unique_ptr<biosoup::NucleicAcid>> {
+std::vector<std::unique_ptr<biosoup::NucleicAcid>> LoadSequences(
+    std::shared_ptr<thread_pool::ThreadPool> thread_pool,
+    const std::vector<std::filesystem::path>& paths) {
   auto dst = std::vector<std::unique_ptr<biosoup::NucleicAcid>>();
 
   {
     auto parse_futures = std::vector<
         std::future<std::vector<std::unique_ptr<biosoup::NucleicAcid>>>>();
 
-    auto parse_async = [&thread_pool](std::filesystem::path const& path)
+    auto parse_async = [&thread_pool](const std::filesystem::path& path)
         -> std::future<std::vector<std::unique_ptr<biosoup::NucleicAcid>>> {
       return thread_pool->Submit(
-          [](std::filesystem::path const& path)
+          [](const std::filesystem::path& path)
               -> std::vector<std::unique_ptr<biosoup::NucleicAcid>> {
             return LoadSequences(path);
           },
@@ -83,8 +83,8 @@ auto LoadSequences(std::shared_ptr<thread_pool::ThreadPool> thread_pool,
     }
 
     std::sort(dst.begin(), dst.end(),
-              [](std::unique_ptr<biosoup::NucleicAcid> const& lhs,
-                 std::unique_ptr<biosoup::NucleicAcid> const& rhs) -> bool {
+              [](const std::unique_ptr<biosoup::NucleicAcid>& lhs,
+                 const std::unique_ptr<biosoup::NucleicAcid>& rhs) -> bool {
                 return lhs->id < rhs->id;
               });
   }

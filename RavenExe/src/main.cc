@@ -86,33 +86,33 @@ int main(int argc, char** argv) {
     return EXIT_SUCCESS;
   }
 
-  auto const kmer_len = result["kmer-len"].as<std::uint8_t>();
-  auto const window_len = result["window-len"].as<std::uint8_t>();
-  auto const freq = result["frequency"].as<double>();
-  auto const identity = result["identity"].as<double>();
-  auto const kMaxNumOverlaps = result["kMaxNumOverlaps"].as<std::size_t>();
+  const auto kmer_len = result["kmer-len"].as<std::uint8_t>();
+  const auto window_len = result["window-len"].as<std::uint8_t>();
+  const auto freq = result["frequency"].as<double>();
+  const auto identity = result["identity"].as<double>();
+  const auto kMaxNumOverlaps = result["kMaxNumOverlaps"].as<std::size_t>();
 
-  auto const num_polishing_rounds =
+  const auto num_polishing_rounds =
       result["polishing-rounds"].as<std::uint32_t>();
-  auto const m = result["match"].as<std::int8_t>();
-  auto const n = result["mismatch"].as<std::int8_t>();
-  auto const g = result["gap"].as<std::int8_t>();
+  const auto m = result["match"].as<std::int8_t>();
+  const auto n = result["mismatch"].as<std::int8_t>();
+  const auto g = result["gap"].as<std::int8_t>();
 
-  auto const gfa_path = result["graphical-fragment-assembly"].as<std::string>();
-  auto const resume = result["resume"].as<bool>();
-  auto const checkpoints = !result["disable-checkpoints"].as<bool>();
+  const auto gfa_path = result["graphical-fragment-assembly"].as<std::string>();
+  const auto resume = result["resume"].as<bool>();
+  const auto checkpoints = !result["disable-checkpoints"].as<bool>();
 
-  auto const num_threads = result["threads"].as<std::uint32_t>();
+  const auto num_threads = result["threads"].as<std::uint32_t>();
 
 #ifdef CUDA_ENABLED
-  auto const cuda_poa_batches = 0U;
-  auto const cuda_alignment_batches = 0U;
-  auto const cuda_banded_alignment = false;
+  const auto cuda_poa_batches = 0U;
+  const auto cuda_alignment_batches = 0U;
+  const auto cuda_banded_alignment = false;
 #else
-  auto const cuda_poa_batches = result["cuda-poa-batches"].as<std::uint32_t>();
-  auto const cuda_alignment_batches =
+  const auto cuda_poa_batches = result["cuda-poa-batches"].as<std::uint32_t>();
+  const auto cuda_alignment_batches =
       result["cuda-alignment-batches"].as<std::uint32_t>();
-  auto const cuda_banded_alignment = result["cuda-banded-alignment"].as<bool>();
+  const auto cuda_banded_alignment = result["cuda-banded-alignment"].as<bool>();
 #endif /* CUDA_ENABLED */
 
   biosoup::Timer timer{};
@@ -141,7 +141,7 @@ int main(int argc, char** argv) {
     auto paths_strs = result["paths"].as<std::vector<std::string>>();
     auto paths = std::vector<std::filesystem::path>();
 
-    for (auto const& it : paths_strs) {
+    for (const auto& it : paths_strs) {
       auto it_path = std::filesystem::path(std::move(it));
       if (std::filesystem::is_regular_file(it_path)) {
         paths.emplace_back(std::move(it_path));

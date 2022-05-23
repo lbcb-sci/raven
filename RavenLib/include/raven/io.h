@@ -11,14 +11,13 @@
 namespace raven {
 
 RAVEN_EXPORT
-auto LoadSequences(std::filesystem::path const& path)
-    -> std::vector<std::unique_ptr<biosoup::NucleicAcid>>;
+std::vector<std::unique_ptr<biosoup::NucleicAcid>> LoadSequences(
+    const std::filesystem::path& path);
 
 RAVEN_EXPORT
-auto LoadSequences(std::shared_ptr<thread_pool::ThreadPool> thread_pool,
-                   std::vector<std::filesystem::path> const& paths)
-    -> std::vector<std::unique_ptr<biosoup::NucleicAcid>>;
-
+std::vector<std::unique_ptr<biosoup::NucleicAcid>> LoadSequences(
+    std::shared_ptr<thread_pool::ThreadPool> thread_pool,
+    const std::vector<std::filesystem::path>& paths);
 
 }  // namespace raven
 
