@@ -9,8 +9,8 @@
 #include "bioparser/fastq_parser.hpp"
 #include "biosoup/timer.hpp"
 #include "cxxopts.hpp"
-#include "raven_cfg.h"
 #include "raven/raven.h"
+#include "raven_cfg.h"
 
 std::atomic<std::uint32_t> biosoup::NucleicAcid::num_objects{0};
 
@@ -77,12 +77,12 @@ int main(int argc, char** argv) {
   auto result = options.parse(argc, argv);
 
   if (result.count("help")) {
-    std::cerr << options.help() << std::endl; 
+    std::cerr << options.help() << std::endl;
     return EXIT_SUCCESS;
   }
 
   if (result.count("version")) {
-    std::cerr << PROJECT_VER << std::endl; 
+    std::cerr << PROJECT_VER << std::endl;
     return EXIT_SUCCESS;
   }
 
@@ -108,13 +108,12 @@ int main(int argc, char** argv) {
   auto const cuda_poa_batches = 0U;
   auto const cuda_alignment_batches = 0U;
   auto const cuda_banded_alignment = false;
-#else 
+#else
   auto const cuda_poa_batches = result["cuda-poa-batches"].as<std::uint32_t>();
-  auto const cuda_alignment_batches = result["cuda-alignment-batches"].as<std::uint32_t>();
+  auto const cuda_alignment_batches =
+      result["cuda-alignment-batches"].as<std::uint32_t>();
   auto const cuda_banded_alignment = result["cuda-banded-alignment"].as<bool>();
 #endif /* CUDA_ENABLED */
-
-  auto path_strings = result["paths"].as<std::vector<std::string>>();
 
   biosoup::Timer timer{};
   timer.Start();
@@ -139,34 +138,24 @@ int main(int argc, char** argv) {
 
   std::vector<std::unique_ptr<biosoup::NucleicAcid>> sequences;
   if (graph.stage < -3 || num_polishing_rounds > std::max(0, graph.stage)) {
-    for (auto const& it : path_strings) {
-      auto sparser = raven::CreateParser(it);
-      if (sparser == nullptr) {
-        return EXIT_FAILURE;
-      }
+    auto paths_strs = result["paths"].as<std::vector<std::string>>();
+    auto paths = std::vector<std::filesystem::path>();
 
-      std::vector<std::unique_ptr<biosoup::NucleicAcid>> chunk;
-      try {
-        chunk = sparser->Parse(-1);
-      } catch (const std::invalid_argument& exception) {
-        std::cerr << exception.what() << " (" << it << ")" << std::endl;
-        return EXIT_FAILURE;
-      }
-
-      if (chunk.empty()) {
-        std::cerr << "[raven::] warning: file " << it << " is empty"
-                  << std::endl;
-        continue;
-      }
-
-      if (sequences.empty()) {
-        sequences.swap(chunk);
-      } else {
-        sequences.insert(sequences.end(),
-                         std::make_move_iterator(chunk.begin()),
-                         std::make_move_iterator(chunk.end()));
+    for (auto const& it : paths_strs) {
+      auto it_path = std::filesystem::path(std::move(it));
+      if (std::filesystem::is_regular_file(it_path)) {
+        paths.emplace_back(std::move(it_path));
+      } else if (std::filesystem::is_directory(it_path)) {
+        for (auto dir_entry : std::filesystem::recursive_directory_iterator(
+                 std::move(it_path))) {
+          if (std::filesystem::is_regular_file(dir_entry)) {
+            paths.emplace_back(std::move(dir_entry));
+          }
+        }
       }
     }
+
+    sequences = raven::LoadSequences(thread_pool, paths);
 
     if (sequences.empty()) {
       std::cerr << "[raven::] error: empty sequences set" << std::endl;
