@@ -26,7 +26,7 @@ int main(int argc, char** argv) {
     ("w,window-len", "length of sliding window from which minimizers are sampled",
       cxxopts::value<std::uint8_t>()->default_value("5"))
     ("f,frequency", "threshold for ignoring most frequent minimizers",
-      cxxopts::value<double>()->default_value("0.001"));
+      cxxopts::value<double>()->default_value("0.0002"));
   options.add_options("layout arguments")
     ("i,identity", 
      "threshold for overlap between two reads in order to construct an edge between them", 

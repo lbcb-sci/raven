@@ -1,6 +1,20 @@
 include(FetchContent)
 include(GNUInstallDirs)
 
+FetchContent_Declare(
+  ram
+  GIT_REPOSITORY https://github.com/tbrekalo/ram-experimental
+  GIT_TAG f7042c21fee01feb87e1953e498c402eb1f8fcc6)
+
+FetchContent_GetProperties(ram)
+if (NOT ram_POPULATED)
+  FetchContent_Populate(ram)
+  add_subdirectory(
+    ${ram_SOURCE_DIR} 
+    ${ram_BINARY_DIR}
+    EXCLUDE_FROM_ALL)
+endif ()
+
 find_package(bioparser 3.0.13 QUIET)
 if (NOT bioparser_FOUND)
     FetchContent_Declare(

@@ -373,7 +373,7 @@ void ResolveChimericSequences(
 
 void FindOverlapsAndRepetetiveRegions(
     const std::shared_ptr<thread_pool::ThreadPool>& thread_pool,
-    ram::MinimizerEngine& minimizerEngine, double freq, std::uint8_t kmer_len,
+    ram::MinimizerEngine& minimizer_engine, double freq, std::uint8_t kmer_len,
     double identity, const std::vector<std::unique_ptr<Pile>>& piles,
     std::vector<std::vector<biosoup::Overlap>>& overlaps,
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences) {
@@ -417,7 +417,7 @@ void FindOverlapsAndRepetetiveRegions(
 
     timer.Start();
 
-    minimizerEngine.Minimize(sequences.begin() + j, sequences.begin() + i + 1);
+    minimizer_engine.Minimize(sequences.begin() + j, sequences.begin() + i + 1);
 
     std::cerr << "[raven::Graph::Construct] minimized " << j << " - " << i + 1
               << " / " << s << " " << std::fixed << timer.Stop() << "s"
@@ -426,12 +426,12 @@ void FindOverlapsAndRepetetiveRegions(
     timer.Start();
 
     std::vector<std::future<std::vector<biosoup::Overlap>>> thread_futures;
-    minimizerEngine.Filter(freq);
+    minimizer_engine.Filter(freq);
     for (std::uint32_t k = 0; k < i + 1; ++k) {
       thread_futures.emplace_back(thread_pool->Submit(
           [&](std::uint32_t i) -> std::vector<biosoup::Overlap> {
             std::vector<std::uint32_t> filtered;
-            auto dst = minimizerEngine.Map(sequences[i],
+            auto dst = minimizer_engine.Map(sequences[i],
                                            true,   // avoid equal
                                            true,   // avoid symmetric
                                            false,  // minhash
