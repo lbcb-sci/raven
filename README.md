@@ -145,7 +145,7 @@ target_link_libraries(<YourTarget> <PRIVATE|PUBLIC|INTERFACE> raven)
 Install [Linuxbrew](https://docs.brew.sh/Homebrew-on-Linux) and run the following command:
 
 ```bash
-brew install brewsci/bio/raven-assember
+brew install brewsci/bio/raven-assembler
 ```
 
 #### Conda
