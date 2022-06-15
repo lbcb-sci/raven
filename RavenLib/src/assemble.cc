@@ -11,18 +11,18 @@
 #include <stdexcept>
 #include <thread_pool/thread_pool.hpp>
 
-#include "raven/graph/common.h"
-#include "raven/graph/serialization/binary.h"
 #include "biosoup/timer.hpp"
 #include "edlib.h"  // NOLINT
 #include "ram/minimizer_engine.hpp"
+#include "raven/graph/common.h"
 #include "raven/graph/graph.h"
+#include "raven/graph/serialization/binary.h"
 
 namespace raven {
 
 namespace {
 
-static std::uint32_t RemoveTransitiveEdges(Graph& graph) {
+std::uint32_t RemoveTransitiveEdges(Graph& graph) {
   biosoup::Timer timer;
   timer.Start();
 
@@ -74,7 +74,7 @@ static std::uint32_t RemoveTransitiveEdges(Graph& graph) {
   return marked_edges.size() / 2;
 }
 
-static std::uint32_t RemoveTips(Graph& graph) {
+std::uint32_t RemoveTips(Graph& graph) {
   std::uint32_t num_tips = 0;
   std::vector<char> is_visited(graph.nodes.size(), 0);
 
@@ -127,7 +127,7 @@ static std::uint32_t RemoveTips(Graph& graph) {
   return num_tips;
 }
 
-static std::unordered_set<std::uint32_t> FindRemovableEdges(
+std::unordered_set<std::uint32_t> FindRemovableEdges(
     const std::vector<Node*>& path) {
   if (path.empty()) {
     return std::unordered_set<std::uint32_t>{};
@@ -198,7 +198,7 @@ static std::unordered_set<std::uint32_t> FindRemovableEdges(
   return dst;  // empty
 }
 
-static std::uint32_t RemoveBubbles(Graph& graph) {
+std::uint32_t RemoveBubbles(Graph& graph) {
   std::vector<std::uint32_t> distance(graph.nodes.size(), 0);
   std::vector<Node*> predecessor(graph.nodes.size(), nullptr);
 
@@ -356,7 +356,7 @@ static std::uint32_t RemoveBubbles(Graph& graph) {
   return num_bubbles;
 }
 
-static void CreateForceDirectedLayout(
+void CreateForceDirectedLayout(
     std::shared_ptr<thread_pool::ThreadPool>& threadPool, const Graph& graph,
     const std::string& path = "") {
   std::ofstream os;
@@ -418,7 +418,7 @@ static void CreateForceDirectedLayout(
       return x == other.x && y == other.y;
     }
     Point operator+(const Point& other) const {
-      return Point(x + other.x, y + other.y);
+      return {x + other.x, y + other.y};
     }
     Point& operator+=(const Point& other) {
       x += other.x;
@@ -426,15 +426,15 @@ static void CreateForceDirectedLayout(
       return *this;
     }
     Point operator-(const Point& other) const {
-      return Point(x - other.x, y - other.y);
+      return {x - other.x, y - other.y};
     }
-    Point operator*(double c) const { return Point(x * c, y * c); }
+    Point operator*(double c) const { return {x * c, y * c}; }
     Point& operator/=(double c) {
       x /= c;
       y /= c;
       return *this;
     }
-    double Norm() const { return sqrt(x * x + y * y); }
+    [[nodiscard]] double Norm() const { return sqrt(x * x + y * y); }
 
     double x;
     double y;
@@ -487,7 +487,7 @@ static void CreateForceDirectedLayout(
       center /= mass;
     }
 
-    Point Force(const Point& p, double k) const {
+    [[nodiscard]] Point Force(const Point& p, double k) const {
       auto delta = p - center;
       auto distance = delta.Norm();
       if (width * 2 / distance < 1) {
@@ -520,7 +520,7 @@ static void CreateForceDirectedLayout(
         break;
       }
     }
-    if (has_junctions == false) {
+    if (!has_junctions) {
       continue;
     }
 
@@ -601,6 +601,7 @@ static void CreateForceDirectedLayout(
         return;
       };
 
+      thread_futures.reserve(component.size());
       for (const auto& n : component) {
         thread_futures.emplace_back(threadPool->Submit(thread_task, n));
       }
@@ -699,7 +700,7 @@ static void CreateForceDirectedLayout(
   }
 }
 
-static std::uint32_t RemoveLongEdges(
+std::uint32_t RemoveLongEdges(
     std::shared_ptr<thread_pool::ThreadPool>& threadPool, Graph& graph,
     std::uint32_t num_rounds) {
   std::uint32_t num_long_edges = 0;
@@ -731,7 +732,7 @@ static std::uint32_t RemoveLongEdges(
   return num_long_edges;
 }
 
-static std::uint32_t SalvagePlasmids(
+std::uint32_t SalvagePlasmids(
     std::shared_ptr<thread_pool::ThreadPool>& threadPool, Graph& graph) {
   CreateUnitigs(graph);
 
@@ -796,7 +797,7 @@ static std::uint32_t SalvagePlasmids(
   return plasmids.size();
 }
 
-static void RemoveTipsAndBubbles(Graph& graph) {
+void RemoveTipsAndBubbles(Graph& graph) {
   biosoup::Timer timer;
   timer.Start();
 
@@ -812,7 +813,7 @@ static void RemoveTipsAndBubbles(Graph& graph) {
             << std::fixed << timer.Stop() << "s" << std::endl;
 }
 
-static void RemoveLongEdgesStage(
+void RemoveLongEdgesStage(
     Graph& graph, std::shared_ptr<thread_pool::ThreadPool>& threadPool) {
   biosoup::Timer timer;
   timer.Start();
@@ -890,7 +891,8 @@ void RemoveTipsAndBubblesFromGraph(Graph& graph) {
   RemoveTipsAndBubbles(graph);
 }
 
-void RemoveLongEdgesFromGraph(Graph& graph, std::shared_ptr<thread_pool::ThreadPool>& threadPool) {
+void RemoveLongEdgesFromGraph(
+    Graph& graph, std::shared_ptr<thread_pool::ThreadPool>& threadPool) {
   RemoveLongEdgesStage(graph, threadPool);
 }
 

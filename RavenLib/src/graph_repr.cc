@@ -1,6 +1,8 @@
 #include "raven/graph/serialization/graph_repr.h"
+
 #include <string>
 #include <vector>
+
 #include "edlib.h"
 namespace raven {
 
@@ -12,21 +14,21 @@ void PrintGfa(const Graph& graph, const std::string& path) {
   std::ofstream os(path);
   for (const auto& it : graph.nodes) {
     if ((it == nullptr) || it->is_rc() ||
-        (it->count == 1 && it->outdegree() == 0 && it->indegree() == 0)) {      
+        (it->count == 1 && it->outdegree() == 0 && it->indegree() == 0)) {
       continue;
     }
 
-    os << "S"; 
-    os << "\t"; 
+    os << "S";
+    os << "\t";
     os << it->sequence.name;
     os << "\t";
     os << it->sequence.InflateData();
-    os << "\t"; 
+    os << "\t";
     os << "LN:i:" << it->sequence.inflated_len;
     os << "\t";
     os << "RC:i:" << it->count;
     os << std::endl;
-    
+
     if (it->is_circular) {
       os << "L";
       os << "\t";
@@ -38,7 +40,7 @@ void PrintGfa(const Graph& graph, const std::string& path) {
       os << "\t";
       os << '+';
       os << "\t";
-      os << "0M"; 
+      os << "0M";
       os << std::endl;
     }
   }
@@ -47,7 +49,7 @@ void PrintGfa(const Graph& graph, const std::string& path) {
     if (it == nullptr || it->is_rc()) {
       continue;
     }
-    
+
     os << "L";
     os << "\t";
     os << it->tail->sequence.name;
@@ -71,22 +73,22 @@ std::vector<std::string> getGfa(const Graph& graph) {
 
   for (const auto& it : graph.nodes) {
     if ((it == nullptr) || it->is_rc() ||
-        (it->count == 1 && it->outdegree() == 0 && it->indegree() == 0)) {      
+        (it->count == 1 && it->outdegree() == 0 && it->indegree() == 0)) {
       continue;
     }
 
     line.clear();
 
-    line += "S"; 
-    line += "\t"; 
+    line += "S";
+    line += "\t";
     line += it->sequence.name;
     line += "\t";
     line += it->sequence.InflateData();
-    line += "\t"; 
+    line += "\t";
     line += "LN:i:" + std::to_string(it->sequence.inflated_len);
     line += "\t";
     line += "RC:i:" + std::to_string(it->count);
-    
+
     resultVector.push_back(line);
 
     if (it->is_circular) {
@@ -102,8 +104,8 @@ std::vector<std::string> getGfa(const Graph& graph) {
       line += "\t";
       line += '+';
       line += "\t";
-      line += "0M"; 
-      
+      line += "0M";
+
       resultVector.push_back(line);
     }
   }
@@ -132,7 +134,9 @@ std::vector<std::string> getGfa(const Graph& graph) {
   return resultVector;
 }
 
-void PrintCsv(const Graph& graph, const std::string& path, bool printSequenceName, bool printPileBeginEnd, bool printEdgeSimilarity) {
+void PrintCsv(const Graph& graph, const std::string& path,
+              bool printSequenceName, bool printPileBeginEnd,
+              bool printEdgeSimilarity) {
   if (path.empty()) {
     return;
   }
@@ -171,7 +175,7 @@ void PrintCsv(const Graph& graph, const std::string& path, bool printSequenceNam
       os << graph.piles[it->sequence.id]->begin();
       os << " ";
       os << graph.piles[it->sequence.id]->end();
-    } 
+    }
 
     if (addDashAtTheEnd) {
       os << "-";
@@ -206,10 +210,9 @@ void PrintCsv(const Graph& graph, const std::string& path, bool printSequenceNam
     if (printEdgeSimilarity) {
       std::string lhs{it->tail->sequence.InflateData(it->length)};
       std::string rhs{it->head->sequence.InflateData(0, lhs.size())};
-      EdlibAlignResult result = edlibAlign(
-        lhs.c_str(), lhs.size(),
-        rhs.c_str(), rhs.size(),
-        edlibDefaultAlignConfig());
+      EdlibAlignResult result =
+          edlibAlign(lhs.c_str(), lhs.size(), rhs.c_str(), rhs.size(),
+                     edlibDefaultAlignConfig());
       double score = 1 - result.editDistance / static_cast<double>(lhs.size());
 
       os << " ";
@@ -242,11 +245,12 @@ void PrintCsv(const Graph& graph, const std::string& path, bool printSequenceNam
   os.close();
 }
 
-std::vector<std::string> getCsv(const Graph& graph, bool printSequenceName, bool printPileBeginEnd, bool printEdgeSimilarity) {
+std::vector<std::string> getCsv(const Graph& graph, bool printSequenceName,
+                                bool printPileBeginEnd,
+                                bool printEdgeSimilarity) {
   std::vector<std::string> resultVector;
-  std::string line;  
+  std::string line;
 
-  
   for (const auto& it : graph.nodes) {
     if ((it == nullptr) || it->is_rc() ||
         (it->count == 1 && it->outdegree() == 0 && it->indegree() == 0)) {
@@ -280,7 +284,7 @@ std::vector<std::string> getCsv(const Graph& graph, bool printSequenceName, bool
       line += std::to_string(graph.piles[it->sequence.id]->begin());
       line += " ";
       line += std::to_string(graph.piles[it->sequence.id]->end());
-    } 
+    }
 
     if (addDashAtTheEnd) {
       line += "-";
@@ -317,10 +321,9 @@ std::vector<std::string> getCsv(const Graph& graph, bool printSequenceName, bool
     if (printEdgeSimilarity) {
       std::string lhs{it->tail->sequence.InflateData(it->length)};
       std::string rhs{it->head->sequence.InflateData(0, lhs.size())};
-      EdlibAlignResult result = edlibAlign(
-        lhs.c_str(), lhs.size(),
-        rhs.c_str(), rhs.size(),
-        edlibDefaultAlignConfig());
+      EdlibAlignResult result =
+          edlibAlign(lhs.c_str(), lhs.size(), rhs.c_str(), rhs.size(),
+                     edlibDefaultAlignConfig());
       double score = 1 - result.editDistance / static_cast<double>(lhs.size());
 
       line += " ";
@@ -370,21 +373,23 @@ void PrintJson(const raven::Graph& graph, const std::string& path) {
       continue;
     }
 
-    archive(cereal::make_nvp(std::to_string(it->id()), *(it.get())));
+    archive(cereal::make_nvp(std::to_string(it->id()), *(it)));
   }
 }
 
-void splitString(const std::string &inputString, char delimiter, std::vector<std::string> &elems) {
-    std::stringstream stringStream;
-    stringStream.str(inputString);
-    std::string item;
-    while (std::getline(stringStream, item, delimiter)) {
-        elems.push_back(item);
-    }
+void splitString(const std::string& inputString, char delimiter,
+                 std::vector<std::string>& elems) {
+  std::stringstream stringStream;
+  stringStream.str(inputString);
+  std::string item;
+  while (std::getline(stringStream, item, delimiter)) {
+    elems.push_back(item);
+  }
 }
 
-Node* findNodeForSequenceName(std::string   tailSequenceName, std::vector<std::unique_ptr<Node>> &nodes) {
-  for (auto &node : nodes) {
+Node* findNodeForSequenceName(const std::string& tailSequenceName,
+                              std::vector<std::unique_ptr<Node>>& nodes) {
+  for (auto& node : nodes) {
     if (node == nullptr) continue;
     if (node->sequence.name == tailSequenceName) return node.get();
   }
@@ -393,7 +398,7 @@ Node* findNodeForSequenceName(std::string   tailSequenceName, std::vector<std::u
 
 Graph LoadGfa(const std::string& path) {
   Graph graph = Graph();
-  
+
   if (path.empty()) {
     return graph;
   }
@@ -403,41 +408,45 @@ Graph LoadGfa(const std::string& path) {
 
   std::ifstream is(path);
   std::string inputLine;
-  
-  while(getline(is, inputLine)) {
 
+  while (getline(is, inputLine)) {
     std::vector<std::string> rowValues;
     splitString(inputLine, '\t', rowValues);
 
-    if (rowValues[0] == "S") { // this is a node
-      
-      std::string   sequenceName                = rowValues[1];
-      std::string   sequenceInflatedData        = rowValues[2];
-      std::uint32_t count                       = stol(rowValues[4].substr(5));
+    if (rowValues[0] == "S") {  // this is a node
 
-      biosoup::NucleicAcid sequence = biosoup::NucleicAcid(sequenceName, sequenceInflatedData);
+      std::string sequenceName = rowValues[1];
+      std::string sequenceInflatedData = rowValues[2];
+      std::uint32_t count = stol(rowValues[4].substr(5));
+
+      biosoup::NucleicAcid sequence =
+          biosoup::NucleicAcid(sequenceName, sequenceInflatedData);
       std::unique_ptr<Node> newNode(new Node());
-      
-      newNode->id          = currentNodeId;
-      currentNodeId += 2; // since node is_rc() method is based on node id and PrintGfa only prints !is_rc() Nodes all ids are set to even numbers
 
-      newNode->count       = count;
-      newNode->is_unitig   = false;
+      newNode->id = currentNodeId;
+      currentNodeId +=
+          2;  // since node is_rc() method is based on node id and PrintGfa only
+              // prints !is_rc() Nodes all ids are set to even numbers
+
+      newNode->count = count;
+      newNode->is_unitig = false;
       newNode->is_circular = false;
       newNode->is_polished = false;
-      newNode->sequence    = sequence;
-      
+      newNode->sequence = sequence;
+
       graph.nodes.push_back(std::move(newNode));
 
-    } else if (rowValues[0] == "L") { // this is an egde
+    } else if (rowValues[0] == "L") {  // this is an egde
 
-      std::string   tailSequenceName                  = rowValues[1];
-      std::string   isTailReverseComplement           = rowValues[2];
-      std::string   headSequenceName                  = rowValues[3];
-      std::string   isHeadReverseComplement           = rowValues[4];
-      std::uint32_t tailInflatedLengthMinusEdgeLength = stol(rowValues[5].substr(0, rowValues[5].size() - 1));
+      std::string tailSequenceName = rowValues[1];
+      std::string isTailReverseComplement = rowValues[2];
+      std::string headSequenceName = rowValues[3];
+      std::string isHeadReverseComplement = rowValues[4];
+      std::uint32_t tailInflatedLengthMinusEdgeLength =
+          stol(rowValues[5].substr(0, rowValues[5].size() - 1));
 
-      if (tailInflatedLengthMinusEdgeLength == 0 && tailSequenceName == headSequenceName) { // circular
+      if (tailInflatedLengthMinusEdgeLength == 0 &&
+          tailSequenceName == headSequenceName) {  // circular
 
         Node* node;
         node = findNodeForSequenceName(headSequenceName, graph.nodes);
@@ -446,20 +455,24 @@ Graph LoadGfa(const std::string& path) {
         }
 
       } else {
-
         Node* tail;
         std::uint32_t edgeLength = 0;
         tail = findNodeForSequenceName(tailSequenceName, graph.nodes);
         if (tail != nullptr) {
-          edgeLength = tail->sequence.inflated_len - tailInflatedLengthMinusEdgeLength;
+          edgeLength =
+              tail->sequence.inflated_len - tailInflatedLengthMinusEdgeLength;
         }
 
         Node* head;
         head = findNodeForSequenceName(headSequenceName, graph.nodes);
 
         std::unique_ptr<Edge> newEdge(new Edge(tail, head, edgeLength));
-        newEdge->id = currentEdgeId; // (adolmac) have no idea if this is Ok or not since I do not have info about egde Id in GFA
-        currentEdgeId += 2;          // since edge is_rc() method is based on edge id and PrintGfa only prints !is_rc() Edges all ids are set to even numbers
+        newEdge->id =
+            currentEdgeId;  // (adolmac) have no idea if this is Ok or not since
+                            // I do not have info about egde Id in GFA
+        currentEdgeId +=
+            2;  // since edge is_rc() method is based on edge id and PrintGfa
+                // only prints !is_rc() Edges all ids are set to even numbers
 
         if (tail != nullptr) {
           tail->outedges.push_back(newEdge.get());
@@ -470,14 +483,11 @@ Graph LoadGfa(const std::string& path) {
         }
 
         graph.edges.push_back(std::move(newEdge));
-
       }
-
 
     } else {
       std::cout << "Unknown element: " << inputLine << std::endl;
     }
-  
   }
 
   graph.stage = -3;

@@ -7,9 +7,8 @@ namespace raven {
 std::unique_ptr<bioparser::Parser<biosoup::NucleicAcid>> CreateParser(
     const std::string& path) {
   auto is_suffix = [](const std::string_view s, const std::string_view suff) {
-    return s.size() < suff.size()
-               ? false
-               : s.compare(s.size() - suff.size(), suff.size(), suff) == 0;
+    return s.size() >= suff.size() &&
+           s.compare(s.size() - suff.size(), suff.size(), suff) == 0;
   };
 
   if (is_suffix(path, ".fasta") || is_suffix(path, ".fa") ||

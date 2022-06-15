@@ -31,7 +31,7 @@ struct PolishCfg {
 RAVEN_EXPORT void Polish(std::shared_ptr<thread_pool::ThreadPool> thread_pool, Graph& graph,
             bool checkpoints,
             const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
-            const PolishCfg cfg);
+            PolishCfg cfg);
 }  // namespace raven
 
 #endif  // RAVEN_GRAPH_POLISH_H_

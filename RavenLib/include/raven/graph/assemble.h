@@ -1,8 +1,8 @@
 #ifndef RAVEN_GRAPH_ASSEMBLE_H_
 #define RAVEN_GRAPH_ASSEMBLE_H_
 
-#include "raven/graph/graph.h"
 #include "raven/export.h"
+#include "raven/graph/graph.h"
 #include "thread_pool/thread_pool.hpp"
 
 namespace raven {
@@ -13,13 +13,14 @@ namespace raven {
 // - remove bubbles
 // - remove elongated edges in 2D layout
 RAVEN_EXPORT void Assemble(std::shared_ptr<thread_pool::ThreadPool> thread_pool,
-              Graph& graph, bool checkpoints);
+                           Graph& graph, bool checkpoints);
 
 RAVEN_EXPORT std::uint32_t RemoveTransitiveEdgesFromGraph(Graph& graph);
 
 RAVEN_EXPORT void RemoveTipsAndBubblesFromGraph(Graph& graph);
 
-RAVEN_EXPORT void RemoveLongEdgesFromGraph(Graph& graph, std::shared_ptr<thread_pool::ThreadPool>& threadPool);
+RAVEN_EXPORT void RemoveLongEdgesFromGraph(
+    Graph& graph, std::shared_ptr<thread_pool::ThreadPool>& threadPool);
 
 }  // namespace raven
 

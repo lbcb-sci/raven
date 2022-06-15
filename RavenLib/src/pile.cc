@@ -21,10 +21,10 @@ Pile::Pile(std::uint32_t id, std::uint32_t len)
       begin_(0),
       end_(len >> kPSS),
       median_(0),
-      is_invalid_(0),
-      is_contained_(0),
-      is_chimeric_(0),
-      is_repetitive_(0),
+      is_invalid_(false),
+      is_contained_(false),
+      is_chimeric_(false),
+      is_repetitive_(false),
       data_(end_, 0),
       kmers_(),
       chimeric_regions_(),
@@ -68,7 +68,7 @@ void Pile::AddKmers(const std::vector<std::uint32_t>& kmers,
     return;
   }
   if (kmers_.empty()) {
-    kmers_.resize(data_.size() + 1, 0);
+    kmers_.resize(data_.size() + 1, false);
   }
   for (const auto& it : kmers) {
     // filter low-complexity regions
@@ -372,7 +372,7 @@ void Pile::ClearRepetitiveRegions() { repetitive_regions_.clear(); }
 
 std::vector<Pile::Region> Pile::MergeRegions(const std::vector<Region>& src) {
   std::vector<Region> dst;
-  std::vector<bool> is_merged(src.size(), 0);
+  std::vector<bool> is_merged(src.size(), false);
   for (std::uint32_t i = 0; i < src.size(); ++i) {
     if (is_merged[i]) {
       continue;
@@ -532,7 +532,7 @@ std::vector<Pile::Region> Pile::FindSlopes(double q) {
         std::uint32_t subpile_end = dst[i].second;
 
         for (std::uint32_t j = subpile_begin; j < subpile_end + 1; ++j) {
-          if (left_subpile.empty() == false &&
+          if (!left_subpile.empty() &&
               clamp(data_[j] * q) < left_subpile.front().second) {
             if (found_down) {
               if (j - last_down > 1) {

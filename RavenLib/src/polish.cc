@@ -1,5 +1,7 @@
 #include "raven/graph/polish.hpp"
 
+#include <utility>
+
 #include "biosoup/timer.hpp"
 #include "racon/polisher.hpp"
 #include "raven/graph/common.h"
@@ -41,7 +43,7 @@ void Polish(std::shared_ptr<thread_pool::ThreadPool> thread_pool, Graph& graph,
   }
 
   auto polisher = racon::Polisher::Create(
-      thread_pool, avg_q, 0.3, 500, true, cfg.align_cfg.match,
+      std::move(thread_pool), avg_q, 0.3, 500, true, cfg.align_cfg.match,
       cfg.align_cfg.mismatch, cfg.align_cfg.gap,
 
       cfg.cuda_cfg.poa_batches, cfg.cuda_cfg.banded_alignment,

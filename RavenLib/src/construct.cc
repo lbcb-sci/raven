@@ -4,10 +4,10 @@
 
 #include "biosoup/overlap.hpp"
 #include "biosoup/timer.hpp"
+#include "edlib.h"
 #include "ram/minimizer_engine.hpp"
 #include "raven/graph/overlap_utils.h"
 #include "raven/graph/serialization/binary.h"
-#include "edlib.h"
 
 namespace raven {
 
@@ -18,7 +18,6 @@ void FindOverlapsAndCreatePiles(
     double freq, std::vector<std::unique_ptr<Pile>>& piles,
     std::vector<std::vector<biosoup::Overlap>>& overlaps,
     std::size_t kMaxNumOverlaps) {
-  
   piles.reserve(sequences.size());
   for (const auto& it : sequences) {
     piles.emplace_back(new Pile(it->id, it->inflated_len));
@@ -164,7 +163,7 @@ void ResolveContainedReads(
     std::vector<std::future<void>> futures;
     for (std::uint32_t i = 0; i < overlaps.size(); ++i) {
       futures.emplace_back(thread_pool->Submit(
-          [&] (std::uint32_t i) -> void {
+          [&](std::uint32_t i) -> void {
             std::uint32_t k = 0;
             for (std::uint32_t j = 0; j < overlaps[i].size(); ++j) {
               if (!OverlapUpdate(overlaps[i][j], piles)) {
@@ -174,26 +173,24 @@ void ResolveContainedReads(
               const auto& it = overlaps[i][j];
 
               auto lhs = sequences[it.lhs_id]->InflateData(
-                  it.lhs_begin,
-                  it.lhs_end - it.lhs_begin);
+                  it.lhs_begin, it.lhs_end - it.lhs_begin);
 
               auto rhs = sequences[it.rhs_id]->InflateData(
-                  it.rhs_begin,
-                  it.rhs_end - it.rhs_begin);
+                  it.rhs_begin, it.rhs_end - it.rhs_begin);
               if (!it.strand) {
                 biosoup::NucleicAcid rhs_{"", rhs};
                 rhs_.ReverseAndComplement();
                 rhs = rhs_.InflateData();
               }
 
-              auto result = edlibAlign(
-                  lhs.c_str(), lhs.size(),
-                  rhs.c_str(), rhs.size(),
-                  edlibDefaultAlignConfig());
+              auto result = edlibAlign(lhs.c_str(), lhs.size(), rhs.c_str(),
+                                       rhs.size(), edlibDefaultAlignConfig());
 
-              auto score = result.status == EDLIB_STATUS_OK ?
-                  1. - static_cast<double>(result.editDistance) / std::max(lhs.size(), rhs.size()) :  // NOLINT
-                  0.;
+              auto score = result.status == EDLIB_STATUS_OK
+                               ? 1. - static_cast<double>(result.editDistance) /
+                                          std::max(lhs.size(), rhs.size())
+                               :  // NOLINT
+                               0.;
 
               edlibFreeAlignResult(result);
 
@@ -210,9 +207,8 @@ void ResolveContainedReads(
       it.wait();
     }
 
-    std::cerr << "[raven::Graph::Construct] filtered overlaps "
-              << std::fixed << timer.Stop() << "s"
-              << std::endl;
+    std::cerr << "[raven::Graph::Construct] filtered overlaps " << std::fixed
+              << timer.Stop() << "s" << std::endl;
   }
 
   timer.Start();
@@ -283,14 +279,14 @@ void ResolveChimericSequences(
     it.wait();
   }
 
-  for (std::uint32_t i = 0; i < overlaps.size(); ++i) {
+  for (auto & overlap : overlaps) {
     std::uint32_t k = 0;
-    for (std::uint32_t j = 0; j < overlaps[i].size(); ++j) {
-      if (OverlapUpdate(overlaps[i][j], piles)) {
-        overlaps[i][k++] = overlaps[i][j];
+    for (std::uint32_t j = 0; j < overlap.size(); ++j) {
+      if (OverlapUpdate(overlap[j], piles)) {
+        overlap[k++] = overlap[j];
       }
     }
-    overlaps[i].resize(k);
+    overlap.resize(k);
   }
 
   for (const auto& it : overlaps) {
@@ -314,8 +310,8 @@ void ResolveChimericSequences(
 
 void FindOverlapsAndRepetetiveRegions(
     const std::shared_ptr<thread_pool::ThreadPool>& thread_pool,
-    ram::MinimizerEngine& minimizerEngine, double freq, std::uint8_t kmer_len, double identity,
-    const std::vector<std::unique_ptr<Pile>>& piles,
+    ram::MinimizerEngine& minimizerEngine, double freq, std::uint8_t kmer_len,
+    double identity, const std::vector<std::unique_ptr<Pile>>& piles,
     std::vector<std::vector<biosoup::Overlap>>& overlaps,
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences) {
   biosoup::Timer timer;
@@ -337,7 +333,6 @@ void FindOverlapsAndRepetetiveRegions(
       sequences_map[sequences[i]->id] = i;
     }
   }
-  
 
   std::uint32_t s = 0;
   for (std::uint32_t i = 0; i < sequences.size(); ++i) {
@@ -380,7 +375,7 @@ void FindOverlapsAndRepetetiveRegions(
                                            &filtered);
             piles[sequences[i]->id]->AddKmers(filtered, kmer_len,
                                               sequences[i]);  // NOLINT
-          
+
             if (identity != 0) {
               std::uint32_t k = 0;
               for (std::uint32_t j = 0; j < dst.size(); ++j) {
@@ -391,26 +386,25 @@ void FindOverlapsAndRepetetiveRegions(
                 const auto& jt = dst[j];
 
                 auto lhs = sequences[sequences_map[jt.lhs_id]]->InflateData(
-                    jt.lhs_begin,
-                    jt.lhs_end - jt.lhs_begin);
+                    jt.lhs_begin, jt.lhs_end - jt.lhs_begin);
 
                 auto rhs = sequences[sequences_map[jt.rhs_id]]->InflateData(
-                    jt.rhs_begin,
-                    jt.rhs_end - jt.rhs_begin);
+                    jt.rhs_begin, jt.rhs_end - jt.rhs_begin);
                 if (!jt.strand) {
                   biosoup::NucleicAcid rhs_{"", rhs};
                   rhs_.ReverseAndComplement();
                   rhs = rhs_.InflateData();
                 }
 
-                auto result = edlibAlign(
-                    lhs.c_str(), lhs.size(),
-                    rhs.c_str(), rhs.size(),
-                    edlibDefaultAlignConfig());
+                auto result = edlibAlign(lhs.c_str(), lhs.size(), rhs.c_str(),
+                                         rhs.size(), edlibDefaultAlignConfig());
 
-                auto score = result.status == EDLIB_STATUS_OK ?
-                    1. - static_cast<double>(result.editDistance) / std::max(lhs.size(), rhs.size()) :  // NOLINT
-                    0.;
+                auto score =
+                    result.status == EDLIB_STATUS_OK
+                        ? 1. - static_cast<double>(result.editDistance) /
+                                   std::max(lhs.size(), rhs.size())
+                        :  // NOLINT
+                        0.;
 
                 edlibFreeAlignResult(result);
 
@@ -421,7 +415,7 @@ void FindOverlapsAndRepetetiveRegions(
               }
               dst.resize(k);
             }
-            
+
             return dst;
           },
           k));
@@ -502,7 +496,8 @@ void ResolveRepeatInducedOverlaps(
     auto components = ConnectedComponents(overlaps, sequences, piles);
     for (const auto& it : components) {
       std::vector<std::uint16_t> medians;
-      for (const auto& jt : it) {
+      medians.reserve(it.size());
+for (const auto& jt : it) {
         medians.emplace_back(piles[jt]->median());
       }
       std::nth_element(medians.begin(), medians.begin() + medians.size() / 2,
@@ -510,7 +505,8 @@ void ResolveRepeatInducedOverlaps(
       std::uint16_t median = medians[medians.size() / 2];
 
       std::vector<std::future<void>> futures;
-      for (const auto& jt : it) {
+      futures.reserve(it.size());
+for (const auto& jt : it) {
         futures.emplace_back(thread_pool->Submit(
             [&](std::uint32_t i) -> void {
               piles[i]->FindRepetitiveRegions(median);
@@ -662,10 +658,12 @@ void ConstructGraph(
 
   if (graph.stage == -5) {
     FindOverlapsAndCreatePiles(thread_pool, minimizerEngine, sequences,
-                               cfg.freq, graph.piles, overlaps, cfg.kMaxNumOverlaps);
+                               cfg.freq, graph.piles, overlaps,
+                               cfg.kMaxNumOverlaps);
     TrimAndAnnotatePiles(thread_pool, graph.piles, overlaps);
 
-    ResolveContainedReads(graph.piles, overlaps, sequences, thread_pool, cfg.identity);
+    ResolveContainedReads(graph.piles, overlaps, sequences, thread_pool,
+                          cfg.identity);
     ResolveChimericSequences(thread_pool, graph.piles, overlaps, sequences);
 
     ++graph.stage;
@@ -680,8 +678,8 @@ void ConstructGraph(
 
   if (graph.stage == -4) {
     FindOverlapsAndRepetetiveRegions(thread_pool, minimizerEngine, cfg.freq,
-                                     cfg.kmer_len, cfg.identity, graph.piles, overlaps,
-                                     sequences);
+                                     cfg.kmer_len, cfg.identity, graph.piles,
+                                     overlaps, sequences);
     ResolveRepeatInducedOverlaps(thread_pool, graph.piles, overlaps, sequences);
 
     ConstructAssemblyGraph(graph, graph.piles, overlaps, sequences);
