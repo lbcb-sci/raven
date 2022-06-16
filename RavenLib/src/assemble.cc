@@ -20,8 +20,6 @@
 
 namespace raven {
 
-namespace {
-
 static std::uint32_t RemoveTransitiveEdges(Graph& graph) {
   biosoup::Timer timer;
   timer.Start();
@@ -855,7 +853,6 @@ static void StageExecution(Graph& graph, bool checkpoints, Fun fun,
               << timer.Stop() << "s" << std::endl;
   }
 }
-}  // namespace
 
 void Assemble(std::shared_ptr<thread_pool::ThreadPool> threadPool, Graph& graph,
               bool checkpoints) {
