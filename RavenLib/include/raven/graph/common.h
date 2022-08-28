@@ -12,7 +12,7 @@ namespace raven {
 // - ignore nodes less than epsilon away from a node with outdegree > 1
 RAVEN_EXPORT std::uint32_t CreateUnitigs(Graph& graph, std::uint32_t epsilon = 0);
 
-RAVEN_EXPORT void RemoveEdges(Graph& graph, const std::unordered_set<std::uint32_t>& indices,
+RAVEN_EXPORT void RemoveEdges(Graph& graph, const tsl::robin_set<std::uint32_t>& indices,
                  bool remove_nodes = false);
 
 RAVEN_EXPORT std::vector<std::unique_ptr<biosoup::NucleicAcid>> GetUnitigs(

@@ -37,5 +37,6 @@ if (NOT TARGET RavenLib)
       bioparser::bioparser
       cereal::cereal 
       ram::ram
-      racon::racon)
+      racon::racon
+      robin_map)
 endif ()

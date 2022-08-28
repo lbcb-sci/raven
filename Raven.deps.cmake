@@ -1,6 +1,20 @@
 include(FetchContent)
 include(GNUInstallDirs)
 
+FetchContent_Declare(
+  ram
+  GIT_REPOSITORY https://github.com/tbrekalo/ram-experimental
+  GIT_TAG f7042c21fee01feb87e1953e498c402eb1f8fcc6)
+
+FetchContent_GetProperties(ram)
+if (NOT ram_POPULATED)
+  FetchContent_Populate(ram)
+  add_subdirectory(
+    ${ram_SOURCE_DIR} 
+    ${ram_BINARY_DIR}
+    EXCLUDE_FROM_ALL)
+endif ()
+
 find_package(bioparser 3.0.13 QUIET)
 if (NOT bioparser_FOUND)
     FetchContent_Declare(
@@ -51,6 +65,40 @@ if (NOT racon_FOUND)
                 ${racon_BINARY_DIR}
                 EXCLUDE_FROM_ALL)
     endif ()
+endif ()
+
+find_package(cxxopts 3.0.0 QUIET)
+if (NOT cxxopts_FOUND)
+  FetchContent_Declare(
+    cxxopts
+    GIT_REPOSITORY https://github.com/jarro2783/cxxopts.git
+    GIT_TAG v3.0.0)
+
+  FetchContent_GetProperties(cxxopts)
+  if (NOT cxxopts_POPULATED)
+    FetchContent_Populate(cxxopts)
+    add_subdirectory(
+      ${cxxopts_SOURCE_DIR}
+      ${cxxopts_BINARY_DIR}
+      EXCLUDE_FROM_ALL)
+  endif ()
+endif ()
+
+find_package(tsl-robin-map 1.0.1 QUIET)
+if (NOT tsl-robin-map_FOUND)
+  FetchContent_Declare(
+    tsl-robin-map
+    GIT_REPOSITORY https://github.com/Tessil/robin-map.git
+    GIT_TAG v1.0.1)
+
+  FetchContent_GetProperties(tsl-robin-map)
+  if (NOT tsl-robin-map_POPULATED)
+    FetchContent_Populate(tsl-robin-map)
+    add_subdirectory(
+      ${tsl-robin-map_SOURCE_DIR}
+      ${tsl-robin-map_BINARY_DIR}
+      EXCLUDE_FROM_ALL)
+  endif ()
 endif ()
 
 if (RAVEN_BUILD_PYTHON)
