@@ -17,6 +17,7 @@
 #include "edlib.h"  // NOLINT
 #include "ram/minimizer_engine.hpp"
 #include "raven/graph/graph.h"
+#include "raven/graph/serialization/graph_repr.h"
 
 namespace raven {
 
@@ -35,11 +36,13 @@ static std::uint32_t RemoveInvalidEdges(Graph& graph) {
 
     if (!it->tail->is_rc() && !it->head->is_rc() && it->is_rc()) {
       marked_edges.emplace(it->id);
+      marked_edges.emplace(it->pair->id);
       continue;
     }
 
     if (it->tail->is_rc() && it->head->is_rc() && !it->is_rc()) {
       marked_edges.emplace(it->id);
+      marked_edges.emplace(it->pair->id);
       continue;
     }
   }
@@ -53,6 +56,7 @@ static std::uint32_t RemoveInvalidEdges(Graph& graph) {
   return marked_edges.size();
 }
 
+/*
 static std::uint32_t RemoveInvalidConnections(Graph& graph) {
   biosoup::Timer timer;
   timer.Start();
@@ -112,6 +116,215 @@ static std::uint32_t RemoveInvalidConnections(Graph& graph) {
           marked_edges_for_deletion.emplace(edgeId);
         }
       }
+
+    }
+
+  }
+
+  RemoveEdges(graph, marked_edges_for_deletion);
+
+  std::cerr << "[raven::Graph::Assemble] remove invalid connections "
+            << "(number of removed edges: " << marked_edges_for_deletion.size() << ") "
+            << std::fixed << timer.Stop() << "s" << std::endl;
+
+  return marked_edges_for_deletion.size();
+
+}
+*/
+
+/*
+static std::uint32_t RemoveInvalidConnections(Graph& graph) {
+  biosoup::Timer timer;
+  timer.Start();
+  
+  std::unordered_set<std::uint32_t> start_nodes;
+  std::unordered_set<std::uint32_t> marked_edges_for_deletion;
+
+  for (const auto& node : graph.nodes) {
+    if (node == nullptr) {
+      continue;
+    }
+
+    if (node->outdegree() < 2) {
+      continue;
+    }
+
+    auto startNode = node.get();
+
+    for (auto edge : startNode->outedges) {
+      std::unordered_set<std::uint32_t> marked_edges;
+      bool shouldDeleteEdges = false;
+      bool foundChainEnd = false;      
+      auto nextEdge = edge;
+      
+      while (!foundChainEnd) {
+        if (nextEdge == nullptr) {
+          foundChainEnd = true;
+          continue;
+        }
+        
+        auto nextNode = nextEdge->head;
+        
+        if (nextNode == nullptr) {
+          foundChainEnd = true;
+          continue;
+        }
+
+        if (nextNode == startNode) {
+          foundChainEnd = true;
+          continue;
+        }
+
+        if (nextNode->indegree() == 0 && nextNode->outdegree() == 0) {
+          foundChainEnd = true;
+          continue;
+        }
+
+        //if (nextNode->indegree() > 1) {
+        //  foundChainEnd = true;
+        //  if (nextNode->indegree() == 2) {
+        //    shouldDeleteEdges = true;
+        //    start_nodes.emplace(startNode->id); 
+        //  }
+        //  continue;
+        //}
+
+        if (nextNode->outdegree() > 1) {
+          foundChainEnd = true;
+          if (nextNode->outdegree() == 2) {
+            shouldDeleteEdges = true;
+            start_nodes.emplace(startNode->id); 
+          }
+          continue;
+        }
+        
+        nextEdge = nextNode->outedges.front();
+      }
+      
+    }
+
+  }
+
+  for (const auto& node : graph.nodes) {
+    if (node == nullptr) {
+      continue;
+    }
+
+    if (node->outdegree() < 2) {
+      continue;
+    }
+
+    auto startNode = node.get();
+    
+    for (auto edge : startNode->outedges) {
+      std::unordered_set<std::uint32_t> marked_edges;
+      bool shouldDeleteEdges = false;
+      bool foundChainEnd = false;      
+      auto nextEdge = edge;
+      
+      while (!foundChainEnd) {
+        if (nextEdge == nullptr) {
+          foundChainEnd = true;
+          continue;
+        }
+
+        marked_edges.emplace(nextEdge->id);
+        marked_edges.emplace(nextEdge->pair->id);
+        
+        auto nextNode = nextEdge->head;
+        
+        if (nextNode == nullptr) {
+          foundChainEnd = true;
+          continue;
+        }
+
+        if (nextNode == startNode) {
+          foundChainEnd = true;
+          continue;
+        }
+
+        if (nextNode->indegree() == 0 && nextNode->outdegree() == 0) {
+          foundChainEnd = true;
+          continue;
+        }
+
+        //if (nextNode->indegree() > 1) {
+        //  foundChainEnd = true;
+        //  if (nextNode->indegree() == 2) {
+        //    if (start_nodes.find(nextNode->id) == start_nodes.end()) {
+        //      shouldDeleteEdges = true;
+        //    }
+        //  }
+        //  continue;
+        //}
+
+        if (nextNode->outdegree() > 1) {
+          foundChainEnd = true;
+          if (nextNode->outdegree() == 2) {
+            //if (start_nodes.find(nextNode->id) == start_nodes.end()) {
+              shouldDeleteEdges = true;
+            //}
+          }
+          continue;
+        }
+        
+        nextEdge = nextNode->outedges.front();
+      }
+      
+      if (shouldDeleteEdges) {
+        for (auto edgeId : marked_edges) {
+          marked_edges_for_deletion.emplace(edgeId);
+        }
+      }
+
+    }
+
+  }
+
+  RemoveEdges(graph, marked_edges_for_deletion);
+
+  std::cerr << "[raven::Graph::Assemble] remove invalid connections "
+            << "(number of removed edges: " << marked_edges_for_deletion.size() << ") "
+            << std::fixed << timer.Stop() << "s" << std::endl;
+
+  return marked_edges_for_deletion.size();
+
+}
+*/
+
+static std::uint32_t RemoveInvalidConnections(Graph& graph) {
+  biosoup::Timer timer;
+  timer.Start();
+  
+  std::unordered_set<std::uint32_t> marked_edges_for_deletion;
+
+  for (const auto& node : graph.nodes) {
+    if (node == nullptr) {
+      continue;
+    }
+
+    if (node->outdegree() < 2) {
+      continue;
+    }
+
+    auto startNode = node.get();
+
+    for (auto edge : startNode->outedges) {
+      std::unordered_set<std::uint32_t> marked_edges;
+
+      auto nextNode = edge->head;
+
+      if (nextNode == nullptr) {
+        continue;
+      }      
+
+      if (nextNode->outdegree() + nextNode->indegree() > 2) {
+        marked_edges.emplace(edge->id);
+      }
+
+      for (auto edgeId : marked_edges) {
+        marked_edges_for_deletion.emplace(edgeId);
+      }      
 
     }
 
@@ -923,6 +1136,7 @@ static void RemoveLongEdgesStage(
   timer.Start();
 
   CreateUnitigs(graph, 42);  // speed up force directed layout
+
   RemoveLongEdges(threadPool, graph, 16);
 
   std::cerr << "[raven::Graph::Assemble] removed long edges " << std::fixed
@@ -932,7 +1146,7 @@ static void RemoveLongEdgesStage(
 
   while (true) {
     std::uint32_t num_changes = RemoveTips(graph);
-    num_changes += RemoveBubbles(graph);
+    num_changes += RemoveBubbles(graph);    
     if (num_changes == 0) {
       break;
     }
@@ -971,7 +1185,7 @@ void Assemble(std::shared_ptr<thread_pool::ThreadPool> threadPool, Graph& graph,
   biosoup::Timer timer;
   timer.Start();
 
-  StageExecution(graph, checkpoints, RemoveInvalidEdges);
+  RemoveInvalidEdges(graph);
 
   if (graph.stage == -3) {  // remove transitive edges
     StageExecution(graph, checkpoints, RemoveTransitiveEdges);
@@ -981,7 +1195,9 @@ void Assemble(std::shared_ptr<thread_pool::ThreadPool> threadPool, Graph& graph,
     StageExecution(graph, checkpoints, RemoveTipsAndBubbles);
   }
 
-  StageExecution(graph, checkpoints, RemoveInvalidConnections);
+  RemoveInvalidConnections(graph);
+
+  PrintGfa(graph, "graph.gfa");
 
   if (graph.stage == -1) {
     StageExecution(graph, checkpoints, RemoveLongEdgesStage, threadPool);

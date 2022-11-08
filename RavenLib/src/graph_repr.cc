@@ -166,11 +166,22 @@ void PrintCsv(const Graph& graph, const std::string& path, bool printSequenceNam
       os << " ";
     }
 
-    if (printPileBeginEnd && it->sequence.id < graph.piles.size()) {
-      addDashAtTheEnd = false;
-      os << graph.piles[it->sequence.id]->begin();
-      os << " ";
-      os << graph.piles[it->sequence.id]->end();
+    if (printPileBeginEnd) {
+
+      std::cerr << "We are in..." << std::endl;
+
+      if (it->sequence.id < graph.piles.size()) {
+        std::cerr << "It's working..." << std::endl;
+
+        addDashAtTheEnd = false;
+        os << graph.piles[it->sequence.id]->begin();
+        os << " ";
+        os << graph.piles[it->sequence.id]->end();
+      } else {
+        std::cerr << "Kitaaaaa... " <<  it->sequence.id << " " << graph.piles.size() << std::endl;
+      }
+
+      
     } 
 
     if (addDashAtTheEnd) {
