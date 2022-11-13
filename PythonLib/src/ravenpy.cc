@@ -141,12 +141,13 @@ PYBIND11_MODULE(ravenpy, m) {
       .def_readwrite("num_rounds", &raven::PolishCfg::num_rounds);
 
   py::class_<raven::OverlapPhaseCfg>(m, "OverlapPhaseCfg")
-      .def(py::init<std::uint8_t, std::uint8_t, double, double, std::size_t>())
+      .def(py::init<std::uint8_t, std::uint8_t, double, double, std::size_t, bool>())
       .def_readwrite("kmer_len", &raven::OverlapPhaseCfg::kmer_len)
       .def_readwrite("window_len", &raven::OverlapPhaseCfg::window_len)
       .def_readwrite("freq", &raven::OverlapPhaseCfg::freq)
       .def_readwrite("identity", &raven::OverlapPhaseCfg::identity)
-      .def_readwrite("kMaxNumOverlaps", &raven::OverlapPhaseCfg::kMaxNumOverlaps);
+      .def_readwrite("kMaxNumOverlaps", &raven::OverlapPhaseCfg::kMaxNumOverlaps)
+      .def_readwrite("useMinhash", &raven::OverlapPhaseCfg::useMinhash);
 
   py::class_<thread_pool::ThreadPool, std::shared_ptr<thread_pool::ThreadPool>>(
       m, "ThreadPool")
@@ -212,8 +213,8 @@ PYBIND11_MODULE(ravenpy, m) {
  
   m.def("find_overlaps_and_create_piles",
       [](std::shared_ptr<thread_pool::ThreadPool> thread_pool, ram::MinimizerEngine& minimizer_engine, std::shared_ptr<SequencesHandle> seqs_handle,
-          double freq, raven::Graph& graph, std::shared_ptr<OverlapsHandle> overlaps_handle, std::size_t kMaxNumOverlaps) -> void {
-        raven::FindOverlapsAndCreatePiles(thread_pool, minimizer_engine, seqs_handle->seqs, freq, graph.piles, overlaps_handle->overlaps, kMaxNumOverlaps);
+          double freq, raven::Graph& graph, std::shared_ptr<OverlapsHandle> overlaps_handle, std::size_t kMaxNumOverlaps, bool useMinhash) -> void {
+        raven::FindOverlapsAndCreatePiles(thread_pool, minimizer_engine, seqs_handle->seqs, freq, graph.piles, overlaps_handle->overlaps, kMaxNumOverlaps, useMinhash);
       });
 
   m.def("trim_and_annotate_piles",

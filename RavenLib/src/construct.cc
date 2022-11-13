@@ -17,7 +17,8 @@ void FindOverlapsAndCreatePiles(
     const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
     double freq, std::vector<std::unique_ptr<Pile>>& piles,
     std::vector<std::vector<biosoup::Overlap>>& overlaps,
-    std::size_t kMaxNumOverlaps) {
+    std::size_t kMaxNumOverlaps,
+    bool useMinhash) {
   
   piles.reserve(sequences.size());
   for (const auto& it : sequences) {
@@ -39,7 +40,7 @@ void FindOverlapsAndCreatePiles(
     timer.Start();
 
     minimizer_engine.Minimize(sequences.begin() + j, sequences.begin() + i + 1,
-                              true);
+                              useMinhash);
     minimizer_engine.Filter(freq);
 
     std::cerr << "[raven::Graph::Construct] minimized " << j << " - " << i + 1
@@ -662,7 +663,7 @@ void ConstructGraph(
 
   if (graph.stage == -5) {
     FindOverlapsAndCreatePiles(thread_pool, minimizerEngine, sequences,
-                               cfg.freq, graph.piles, overlaps, cfg.kMaxNumOverlaps);
+                               cfg.freq, graph.piles, overlaps, cfg.kMaxNumOverlaps, cfg.useMinhash);
     TrimAndAnnotatePiles(thread_pool, graph.piles, overlaps);
 
     ResolveContainedReads(graph.piles, overlaps, sequences, thread_pool, cfg.identity);

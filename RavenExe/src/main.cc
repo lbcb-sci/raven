@@ -19,6 +19,7 @@ static struct option options[] = {
     {"frequency", required_argument, nullptr, 'f'},
     {"identity", required_argument, nullptr, 'i'},
     {"kMaxNumOverlaps", required_argument, nullptr, 'o'},
+    {"use-all-minimizers", no_argument, nullptr, 'M'},
     {"polishing-rounds", required_argument, nullptr, 'p'},
     {"match", required_argument, nullptr, 'm'},
     {"mismatch", required_argument, nullptr, 'n'},
@@ -60,6 +61,9 @@ void Help() {
          "    -o, --kMaxNumOverlaps <long unsigned int>\n"
          "      default: 32\n"
          "      maximum number of overlaps that will be taken during FindOverlapsAndCreatePiles stage\n"
+         "    -M, --use-all-minimizers\n"
+         "      if this is enabled all mimizers will be used in graph construction (instead of just micromizers)\n"
+         "      NOTE: performance will decrease slightly and memory consumption will increase slightly\n"
          "    -p, --polishing-rounds <int>\n"
          "      default: 2\n"
          "      number of times racon is invoked\n"
@@ -106,6 +110,7 @@ int main(int argc, char** argv) {
   double freq = 0.001;
   double identity = 0;
   std::size_t kMaxNumOverlaps = 32;
+  bool useMinhash = true;
 
   std::uint32_t num_polishing_rounds = 2;
   std::int8_t m = 3;
@@ -122,7 +127,7 @@ int main(int argc, char** argv) {
   std::uint32_t cuda_alignment_batches = 0;
   bool cuda_banded_alignment = false;
 
-  std::string optstr = "k:w:f:p:m:n:g:t:h";
+  std::string optstr = "k:w:f:p:m:n:g:t:h:M";
 #ifdef CUDA_ENABLED
   optstr += "c:ba:";
 #endif
@@ -145,6 +150,9 @@ int main(int argc, char** argv) {
       case 'o':
         kMaxNumOverlaps = std::atof(optarg);
         break;
+      case 'M':
+        useMinhash = false;
+        break;        
       case 'p':
         num_polishing_rounds = std::atoi(optarg);
         break;
@@ -276,7 +284,7 @@ int main(int argc, char** argv) {
   raven::ConstructGraph(
       graph, sequences, thread_pool, checkpoints,
       raven::OverlapPhaseCfg{
-          .kmer_len = kmer_len, .window_len = window_len, .freq = freq, .identity = identity, .kMaxNumOverlaps = kMaxNumOverlaps});
+          .kmer_len = kmer_len, .window_len = window_len, .freq = freq, .identity = identity, .kMaxNumOverlaps = kMaxNumOverlaps, .useMinhash = useMinhash});
 
   raven::Assemble(thread_pool, graph, checkpoints);
 
