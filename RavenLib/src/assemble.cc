@@ -1185,7 +1185,7 @@ void Assemble(std::shared_ptr<thread_pool::ThreadPool> threadPool, Graph& graph,
   biosoup::Timer timer;
   timer.Start();
 
-  RemoveInvalidEdges(graph);
+  RemoveInvalidEdgesFromGraph(graph);
 
   if (graph.stage == -3) {  // remove transitive edges
     StageExecution(graph, checkpoints, RemoveTransitiveEdges);
@@ -1195,7 +1195,7 @@ void Assemble(std::shared_ptr<thread_pool::ThreadPool> threadPool, Graph& graph,
     StageExecution(graph, checkpoints, RemoveTipsAndBubbles);
   }
 
-  RemoveInvalidConnections(graph);
+  RemoveInvalidConnectionsFromGraph(graph);
 
   PrintGfa(graph, "graph.gfa");
 
@@ -1217,6 +1217,14 @@ void RemoveTipsAndBubblesFromGraph(Graph& graph) {
 
 void RemoveLongEdgesFromGraph(Graph& graph, std::shared_ptr<thread_pool::ThreadPool>& threadPool) {
   RemoveLongEdgesStage(graph, threadPool);
+}
+
+std::uint32_t RemoveInvalidEdgesFromGraph(Graph& graph) {
+  return RemoveInvalidEdges(graph);
+}
+
+std::uint32_t RemoveInvalidConnectionsFromGraph(Graph& graph) {
+  return RemoveInvalidConnections(graph);
 }
 
 }  // namespace raven

@@ -21,6 +21,10 @@ RAVEN_EXPORT void RemoveTipsAndBubblesFromGraph(Graph& graph);
 
 RAVEN_EXPORT void RemoveLongEdgesFromGraph(Graph& graph, std::shared_ptr<thread_pool::ThreadPool>& threadPool);
 
+RAVEN_EXPORT std::uint32_t RemoveInvalidEdgesFromGraph(Graph& graph);
+
+RAVEN_EXPORT std::uint32_t RemoveInvalidConnectionsFromGraph(Graph& graph);
+
 }  // namespace raven
 
 #endif  // RAVEN_GRAPH_ASSEMBLE_H_

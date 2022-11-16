@@ -22,6 +22,7 @@ option(RAVEN_BUILD_TESTS "Build unit tests" OFF)
 option(RAVEN_BUILD_PYTHON "Build python bindings to raven library using pybind11" OFF)
 option(RAVEN_BUILD_SHARED_LIBS "Build raven and it's dependencies as a shared libraries" OFF)
 option(RAVEN_BUILD_EXE "Build raven executable" OFF)
+option(GRAPH_CLEANUP_BUILD_EXE "Build graph cleanup executable" OFF)
 
 if (RAVEN_BUILD_SHARED_LIBS)
   set(BUILD_SHARED_LIBS ON)
@@ -41,6 +42,10 @@ endif ()
 
 if (RAVEN_BUILD_EXE)
   include(${CMAKE_CURRENT_LIST_DIR}/RavenExe/Exe.cmake)
+endif ()
+
+if (GRAPH_CLEANUP_BUILD_EXE)
+  include(${CMAKE_CURRENT_LIST_DIR}/GraphCleanupExe/Exe.cmake)
 endif ()
 
 if (RAVEN_BUILD_PYTHON)
