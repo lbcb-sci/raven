@@ -52,7 +52,7 @@ TEST_F(RavenTest, Assemble) {
 
   auto threadPool = std::make_shared<thread_pool::ThreadPool>(1);
 
-  ConstructGraph(graph, s, threadPool, false, OverlapPhaseCfg{});
+  ConstructGraph(graph, s, threadPool, false, OverlapPhaseCfg{.useMinhash = true});
   Assemble(threadPool, graph, false);
   Polish(threadPool, graph, false, s, PolishCfg{});
 
