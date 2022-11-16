@@ -19,7 +19,7 @@ static struct option options[] = {
     {"frequency", required_argument, nullptr, 'f'},
     {"identity", required_argument, nullptr, 'i'},
     {"kMaxNumOverlaps", required_argument, nullptr, 'o'},
-    {"use-all-minimizers", no_argument, nullptr, 'M'},
+    {"use-micromizers", no_argument, nullptr, 'M'},
     {"polishing-rounds", required_argument, nullptr, 'p'},
     {"match", required_argument, nullptr, 'm'},
     {"mismatch", required_argument, nullptr, 'n'},
@@ -61,9 +61,9 @@ void Help() {
          "    -o, --kMaxNumOverlaps <long unsigned int>\n"
          "      default: 32\n"
          "      maximum number of overlaps that will be taken during FindOverlapsAndCreatePiles stage\n"
-         "    -M, --use-all-minimizers\n"
-         "      if this is enabled all mimizers will be used in graph construction (instead of just micromizers)\n"
-         "      NOTE: performance will decrease slightly and memory consumption will increase slightly\n"
+         "    -M, --use-micromizers\n"
+         "      if this is enabled micromizers will be used instead of mimizers in graph construction\n"
+         "      (performance will increase slightly and memory consumption will decrease but results could be slightly worse)\n"
          "    -p, --polishing-rounds <int>\n"
          "      default: 2\n"
          "      number of times racon is invoked\n"
@@ -110,7 +110,7 @@ int main(int argc, char** argv) {
   double freq = 0.001;
   double identity = 0;
   std::size_t kMaxNumOverlaps = 32;
-  bool useMinhash = true;
+  bool useMinhash = false;
 
   std::uint32_t num_polishing_rounds = 2;
   std::int8_t m = 3;
@@ -151,7 +151,7 @@ int main(int argc, char** argv) {
         kMaxNumOverlaps = std::atof(optarg);
         break;
       case 'M':
-        useMinhash = false;
+        useMinhash = true;
         break;        
       case 'p':
         num_polishing_rounds = std::atoi(optarg);
