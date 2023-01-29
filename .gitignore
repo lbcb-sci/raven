@@ -1,2 +1,5 @@
 # Compiled Object files
 build/
+.idea/
+.vs/
+.vscode/
