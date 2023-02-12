@@ -67,6 +67,14 @@ class Pile {
     is_contained_ = true;
   }
 
+  bool is_uncontained_overlap_exists() const {
+    return uncontained_overlap_exists_;
+  }
+
+  void set_uncontained_overlap_exists() {
+    uncontained_overlap_exists_ = true;
+  }
+
   bool is_chimeric() const {
     return is_chimeric_;
   }
@@ -168,6 +176,7 @@ class Pile {
   std::uint16_t median_;
   bool is_invalid_;
   bool is_contained_;
+  bool uncontained_overlap_exists_;
   bool is_chimeric_;
   bool is_repetitive_;
   std::vector<std::uint16_t> data_;

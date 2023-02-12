@@ -562,21 +562,26 @@ void Graph::Construct(
           continue;
         }
         std::uint32_t type = overlap_type(overlaps[i][j]);
-        if (type == 1 &&
-            !piles_[overlaps[i][j].rhs_id]->is_maybe_chimeric()) {
-          piles_[i]->set_is_contained();
-        } else if (type == 2 &&
-            !piles_[i]->is_maybe_chimeric()) {
+        if (type == 1 && !piles_[overlaps[i][j].rhs_id]->is_maybe_chimeric()) {
+          piles_[i]->set_is_contained();        
+        } else if (type == 2 && !piles_[i]->is_maybe_chimeric()) {
           piles_[overlaps[i][j].rhs_id]->set_is_contained();
-        } else {
+        }
+         else {
           overlaps[i][k++] = overlaps[i][j];
+          piles_[i]->set_uncontained_overlap_exists();
+          piles_[overlaps[i][j].rhs_id]->set_uncontained_overlap_exists();
         }
       }
       overlaps[i].resize(k);
     }
     for (std::uint32_t i = 0; i < piles_.size(); ++i) {
-      if (piles_[i]->is_contained()) {
+      if (piles_[i]->is_contained() && !piles_[i]->is_uncontained_overlap_exists()) {
         piles_[i]->set_is_invalid();
+        
+        std::cerr << "[raven::Graph::Construct] SETING INVALID (CONTAINED) READ - ONE"
+                  << std::endl;
+        
         std::vector<biosoup::Overlap>().swap(overlaps[i]);
       }
     }
@@ -638,16 +643,31 @@ void Graph::Construct(
             std::uint32_t type = overlap_type(jt);
             if (type == 1) {
               piles_[jt.lhs_id]->set_is_contained();
-              piles_[jt.lhs_id]->set_is_invalid();
+              //piles_[jt.lhs_id]->set_is_invalid();
             } else if (type == 2) {
               piles_[jt.rhs_id]->set_is_contained();
-              piles_[jt.rhs_id]->set_is_invalid();
+              //piles_[jt.rhs_id]->set_is_invalid();
+            } else {
+              piles_[jt.lhs_id]->set_uncontained_overlap_exists();
+              piles_[jt.rhs_id]->set_uncontained_overlap_exists();
             }
           }
         }
+
+        for (std::uint32_t i = 0; i < piles_.size(); ++i) {
+          if (piles_[i]->is_contained() && !piles_[i]->is_uncontained_overlap_exists()) {
+            piles_[i]->set_is_invalid();
+            
+            std::cerr << "[raven::Graph::Construct] SETING INVALID (CONTAINED) READS - TWO"
+                      << std::endl;
+
+          }
+        }        
+
         overlaps.clear();
         break;
       }
+
     }
 
     std::cerr << "[raven::Graph::Construct] removed chimeric sequences "
@@ -839,6 +859,9 @@ void Graph::Construct(
             } else {
               overlaps.back().emplace_back(jt);
             }
+
+            piles_[jt.lhs_id]->set_uncontained_overlap_exists();
+            piles_[jt.rhs_id]->set_uncontained_overlap_exists();
           }
         }
       }
@@ -855,8 +878,12 @@ void Graph::Construct(
 
     std::vector<std::future<void>> thread_futures;
     for (std::uint32_t i = 0; i < piles_.size(); ++i) {
-      if (piles_[i]->is_contained()) {
+      if (piles_[i]->is_contained() && !piles_[i]->is_uncontained_overlap_exists()) {
         piles_[i]->set_is_invalid();
+        
+        std::cerr << "[raven::Graph::Construct] SETING INVALID (CONTAINED) READS - THREE"
+                  << std::endl;
+      
       }
     }
 
