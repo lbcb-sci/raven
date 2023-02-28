@@ -1,2 +1,17 @@
 # Compiled Object files
 build/
+debug/
+bin/
+lib/
+_deps/
+.vscode/
+CMakeFiles/
+
+
+*.gfa
+*.cereal
+
+*.txt
+cmake*
+
+Makefile

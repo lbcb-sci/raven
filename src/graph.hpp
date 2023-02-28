@@ -283,6 +283,7 @@ class Graph {
   bool accurate_;
   double disagreement_;
   std::vector<std::unordered_set<std::uint32_t>> annotations_;
+  std::vector<std::vector<std::uint32_t>> anno_;
   std::vector<std::unique_ptr<Pile>> piles_;
   std::vector<std::shared_ptr<Node>> nodes_;
   std::vector<std::shared_ptr<Edge>> edges_;

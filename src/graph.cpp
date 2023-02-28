@@ -17,6 +17,8 @@
 #include "edlib.h"  // NOLINT
 #include "racon/polisher.hpp"
 
+std::uint8_t use_frequencies(0);
+
 namespace raven {
 
 Graph::Node::Node(const biosoup::NucleicAcid& sequence)
@@ -273,26 +275,130 @@ void Graph::Construct(
     return dst;
   };
   // biosoup::Overlap helper functions
-
   annotations_.resize(sequences.size());
-  if (!annotations_path.empty()) {
-    std::ifstream is(annotations_path);
-    std::string line;
-    while (std::getline(is, line)) {
-      if (line.empty()) {
-        break;
-      }
-      std::istringstream iss(line);
-      std::size_t id, pos;
-      iss >> id;
-      while (iss >> pos) {
-        annotations_[id].emplace(pos);
-      }
-    }
-    is.close();
+  struct base_pile{
+    std::uint32_t a;
+    std::uint32_t c;
+    std::uint32_t g;
+    std::uint32_t t;
+    std::uint32_t i;
+    std::uint32_t d;
+  };
+
+  //std::unordered_set<std::uint32_t> anno_;
+ 
+
+  std::vector<std::vector<base_pile>> snp_base_pile(sequences.size());
+  for (const auto& it : sequences) {
+    snp_base_pile[it->id].resize(it->inflated_len);
   }
+ std::vector<std::vector<std::uint32_t>> anno_(snp_base_pile.size());
+
 
   // annotations_ helper functions
+
+  auto edlib_wrapper = [&] (
+      std::uint32_t i,
+      const biosoup::Overlap& it,
+      const std::string& lhs,
+      const std::string& rhs) -> void {
+    EdlibAlignResult result = edlibAlign(
+        lhs.c_str(), lhs.size(),
+        rhs.c_str(), rhs.size(),
+        edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_PATH, nullptr, 0)); // align lhs and rhs
+    if (result.status == EDLIB_STATUS_OK) {
+      std::uint32_t lhs_pos = it.lhs_begin;
+      std::uint32_t rhs_pos = 0;
+      for (int j = 0; j < result.alignmentLength; ++j) {
+        switch (result.alignment[j]) {
+          case 0:
+          case 3: {
+            switch (rhs[rhs_pos]) {
+              case 'A': ++snp_base_pile[i][lhs_pos].a; break;
+              case 'C': ++snp_base_pile[i][lhs_pos].c; break;
+              case 'G': ++snp_base_pile[i][lhs_pos].g; break;
+              case 'T': ++snp_base_pile[i][lhs_pos].t; break;
+              default: break; // if they align
+            }
+            ++lhs_pos;
+            ++rhs_pos;
+            break;
+          }
+          case 1: {
+            ++snp_base_pile[i][lhs_pos].i;
+            ++lhs_pos;
+            break; // insertion on the left hand side
+          }
+          case 2: {
+            ++snp_base_pile[i][lhs_pos].d;
+            ++rhs_pos;
+            break; // deletion on the left hand side
+          }
+          default: break;
+        }
+      }
+    }
+    edlibFreeAlignResult(result);
+  };
+
+  auto call_snps = [&](std::uint32_t i)-> void{
+    std::vector<base_pile> tmp = snp_base_pile[i];
+
+    std::vector<std::uint32_t> cov;
+    cov.reserve(tmp.size());
+
+    for (const auto& jt : tmp) {
+      //cov.emplace_back(jt.a + jt.c + jt.g + jt.t);
+      cov.emplace_back(jt.a + jt.c + jt.g + jt.t + jt.d + jt.i);
+    }
+
+    std::nth_element(cov.begin(), cov.begin() + cov.size() / 2, cov.end());
+    double m = cov[cov.size() / 2] * 2. / 3.;
+
+    std::size_t j = 0;
+    for (const auto& jt : tmp){
+      std::vector<double> counts = {
+          static_cast<double>(jt.a),
+          static_cast<double>(jt.c),
+          static_cast<double>(jt.g),
+          static_cast<double>(jt.t),
+          static_cast<double>(jt.d),
+          static_cast<double>(jt.i)
+      };
+
+      double sum = std::accumulate(counts.begin(), counts.end(), 0);
+
+      if(use_frequencies){
+        for (auto& kt : counts){
+          kt /= sum;
+        };
+      };
+
+      if (sum > m){
+        std::size_t variants = 0;
+        for(const auto& it : counts){
+          if(use_frequencies){
+            if(0.33 < it && it < 0.67){
+              ++variants;
+            }
+          } else{
+            if(it > 3){
+              ++variants;
+            }
+          }
+        }
+      if (variants > 1) annotations_[i].emplace(j);
+      
+
+      };
+    ++j;
+    };
+
+
+  };
+
+
+
   auto annotation_extract = [&] (
       std::uint32_t i,
       std::uint32_t begin,
@@ -361,8 +467,25 @@ void Graph::Construct(
 
       for (std::uint32_t k = 0; k < i + 1; ++k) {
         thread_futures.emplace_back(thread_pool_->Submit(
-            [&] (std::uint32_t i) -> std::vector<biosoup::Overlap> {
-              return minimizer_engine.Map(sequences[i], true, true, true);
+            [&] (std::uint32_t i) -> std::vector<biosoup::Overlap> { // map sequences and fill out the potential snp list
+              std::vector<biosoup::Overlap> ovlps = minimizer_engine.Map(sequences[i], true, true, true);
+
+              for(const auto& ovlp : ovlps){
+                auto lhs = sequences[i]->InflateData(ovlp.lhs_begin, ovlp.lhs_end - ovlp.lhs_begin);
+                biosoup::NucleicAcid rhs_{"", sequences[ovlp.rhs_id]->InflateData(ovlp.rhs_begin, ovlp.rhs_end - ovlp.rhs_begin)};
+
+                if(!ovlp.strand) rhs_.ReverseAndComplement();
+
+                auto rhs = rhs_.InflateData();
+
+                edlib_wrapper(i, ovlp, lhs, rhs);
+
+                
+
+              };
+
+              call_snps(i);
+              return ovlps;
             },
             k));
 
@@ -417,6 +540,13 @@ void Graph::Construct(
           it.wait();
         }
       }
+
+      
+      //annotations_.resize(sequences.size());
+      // for (auto& tmp : anno_){
+
+      // };
+      //std::copy(anno_.begin(), anno_.end(), std::inserter(annotations_, annotations_.end()));
 
       std::cerr << "[raven::Graph::Construct] mapped sequences "
                 << std::fixed << timer.Stop() << "s"
