@@ -1,5 +1,6 @@
 # Compiled Object files
 build/
+bin/
 .idea/
 .vs/
 .vscode/
