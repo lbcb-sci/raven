@@ -17,7 +17,7 @@
 #include "edlib.h"  // NOLINT
 #include "racon/polisher.hpp"
 
-std::uint8_t use_frequencies(0);
+std::uint8_t use_frequencies(1);
 
 namespace raven {
 
@@ -292,7 +292,7 @@ void Graph::Construct(
   for (const auto& it : sequences) {
     snp_base_pile[it->id].resize(it->inflated_len);
   }
- std::vector<std::vector<std::uint32_t>> anno_(snp_base_pile.size());
+ //std::vector<std::vector<std::uint32_t>> anno_(snp_base_pile.size());
 
 
   // annotations_ helper functions
@@ -348,8 +348,8 @@ void Graph::Construct(
     cov.reserve(tmp.size());
 
     for (const auto& jt : tmp) {
-      //cov.emplace_back(jt.a + jt.c + jt.g + jt.t);
-      cov.emplace_back(jt.a + jt.c + jt.g + jt.t + jt.d + jt.i);
+      cov.emplace_back(jt.a + jt.c + jt.g + jt.t);
+      //cov.emplace_back(jt.a + jt.c + jt.g + jt.t + jt.d + jt.i);
     }
 
     std::nth_element(cov.begin(), cov.begin() + cov.size() / 2, cov.end());
@@ -468,7 +468,7 @@ void Graph::Construct(
       for (std::uint32_t k = 0; k < i + 1; ++k) {
         thread_futures.emplace_back(thread_pool_->Submit(
             [&] (std::uint32_t i) -> std::vector<biosoup::Overlap> { // map sequences and fill out the potential snp list
-              std::vector<biosoup::Overlap> ovlps = minimizer_engine.Map(sequences[i], true, true, true);
+              std::vector<biosoup::Overlap> ovlps = minimizer_engine.Map(sequences[i], true, false, true);
 
               for(const auto& ovlp : ovlps){
                 auto lhs = sequences[i]->InflateData(ovlp.lhs_begin, ovlp.lhs_end - ovlp.lhs_begin);
