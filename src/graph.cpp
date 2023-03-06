@@ -17,7 +17,6 @@
 #include "edlib.h"  // NOLINT
 #include "racon/polisher.hpp"
 
-std::uint8_t use_frequencies(1);
 
 namespace raven {
 
@@ -98,7 +97,6 @@ Graph::Graph(
 
 void Graph::Construct(
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,  // NOLINT
-    const std::string& annotations_path,
     double disagreement,
     unsigned split) {
   disagreement_ = disagreement;
@@ -109,13 +107,37 @@ void Graph::Construct(
   std::vector<std::vector<biosoup::Overlap>> overlaps(sequences.size());
 
   // biosoup::Overlap helper functions
-  auto overlap_reverse = [] (const biosoup::Overlap& o) -> biosoup::Overlap {
+  
+  auto edlib_alignment_reverse = [] (const std::string& s) -> std::string {
+    std::string rs = "";
+
+    for(int i = 0; i < s.length(); i++){
+     
+      switch(s[i]){
+        case 'D':
+          rs += 'I';
+          break;
+        case 'I':
+          rs += 'D';
+          break;
+        default:
+          rs += s[i];
+      };
+    }
+
+    return rs;
+
+  };
+
+    auto overlap_reverse = [&edlib_alignment_reverse] (const biosoup::Overlap& o) -> biosoup::Overlap {
     return biosoup::Overlap(
         o.rhs_id, o.rhs_begin, o.rhs_end,
         o.lhs_id, o.lhs_begin, o.lhs_end,
-        o.score,
+        o.score, edlib_alignment_reverse(o.alignment),
         o.strand);
   };
+
+
   auto overlap_length = [] (const biosoup::Overlap& o) -> std::uint32_t {
     return std::max(o.rhs_end - o.rhs_begin, o.lhs_end - o.lhs_begin);
   };
@@ -284,15 +306,12 @@ void Graph::Construct(
     std::uint32_t i;
     std::uint32_t d;
   };
-
-  //std::unordered_set<std::uint32_t> anno_;
  
 
   std::vector<std::vector<base_pile>> snp_base_pile(sequences.size());
   for (const auto& it : sequences) {
     snp_base_pile[it->id].resize(it->inflated_len);
   }
- //std::vector<std::vector<std::uint32_t>> anno_(snp_base_pile.size());
 
 
   // annotations_ helper functions
@@ -301,7 +320,8 @@ void Graph::Construct(
       std::uint32_t i,
       const biosoup::Overlap& it,
       const std::string& lhs,
-      const std::string& rhs) -> void {
+      const std::string& rhs) -> std::string {
+    std::string cigar; 
     EdlibAlignResult result = edlibAlign(
         lhs.c_str(), lhs.size(),
         rhs.c_str(), rhs.size(),
@@ -338,7 +358,9 @@ void Graph::Construct(
         }
       }
     }
+    cigar = edlibAlignmentToCigar(result.alignment, result.alignmentLength, EDLIB_CIGAR_STANDARD);
     edlibFreeAlignResult(result);
+    return cigar;
   };
 
   auto call_snps = [&](std::uint32_t i)-> void{
@@ -378,11 +400,11 @@ void Graph::Construct(
         std::size_t variants = 0;
         for(const auto& it : counts){
           if(use_frequencies){
-            if(0.33 < it && it < 0.67){
+            if(freq_low_th < it && it < freq_high_th){
               ++variants;
             }
           } else{
-            if(it > 3){
+            if(it > variant_call_th){
               ++variants;
             }
           }
@@ -469,6 +491,7 @@ void Graph::Construct(
         thread_futures.emplace_back(thread_pool_->Submit(
             [&] (std::uint32_t i) -> std::vector<biosoup::Overlap> { // map sequences and fill out the potential snp list
               std::vector<biosoup::Overlap> ovlps = minimizer_engine.Map(sequences[i], true, false, true);
+              std::vector<biosoup::Overlap> ovlps_final;
 
               for(const auto& ovlp : ovlps){
                 auto lhs = sequences[i]->InflateData(ovlp.lhs_begin, ovlp.lhs_end - ovlp.lhs_begin);
@@ -478,14 +501,13 @@ void Graph::Construct(
 
                 auto rhs = rhs_.InflateData();
 
-                edlib_wrapper(i, ovlp, lhs, rhs);
-
-                
-
+                biosoup::Overlap ovlp_tmp{ovlp.lhs_id, ovlp.lhs_begin, ovlp.lhs_end, ovlp.rhs_id, ovlp.rhs_begin, ovlp.rhs_end, ovlp.score, edlib_wrapper(i, ovlp, lhs, rhs), ovlp.strand};
+                ovlps_final.emplace_back(ovlp_tmp);
+              
               };
 
               call_snps(i);
-              return ovlps;
+              return ovlps_final;
             },
             k));
 
@@ -541,12 +563,6 @@ void Graph::Construct(
         }
       }
 
-      
-      //annotations_.resize(sequences.size());
-      // for (auto& tmp : anno_){
-
-      // };
-      //std::copy(anno_.begin(), anno_.end(), std::inserter(annotations_, annotations_.end()));
 
       std::cerr << "[raven::Graph::Construct] mapped sequences "
                 << std::fixed << timer.Stop() << "s"
@@ -554,6 +570,24 @@ void Graph::Construct(
 
       j = i + 1;
     }
+
+    if(print_snp_data){
+      std::ofstream outdata;
+      outdata.open("snp_annotations.anno");
+
+      for (std::uint32_t i = 0; i < annotations_.size(); ++i) {
+        if (annotations_[i].empty()) {
+          continue;
+        }
+        outdata << i;
+        for (const auto& jt : annotations_[i]) {
+          outdata << " " << jt;
+        }
+        outdata << std::endl;
+      }
+
+    };
+
   }
 
   if (stage_ == -5) {  // trim and annotate piles

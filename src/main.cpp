@@ -107,8 +107,6 @@ void Help() {
       "    -s, --split <int>\n"
       "      default: 0\n"
       "      graph coloring\n"
-      "    --annotations <string>\n"
-      "      annotation file path\n"
       "    --disagreement <double>\n"
       "      default: 0.1\n"
       "      maximal percentage of different anntoated bases in overlaps\n"
@@ -139,7 +137,6 @@ int main(int argc, char** argv) {
   std::int8_t g = -4;
 
   double disagreement = 0.1;
-  std::string anno_path = "";
   std::string gfa_path = "";
   bool resume = false;
   bool checkpoints = true;
@@ -182,7 +179,6 @@ int main(int argc, char** argv) {
         cuda_alignment_batches = atoi(optarg);
         break;
 #endif
-      case 'A': anno_path = optarg; break;
       case 'D': disagreement = std::atof(optarg); break;
       case 'f': gfa_path = optarg; break;
       case 'r': resume = true; break;
@@ -251,7 +247,7 @@ int main(int argc, char** argv) {
     timer.Start();
   }
 
-  graph.Construct(sequences, anno_path, disagreement, split);
+  graph.Construct(sequences, disagreement, split);
   graph.Assemble();
   graph.Polish(sequences, m, n, g, cuda_poa_batches, cuda_banded_alignment,
       cuda_alignment_batches, num_polishing_rounds);

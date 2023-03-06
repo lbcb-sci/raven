@@ -10,6 +10,7 @@ CMakeFiles/
 
 *.gfa
 *.cereal
+*.anno
 
 *.txt
 cmake*
