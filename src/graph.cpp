@@ -570,6 +570,7 @@ void Graph::Construct(
 
       j = i + 1;
     }
+    std::uint32_t a;
 
     if(print_snp_data){
       std::ofstream outdata;
