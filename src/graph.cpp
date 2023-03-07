@@ -107,29 +107,37 @@ void Graph::Construct(
   std::vector<std::vector<biosoup::Overlap>> overlaps(sequences.size());
 
   // biosoup::Overlap helper functions
-  
-  auto edlib_alignment_reverse = [] (const std::string& s) -> std::string {
-    std::string rs = "";
 
-    for(int i = 0; i < s.length(); i++){
-     
-      switch(s[i]){
-        case 'D':
-          rs += 'I';
-          break;
-        case 'I':
-          rs += 'D';
-          break;
-        default:
-          rs += s[i];
-      };
+  auto edlib_alignment_reverse = [] (const std::string& s) -> std::string&{
+    static std::string rs;
+    rs = "";
+
+    if(s == ""){
+      return rs;
     }
 
-    return rs;
+    for(int i = 0; i < static_cast<std::int32_t>(s.size()); i++){
+      switch (s[i])
+      {
+      case 2:
+        rs += '\001';
+        break;
+      case 1:
+        rs += '\002';
+        break;
+      
+      default:
+        rs += s[i];
+        break;
+      }
 
+    };
+  
+    return rs;
   };
 
-    auto overlap_reverse = [&edlib_alignment_reverse] (const biosoup::Overlap& o) -> biosoup::Overlap {
+
+  auto overlap_reverse = [&edlib_alignment_reverse] (const biosoup::Overlap& o) -> biosoup::Overlap {
     return biosoup::Overlap(
         o.rhs_id, o.rhs_begin, o.rhs_end,
         o.lhs_id, o.lhs_begin, o.lhs_end,
@@ -137,6 +145,7 @@ void Graph::Construct(
         o.strand);
   };
 
+  
 
   auto overlap_length = [] (const biosoup::Overlap& o) -> std::uint32_t {
     return std::max(o.rhs_end - o.rhs_begin, o.lhs_end - o.lhs_begin);
@@ -321,7 +330,7 @@ void Graph::Construct(
       const biosoup::Overlap& it,
       const std::string& lhs,
       const std::string& rhs) -> std::string {
-    std::string cigar; 
+    
     EdlibAlignResult result = edlibAlign(
         lhs.c_str(), lhs.size(),
         rhs.c_str(), rhs.size(),
@@ -358,9 +367,18 @@ void Graph::Construct(
         }
       }
     }
-    cigar = edlibAlignmentToCigar(result.alignment, result.alignmentLength, EDLIB_CIGAR_STANDARD);
+    else{
+      std::string edlib_alignment = "";
+      return edlib_alignment;
+    }
+
+  	std::string edlib_alignment(result.alignmentLength, '\0');
+    for (int i = 0; i < result.alignmentLength; i++) {
+        edlib_alignment[i] = static_cast<char>(result.alignment[i]);
+    }
+
     edlibFreeAlignResult(result);
-    return cigar;
+    return edlib_alignment;
   };
 
   auto call_snps = [&](std::uint32_t i)-> void{
@@ -490,7 +508,7 @@ void Graph::Construct(
       for (std::uint32_t k = 0; k < i + 1; ++k) {
         thread_futures.emplace_back(thread_pool_->Submit(
             [&] (std::uint32_t i) -> std::vector<biosoup::Overlap> { // map sequences and fill out the potential snp list
-              std::vector<biosoup::Overlap> ovlps = minimizer_engine.Map(sequences[i], true, false, true);
+              std::vector<biosoup::Overlap> ovlps = minimizer_engine.Map(sequences[i], true, true, true);
               std::vector<biosoup::Overlap> ovlps_final;
 
               for(const auto& ovlp : ovlps){
@@ -501,7 +519,9 @@ void Graph::Construct(
 
                 auto rhs = rhs_.InflateData();
 
-                biosoup::Overlap ovlp_tmp{ovlp.lhs_id, ovlp.lhs_begin, ovlp.lhs_end, ovlp.rhs_id, ovlp.rhs_begin, ovlp.rhs_end, ovlp.score, edlib_wrapper(i, ovlp, lhs, rhs), ovlp.strand};
+                std::string tmp = edlib_wrapper(i, ovlp, lhs, rhs);
+
+                biosoup::Overlap ovlp_tmp{ovlp.lhs_id, ovlp.lhs_begin, ovlp.lhs_end, ovlp.rhs_id, ovlp.rhs_begin, ovlp.rhs_end, ovlp.score, tmp, ovlp.strand};
                 ovlps_final.emplace_back(ovlp_tmp);
               
               };
@@ -570,7 +590,6 @@ void Graph::Construct(
 
       j = i + 1;
     }
-    std::uint32_t a;
 
     if(print_snp_data){
       std::ofstream outdata;
@@ -620,7 +639,6 @@ void Graph::Construct(
 
   if (stage_ == -5) {  // resolve contained reads
     timer.Start();
-
     std::vector<std::future<void>> futures;
     for (std::uint32_t i = 0; i < overlaps.size(); ++i) {
       futures.emplace_back(thread_pool_->Submit(
@@ -648,67 +666,48 @@ void Graph::Construct(
                   it.strand);
 
               if (!lhs_anno.empty() || !rhs_anno.empty()) {
-                auto lhs = sequences[it.lhs_id]->InflateData(
-                    it.lhs_begin,
-                    it.lhs_end - it.lhs_begin);
+                //std::vector<std::pair<char, int>> cigar = parse_cigar_string(it.alignment);
+                std::string edlib_alignment = it.alignment;
+                std::uint32_t lhs_pos = it.lhs_begin;
+                std::uint32_t rhs_pos = it.strand ?
+                    it.rhs_begin :
+                    sequences[it.rhs_id]->inflated_len - it.rhs_end;
 
-                auto rhs = sequences[it.rhs_id]->InflateData(
-                    it.rhs_begin,
-                    it.rhs_end - it.rhs_begin);
-                if (!it.strand) {
-                  biosoup::NucleicAcid rhs_{"", rhs};
-                  rhs_.ReverseAndComplement();
-                  rhs = rhs_.InflateData();
-                }
+                std::uint32_t mismatches = 0;
+                std::uint32_t snps = 0;
 
-                EdlibAlignResult result = edlibAlign(
-                    lhs.c_str(), lhs.size(),
-                    rhs.c_str(), rhs.size(),
-                    edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_PATH, nullptr, 0));  // NOLINT
-
-                if (result.status == EDLIB_STATUS_OK) {
-                  std::uint32_t lhs_pos = it.lhs_begin;
-                  std::uint32_t rhs_pos = it.strand ?
-                      it.rhs_begin :
-                      sequences[it.rhs_id]->inflated_len - it.rhs_end;
-
-                  std::uint32_t mismatches = 0;
-                  std::uint32_t snps = 0;
-
-                  for (int a = 0; a < result.alignmentLength; ++a) {
-                    if (lhs_anno.find(lhs_pos) != lhs_anno.end() ||
-                        rhs_anno.find(rhs_pos) != rhs_anno.end()) {
-                      ++snps;
-                      if (result.alignment[a] == 3) {
-                        ++mismatches;
-                      }
-                    }
-                    switch (result.alignment[a]) {
-                      case 0:
-                      case 3: {
-                        ++lhs_pos;
-                        ++rhs_pos;
-                        break;
-                      }
-                      case 1: {
-                        ++lhs_pos;
-                        break;
-                      }
-                      case 2: {
-                        ++rhs_pos;
-                        break;
-                      }
-                      default: break;
+                for (int t = 0; t < static_cast<std::int32_t>(edlib_alignment.length()); t++) {
+                  if (lhs_anno.find(lhs_pos) != lhs_anno.end() ||
+                      rhs_anno.find(rhs_pos) != rhs_anno.end()) {
+                    ++snps;
+                    if (edlib_alignment[t] == 3) {
+                      ++mismatches;
                     }
                   }
-
-                  edlibFreeAlignResult(result);
-
-                  if (mismatches / static_cast<double>(snps) > disagreement_) {
-                    continue;
+                  switch (edlib_alignment[t]) {
+                    case 0:
+                    case 3: {
+                        ++lhs_pos;
+                        ++rhs_pos;
+                      break;
+                    }
+                    case 1: {
+                      ++lhs_pos;
+                      break;
+                    }
+                    case 2: {
+                      ++rhs_pos;
+                      break;
+                    }
+                    default: break;
                   }
                 }
-              }
+
+                if (mismatches / static_cast<double>(snps) > disagreement_) {
+                  continue;
+                }
+              // }
+            }
 
               overlaps[i][k++] = overlaps[i][j];
             }
@@ -931,6 +930,7 @@ void Graph::Construct(
                       edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_PATH, nullptr, 0));  // NOLINT
 
                   if (result.status == EDLIB_STATUS_OK) {
+                    std::string edlib_alignment = it.alignment;
                     std::uint32_t lhs_pos = it.lhs_begin;
                     std::uint32_t rhs_pos = it.strand ?
                         it.rhs_begin :
@@ -940,6 +940,7 @@ void Graph::Construct(
                     std::uint32_t snps = 0;
 
                     for (int a = 0; a < result.alignmentLength; ++a) {
+                  //    if(result.alignment[a] != edlib_alignment[a]) std::cerr << "disagreement on pos " << a << std::endl;
                       if (lhs_anno.find(lhs_pos) != lhs_anno.end() ||
                           rhs_anno.find(rhs_pos) != rhs_anno.end()) {
                         ++snps;
