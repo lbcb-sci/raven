@@ -3,6 +3,8 @@
 #include <getopt.h>
 
 #include <iostream>
+#include <fstream>
+#include <filesystem>
 
 #include "bioparser/fasta_parser.hpp"
 #include "bioparser/fastq_parser.hpp"
@@ -272,10 +274,38 @@ int main(int argc, char** argv) {
     }
   } else {
     // output to file
-    for (const auto &it: graph.GetUnitigs(num_polishing_rounds > 0)) {
-      std::cout << ">" << it->name << std::endl;
-      std::cout << it->InflateData() << std::endl;
+    std::filesystem::path root_path(output_path);
+    std::filesystem::path noext("");
+    root_path.replace_extension(noext);
+    std::filesystem::path path1 = root_path;
+    std::filesystem::path path2 = root_path;
+    path1 += "-1.fasta";
+    path2 += "-2.fasta";
+    std::ofstream outfile1, outfile2;
+    outfile1.open(path1);
+    if (!outfile1.is_open())
+    {
+      std::cerr << "[raven::] error: cannot open file" << path1 << std::endl;
+      return 1;
     }
+    outfile2.open(path2);
+    if (!outfile2.is_open())
+    {
+      std::cerr << "[raven::] error: cannot open file" << path2 << std::endl;
+      outfile1.close();
+      return 1;
+    }
+
+    for (const auto &it: graph.GetUnitigs(num_polishing_rounds > 0)) {
+      outfile1 << ">" << it->name << std::endl;
+      outfile1 << it->InflateData() << std::endl;
+
+      outfile2 << ">" << it->name << std::endl;
+      outfile2 << it->InflateData() << std::endl;
+    }
+
+    outfile1.close();
+    outfile2.close();
   }
 
   timer.Stop();
