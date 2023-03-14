@@ -106,7 +106,7 @@ void Graph::Construct(
 
   std::vector<std::vector<biosoup::Overlap>> overlaps(sequences.size());
 
-  // biosoup::Overlap helper functions
+//region biosoup::Overlap helper functions
 
   auto edlib_alignment_reverse = [] (const std::string& s) -> std::string&{
     static std::string rs;
@@ -136,7 +136,6 @@ void Graph::Construct(
     return rs;
   };
 
-
   auto overlap_reverse = [&edlib_alignment_reverse] (const biosoup::Overlap& o) -> biosoup::Overlap {
     return biosoup::Overlap(
         o.rhs_id, o.rhs_begin, o.rhs_end,
@@ -145,11 +144,10 @@ void Graph::Construct(
         o.strand);
   };
 
-  
-
   auto overlap_length = [] (const biosoup::Overlap& o) -> std::uint32_t {
     return std::max(o.rhs_end - o.rhs_begin, o.lhs_end - o.lhs_begin);
   };
+
   auto overlap_update = [&] (biosoup::Overlap& o) -> bool {
     if (piles_[o.lhs_id]->is_invalid() ||
         piles_[o.rhs_id]->is_invalid()) {
@@ -212,6 +210,7 @@ void Graph::Construct(
 
     return true;
   };
+
   auto overlap_type = [&] (const biosoup::Overlap& o) -> std::uint32_t {
     std::uint32_t lhs_length =
         piles_[o.lhs_id]->end() - piles_[o.lhs_id]->begin();
@@ -248,6 +247,7 @@ void Graph::Construct(
     }
     return 4;  // rhs -> lhs
   };
+
   auto overlap_finalize = [&] (biosoup::Overlap& o) -> bool {
     o.score = overlap_type(o);
     if (o.score < 3) {
@@ -305,7 +305,9 @@ void Graph::Construct(
 
     return dst;
   };
-  // biosoup::Overlap helper functions
+
+//endregion
+
   annotations_.resize(sequences.size());
   struct base_pile{
     std::uint32_t a;
@@ -315,15 +317,13 @@ void Graph::Construct(
     std::uint32_t i;
     std::uint32_t d;
   };
- 
 
   std::vector<std::vector<base_pile>> snp_base_pile(sequences.size());
   for (const auto& it : sequences) {
     snp_base_pile[it->id].resize(it->inflated_len);
   }
 
-
-  // annotations_ helper functions
+//region annotations_ helper functions
 
   auto edlib_wrapper = [&] (
       std::uint32_t i,
@@ -433,11 +433,7 @@ void Graph::Construct(
       };
     ++j;
     };
-
-
   };
-
-
 
   auto annotation_extract = [&] (
       std::uint32_t i,
@@ -456,9 +452,11 @@ void Graph::Construct(
     }
     return dst;
   };
-  // annotations_ helper functions
 
-  if (stage_ == -5 && checkpoints_) {  // checkpoint test
+//endregion
+
+  // checkpoint test
+  if (stage_ == -5 && checkpoints_) {
     Store();
   }
 
@@ -471,7 +469,8 @@ void Graph::Construct(
       accurate_ ? 9U : 5U
   };
 
-  if (stage_ == -5) {  // find overlaps and create piles
+  // find overlaps and create piles
+  if (stage_ == -5) {
     for (const auto& it : sequences) {
       piles_.emplace_back(new Pile(it->id, it->inflated_len));
     }
@@ -610,7 +609,8 @@ void Graph::Construct(
 
   }
 
-  if (stage_ == -5) {  // trim and annotate piles
+  // trim and annotate piles
+  if (stage_ == -5) {
     timer.Start();
 
     std::vector<std::future<void>> thread_futures;
@@ -637,7 +637,8 @@ void Graph::Construct(
               << std::endl;
   }
 
-  if (stage_ == -5) {  // resolve contained reads
+  // resolve contained reads
+  if (stage_ == -5) {
     timer.Start();
     std::vector<std::future<void>> futures;
     for (std::uint32_t i = 0; i < overlaps.size(); ++i) {
@@ -750,7 +751,8 @@ void Graph::Construct(
               << std::endl;
   }
 
-  if (stage_ == -5) {  // resolve chimeric sequences
+  // resolve chimeric sequences
+  if (stage_ == -5) {
     timer.Start();
 
     while (true) {
@@ -819,7 +821,8 @@ void Graph::Construct(
               << std::endl;
   }
 
-  if (stage_ == -5) {  // checkpoint
+  // checkpoint
+  if (stage_ == -5) {
     ++stage_;
     if (checkpoints_) {
       timer.Start();
@@ -830,7 +833,8 @@ void Graph::Construct(
     }
   }
 
-  if (stage_ == -4) {  // find overlaps and repetitive regions
+  // find overlaps and repetitive regions
+  if (stage_ == -4) {
     std::sort(sequences.begin(), sequences.end(),
         [&] (const std::unique_ptr<biosoup::NucleicAcid>& lhs,
              const std::unique_ptr<biosoup::NucleicAcid>& rhs) -> bool {
@@ -1047,7 +1051,8 @@ void Graph::Construct(
         });
   }
 
-  if (stage_ == -4) {  // resolve repeat induced overlaps
+  // resolve repeat induced overlaps
+  if (stage_ == -4) {
     timer.Start();
 
     while (true) {
@@ -1112,7 +1117,8 @@ void Graph::Construct(
     timer.Start();
   }
 
-  if (stage_ == -4) {  // construct assembly graph
+  // construct assembly graph
+  if (stage_ == -4) {
     Node::num_objects = 0;
     Edge::num_objects = 0;
 
@@ -1187,7 +1193,8 @@ void Graph::Construct(
               << std::endl;
   }
 
-  if (stage_ == -4) {  // checkpoint
+  // checkpoint
+  if (stage_ == -4) {
     ++stage_;
     if (checkpoints_) {
       timer.Start();
@@ -1210,7 +1217,8 @@ void Graph::Assemble() {
 
   biosoup::Timer timer{};
 
-  if (stage_ == -3) {  // remove transitive edges
+  // remove transitive edges
+  if (stage_ == -3) {
     timer.Start();
 
     RemoveTransitiveEdges();
@@ -1222,7 +1230,8 @@ void Graph::Assemble() {
     PrintGfa("after_transitive.gfa");
   }
 
-  if (stage_ == -3) {  // checkpoint
+  // checkpoint
+  if (stage_ == -3) {
     ++stage_;
     if (checkpoints_) {
       timer.Start();
@@ -1233,7 +1242,8 @@ void Graph::Assemble() {
     }
   }
 
-  if (stage_ == -2) {  // remove tips and bubbles
+  // remove tips and bubbles
+  if (stage_ == -2) {
     timer.Start();
 
     while (true) {
@@ -1251,7 +1261,8 @@ void Graph::Assemble() {
     PrintGfa("after_bubble.gfa");
   }
 
-  if (stage_ == -2) {  // checkpoint
+  // checkpoint
+  if (stage_ == -2) {
     ++stage_;
     if (checkpoints_) {
       timer.Start();
@@ -1262,7 +1273,8 @@ void Graph::Assemble() {
     }
   }
 
-  if (stage_ == -1) {  // remove long edges
+  // remove long edges
+  if (stage_ == -1) {
     timer.Start();
 
     if (annotations_.empty()) {
@@ -1297,7 +1309,8 @@ void Graph::Assemble() {
     timer.Stop();
   }
 
-  if (stage_ == -1) {  // checkpoint
+  // checkpoint
+  if (stage_ == -1) {
     ++stage_;
     if (checkpoints_) {
       timer.Start();
@@ -1413,7 +1426,7 @@ std::uint32_t Graph::RemoveBubbles() {
   std::vector<std::uint32_t> distance(nodes_.size(), 0);
   std::vector<Node*> predecessor(nodes_.size(), nullptr);
 
-  // annotations_ helper functions
+  //region annotations_ helper functions
   auto annotation_extract = [&] (
       std::uint32_t i,
       std::uint32_t begin,
@@ -1431,9 +1444,9 @@ std::uint32_t Graph::RemoveBubbles() {
     }
     return dst;
   };
-  // annotations_ helper functions
+  //endregion annotations_ helper functions
 
-  // path helper functions
+  //region path helper functions
   auto path_extract = [&] (Node* begin, Node* end) -> std::vector<Node*> {
     std::vector<Node*> dst;
     while (end != begin) {
@@ -1633,7 +1646,7 @@ std::uint32_t Graph::RemoveBubbles() {
     }
     return marked_edges;
   };
-  // path helper functions
+  //endregion path helper functions
 
   std::uint32_t num_bubbles = 0;
   for (const auto& it : nodes_) {
