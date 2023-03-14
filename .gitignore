@@ -5,6 +5,7 @@ bin/
 lib/
 _deps/
 .vscode/
+.idea/
 CMakeFiles/
 
 
