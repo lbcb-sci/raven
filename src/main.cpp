@@ -14,28 +14,88 @@ std::atomic<std::uint32_t> biosoup::NucleicAcid::num_objects{0};
 
 namespace {
 
-static struct option options[] = {
-  {"weaken", no_argument, nullptr, 'w'},
-  {"polishing-rounds", required_argument, nullptr, 'p'},
-  {"match", required_argument, nullptr, 'm'},
-  {"mismatch", required_argument, nullptr, 'n'},
-  {"gap", required_argument, nullptr, 'g'},
+  static struct option options[] = {
+    {"weaken", no_argument, nullptr, 'w'},
+    {"polishing-rounds", required_argument, nullptr, 'p'},
+    {"match", required_argument, nullptr, 'm'},
+    {"mismatch", required_argument, nullptr, 'n'},
+    {"gap", required_argument, nullptr, 'g'},
 #ifdef CUDA_ENABLED
-  {"cuda-poa-batches", optional_argument, nullptr, 'c'},
-  {"cuda-banded-alignment", no_argument, nullptr, 'b'},
-  {"cuda-alignment-batches", required_argument, nullptr, 'a'},
+    {"cuda-poa-batches", optional_argument, nullptr, 'c'},
+    {"cuda-banded-alignment", no_argument, nullptr, 'b'},
+    {"cuda-alignment-batches", required_argument, nullptr, 'a'},
 #endif
-  {"split", required_argument, nullptr, 's'},
-  {"annotations", required_argument, nullptr, 'A'},
-  {"disagreement", required_argument, nullptr, 'D'},
-  {"graphical-fragment-assembly", required_argument, nullptr, 'f'},
-  {"resume", no_argument, nullptr, 'r'},
-  {"disable-checkpoints", no_argument, nullptr, 'd'},
-  {"threads", required_argument, nullptr, 't'},
-  {"version", no_argument, nullptr, 'v'},
-  {"help", no_argument, nullptr, 'h'},
-  {nullptr, 0, nullptr, 0}
-};
+    {"split", required_argument, nullptr, 's'},
+    {"disagreement", required_argument, nullptr, 'D'},
+    {"graphical-fragment-assembly", required_argument, nullptr, 'f'},
+    {"resume", no_argument, nullptr, 'r'},
+    {"disable-checkpoints", no_argument, nullptr, 'd'},
+    {"threads", required_argument, nullptr, 't'},
+    {"version", no_argument, nullptr, 'v'},
+    {"help", no_argument, nullptr, 'h'},
+    {"output", required_argument, nullptr, 'o'},
+    {nullptr, 0, nullptr, 0}
+  };
+
+  std::string optstr = "wp:m:n:g:s:D:f:rdt:vho:";
+
+  void Help() {
+    std::cout <<
+              "usage: raven [options ...] <sequences>\n"
+              "\n"
+              "  # default output is to stdout in FASTA format\n"
+              "  <sequences>\n"
+              "    input file in FASTA/FASTQ format (can be compressed with gzip)\n"
+              "\n"
+              "  options:\n"
+              "    -w, --weaken\n"
+              "      use larger (k, w) when assembling highly accurate sequences\n"
+              "    -p, --polishing-rounds <int>\n"
+              "      default: 2\n"
+              "      number of times racon is invoked\n"
+              "    -m, --match <int>\n"
+              "      default: 3\n"
+              "      score for matching bases\n"
+              "    -n, --mismatch <int>\n"
+              "      default: -5\n"
+              "      score for mismatching bases\n"
+              "    -g, --gap <int>\n"
+              "      default: -4\n"
+              "      gap penalty (must be negative)\n"
+              #ifdef CUDA_ENABLED
+              "    -c, --cuda-poa-batches <int>\n"
+"      default: 0\n"
+"      number of batches for CUDA accelerated polishing\n"
+"    -b, --cuda-banded-alignment\n"
+"      use banding approximation for polishing on GPU\n"
+"      (only applicable when -c is used)\n"
+"    -a, --cuda-alignment-batches <int>\n"
+"      default: 0\n"
+"      number of batches for CUDA accelerated alignment\n"
+              #endif
+              "    -s, --split <int>\n"
+              "      default: 0\n"
+              "      graph coloring\n"
+              "    -D, --disagreement <double>\n"
+              "      default: 0.1\n"
+              "      maximal percentage of different anntoated bases in overlaps\n"
+              "    -f, --graphical-fragment-assembly <string>\n"
+              "      prints the assembly graph in GFA format\n"
+              "    -r, --resume\n"
+              "      resume previous run from last checkpoint\n"
+              "    -d, --disable-checkpoints\n"
+              "      disable checkpoint file creation\n"
+              "    -t, --threads <int>\n"
+              "      default: 1\n"
+              "      number of threads\n"
+              "    -v, --version\n"
+              "      prints the version number\n"
+              "    -o, --output <string>\n"
+              "      output file name, if it is not set output is written to stdout\n"
+              "      for diploid assembly, outputs will be written in 2 files with suffixes -1, -2"
+              "    -h, --help\n"
+              "      prints the usage\n";
+  }
 
 std::unique_ptr<bioparser::Parser<biosoup::NucleicAcid>> CreateParser(
     const std::string& path) {
@@ -70,61 +130,6 @@ std::unique_ptr<bioparser::Parser<biosoup::NucleicAcid>> CreateParser(
   return nullptr;
 }
 
-void Help() {
-  std::cout <<
-      "usage: raven [options ...] <sequences>\n"
-      "\n"
-      "  # default output is to stdout in FASTA format\n"
-      "  <sequences>\n"
-      "    input file in FASTA/FASTQ format (can be compressed with gzip)\n"
-      "\n"
-      "  options:\n"
-      "    --weaken\n"
-      "      use larger (k, w) when assembling highly accurate sequences\n"
-      "    -p, --polishing-rounds <int>\n"
-      "      default: 2\n"
-      "      number of times racon is invoked\n"
-      "    -m, --match <int>\n"
-      "      default: 3\n"
-      "      score for matching bases\n"
-      "    -n, --mismatch <int>\n"
-      "      default: -5\n"
-      "      score for mismatching bases\n"
-      "    -g, --gap <int>\n"
-      "      default: -4\n"
-      "      gap penalty (must be negative)\n"
-#ifdef CUDA_ENABLED
-      "    -c, --cuda-poa-batches <int>\n"
-      "      default: 0\n"
-      "      number of batches for CUDA accelerated polishing\n"
-      "    -b, --cuda-banded-alignment\n"
-      "      use banding approximation for polishing on GPU\n"
-      "      (only applicable when -c is used)\n"
-      "    -a, --cuda-alignment-batches <int>\n"
-      "      default: 0\n"
-      "      number of batches for CUDA accelerated alignment\n"
-#endif
-      "    -s, --split <int>\n"
-      "      default: 0\n"
-      "      graph coloring\n"
-      "    --disagreement <double>\n"
-      "      default: 0.1\n"
-      "      maximal percentage of different anntoated bases in overlaps\n"
-      "    --graphical-fragment-assembly <string>\n"
-      "      prints the assembly graph in GFA format\n"
-      "    --resume\n"
-      "      resume previous run from last checkpoint\n"
-      "    --disable-checkpoints\n"
-      "      disable checkpoint file creation\n"
-      "    -t, --threads <int>\n"
-      "      default: 1\n"
-      "      number of threads\n"
-      "    --version\n"
-      "      prints the version number\n"
-      "    -h, --help\n"
-      "      prints the usage\n";
-}
-
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -141,13 +146,15 @@ int main(int argc, char** argv) {
   bool resume = false;
   bool checkpoints = true;
 
+  bool stdoutput = true;
+  std::string output_path = "";
+
   std::uint32_t num_threads = 1;
 
   std::uint32_t cuda_poa_batches = 0;
   std::uint32_t cuda_alignment_batches = 0;
   bool cuda_banded_alignment = false;
 
-  std::string optstr = "s:p:m:n:g:t:h";
 #ifdef CUDA_ENABLED
   optstr += "c:ba:";
 #endif
@@ -186,6 +193,9 @@ int main(int argc, char** argv) {
       case 't': num_threads = atoi(optarg); break;
       case 'v': std::cout << VERSION << std::endl; return 0;
       case 'h': Help(); return 0;
+      case 'o': output_path = optarg;
+        stdoutput = false;
+        break;
       default: return 1;
     }
   }
@@ -211,6 +221,7 @@ int main(int argc, char** argv) {
   auto thread_pool = std::make_shared<thread_pool::ThreadPool>(num_threads);
 
   raven::Graph graph{weaken, checkpoints, thread_pool};
+
   if (resume) {
     try {
       graph.Load();
@@ -253,9 +264,18 @@ int main(int argc, char** argv) {
       cuda_alignment_batches, num_polishing_rounds);
   graph.PrintGfa(gfa_path);
 
-  for (const auto& it : graph.GetUnitigs(num_polishing_rounds > 0)) {
-    std::cout << ">" << it->name << std::endl;
-    std::cout << it->InflateData() << std::endl;
+  if (stdoutput) {
+    // output to stdout
+    for (const auto &it: graph.GetUnitigs(num_polishing_rounds > 0)) {
+      std::cout << ">" << it->name << std::endl;
+      std::cout << it->InflateData() << std::endl;
+    }
+  } else {
+    // output to file
+    for (const auto &it: graph.GetUnitigs(num_polishing_rounds > 0)) {
+      std::cout << ">" << it->name << std::endl;
+      std::cout << it->InflateData() << std::endl;
+    }
   }
 
   timer.Stop();
