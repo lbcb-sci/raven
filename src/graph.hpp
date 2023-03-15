@@ -92,6 +92,9 @@ class Graph {
   std::vector<std::unique_ptr<biosoup::NucleicAcid>> GetUnitigs(
       bool drop_unpolished = false);
 
+  std::vector<std::unique_ptr<biosoup::NucleicAcid>> GetUnitigPairs(
+    bool drop_unpolished = false);
+
   // draw with misc/plotter.py
   void PrintJson(const std::string& path) const;
 
