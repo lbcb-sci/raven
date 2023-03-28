@@ -238,6 +238,9 @@ class Graph {
     std::vector<Edge*> inedges;
     std::vector<Edge*> outedges;
     Node* pair;
+
+    Node* alternate;
+    bool is_primary = true;
   };
   struct Edge {
    public:
@@ -273,6 +276,17 @@ class Graph {
     Edge* pair;
   };
 
+  struct MarkedEdge {
+  public:
+    MarkedEdge() = default;
+    ~MarkedEdge() = default;
+    MarkedEdge(std::uint32_t id);
+    MarkedEdge(std::uint32_t id, int where);
+
+    std::uint32_t id;
+    int where = 0;
+  };
+
   std::unordered_set<std::uint32_t> FindRemovableEdges(
       const std::vector<Node*>& path);
 
@@ -295,6 +309,8 @@ class Graph {
   std::vector<std::unique_ptr<Pile>> piles_;
   std::vector<std::shared_ptr<Node>> nodes_;
   std::vector<std::shared_ptr<Edge>> edges_;
+
+  std::vector<std::shared_ptr<Node>> nodes_alternate_;
 };
 
 }  // namespace raven

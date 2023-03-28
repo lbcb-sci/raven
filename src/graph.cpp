@@ -79,6 +79,14 @@ Graph::Edge::Edge(Node* tail, Node* head, std::uint32_t length)
 std::atomic<std::uint32_t> Graph::Node::num_objects{0};
 std::atomic<std::uint32_t> Graph::Edge::num_objects{0};
 
+  Graph::MarkedEdge::MarkedEdge(std::uint32_t id)
+    : id(id),
+      where(0) {}
+
+  Graph::MarkedEdge::MarkedEdge(std::uint32_t id, int where)
+    : id(id),
+      where(where) {}
+
 Graph::Graph(
     bool weaken,
     bool checkpoints,
@@ -1248,6 +1256,29 @@ void Graph::Assemble() {
 
     while (true) {
       std::uint32_t num_changes = RemoveTips();
+
+      //duplicate graph before bubble popping
+      for (const auto& it : nodes_) {
+        auto node1 = std::make_shared<Node>(it->sequence);
+        auto node2 = std::make_shared<Node>(it->pair->sequence);
+        nodes_alternate_.emplace_back(node1);
+        nodes_alternate_.emplace_back(node2);
+        node1->pair = node2.get();
+        node2->pair = node1.get();
+        node1->color = it->color;
+        node2->color = it->pair->color;
+        it->alternate = node1.get();
+        it->pair->alternate = node2.get();
+        node1->alternate = it.get();
+        node2->alternate = it->pair;
+        node1->is_primary = false;
+        node2->is_primary = false;
+
+        for (const auto& jt : it->outedges) {
+          std::make_shared<Edge>(jt->tail->alternate, jt->head->alternate, jt->length);
+        }
+      }
+
       num_changes += RemoveBubbles();
       if (num_changes == 0) {
         break;
@@ -2640,34 +2671,27 @@ std::vector<std::unique_ptr<biosoup::NucleicAcid>> Graph::GetUnitigs(
   std::vector<std::unique_ptr<biosoup::NucleicAcid>> Graph::GetUnitigPairs(
     bool drop_unpolished) {
 
-    CreateUnitigs();
+    //CreateUnitigs();
 
     biosoup::NucleicAcid::num_objects = 0;
 
     std::vector<std::unique_ptr<biosoup::NucleicAcid>> dst;
-    for (const auto& it : nodes_) {
-      if (it == nullptr) {
+    for (const auto& it : nodes_alternate_) {
+      if (it == nullptr || it->is_rc() || !it->is_unitig) {
+        continue;
+      }
+      if (drop_unpolished && !it->is_polished) {
         continue;
       }
 
-      Node* alt_node = it->pair;
-
-      if (alt_node == nullptr || alt_node->is_rc() || !alt_node->is_unitig) {
-        continue;
-      }
-
-      if (drop_unpolished && !alt_node->is_polished) {
-        continue;
-      }
-
-      std::string name = alt_node->sequence.name +
-                         " LN:i:" + std::to_string(alt_node->sequence.inflated_len) +
-                         " RC:i:" + std::to_string(alt_node->count) +
-                         " XO:i:" + std::to_string(alt_node->is_circular);
+      std::string name = it->sequence.name +
+                         " LN:i:" + std::to_string(it->sequence.inflated_len) +
+                         " RC:i:" + std::to_string(it->count) +
+                         " XO:i:" + std::to_string(it->is_circular);
 
       dst.emplace_back(new biosoup::NucleicAcid(
         name,
-        alt_node->sequence.InflateData()));
+        it->sequence.InflateData()));
     }
 
     return dst;
