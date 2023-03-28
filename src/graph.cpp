@@ -1545,9 +1545,9 @@ std::uint32_t Graph::RemoveBubbles() {
   };
   auto bubble_pop = [&] (
       const std::vector<Node*>& lhs,
-      const std::vector<Node*>& rhs) -> std::unordered_set<std::uint32_t> {
+      const std::vector<Node*>& rhs) -> std::vector<MarkedEdge> {
     if (lhs.empty() || rhs.empty()) {
-      return std::unordered_set<std::uint32_t>{};
+      return std::vector<MarkedEdge>{};
     }
 
     // check BFS result
@@ -1555,25 +1555,25 @@ std::uint32_t Graph::RemoveBubbles() {
     bubble.insert(lhs.begin(), lhs.end());
     bubble.insert(rhs.begin(), rhs.end());
     if (lhs.size() + rhs.size() - 2 != bubble.size()) {
-      return std::unordered_set<std::uint32_t>{};
+      return std::vector<MarkedEdge>{};
     }
     for (const auto& it : lhs) {
       if (bubble.count(it->pair) != 0) {
-        return std::unordered_set<std::uint32_t>{};
+        return std::vector<MarkedEdge>{};
       }
     }
 
     if (!path_is_simple(lhs) || !path_is_simple(rhs)) {  // complex path(s)
       // check poppability
       if (FindRemovableEdges(lhs).empty() && FindRemovableEdges(rhs).empty()) {
-        return std::unordered_set<std::uint32_t>{};
+        return std::vector<MarkedEdge>{};
       }
 
       // check similarity
       auto l = path_sequence(lhs);
       auto r = path_sequence(rhs);
       if (std::min(l.size(), r.size()) < std::max(l.size(), r.size()) * 0.8) {
-        return std::unordered_set<std::uint32_t>{};
+        return std::vector<MarkedEdge>{};
       }
 
       EdlibAlignResult result = edlibAlign(
@@ -1587,7 +1587,7 @@ std::uint32_t Graph::RemoveBubbles() {
         edlibFreeAlignResult(result);
       }
       if (score < 0.8) {
-        return std::unordered_set<std::uint32_t>{};
+        return std::vector<MarkedEdge>{};
       }
       if (!annotations_.empty()) {
         std::unordered_set<std::uint32_t> marked_edges;
@@ -1603,7 +1603,10 @@ std::uint32_t Graph::RemoveBubbles() {
             marked_edges.clear();
           }
         }
-        return marked_edges;
+        std::vector<MarkedEdge> marked_edge_list;
+        for (const auto& it : marked_edges)
+          marked_edge_list.emplace_back(it);
+        return marked_edge_list;
       }
     }
 
@@ -1657,7 +1660,17 @@ std::uint32_t Graph::RemoveBubbles() {
           edlibFreeAlignResult(result);
 
           if (mismatches / static_cast<double>(snps) > 0.1) {  // disagreement_) {
-            return std::unordered_set<std::uint32_t>{};
+            std::vector<MarkedEdge> marked_edge_list;
+
+            auto marked_edges = FindRemovableEdges(lhs);
+            for (const auto& it : marked_edges)
+              marked_edge_list.emplace_back(it, 1);
+
+            marked_edges = FindRemovableEdges(rhs);
+            for (const auto& it : marked_edges)
+              marked_edge_list.emplace_back(it, 2);
+
+            return marked_edge_list;
           }
         }
       }
@@ -1675,7 +1688,10 @@ std::uint32_t Graph::RemoveBubbles() {
     if (marked_edges.empty()) {
       marked_edges = FindRemovableEdges(lhs_count > rhs_count ? lhs : rhs);
     }
-    return marked_edges;
+    std::vector<MarkedEdge> marked_edge_list;
+    for (const auto& it : marked_edges)
+      marked_edge_list.emplace_back(it);
+    return marked_edge_list;
   };
   //endregion path helper functions
 
@@ -1716,7 +1732,7 @@ std::uint32_t Graph::RemoveBubbles() {
       }
     }
 
-    std::unordered_set<std::uint32_t> marked_edges;
+    std::vector<MarkedEdge> marked_edges;
     if (end) {
       auto lhs = path_extract(begin, end);
       auto rhs = path_extract(begin, other_end);
@@ -1729,7 +1745,7 @@ std::uint32_t Graph::RemoveBubbles() {
       predecessor[jt->id] = nullptr;
     }
 
-    RemoveEdges(marked_edges, true);
+    RemoveDiploidEdges(marked_edges, true);
     num_bubbles += 1 - marked_edges.empty();
   }
 
@@ -2725,6 +2741,70 @@ void Graph::RemoveEdges(
     edges_[i].reset();
   }
 }
+
+  void Graph::RemoveDiploidEdges(
+    const std::vector<MarkedEdge>& indices,
+    bool remove_nodes) {
+    auto erase_remove = [] (std::vector<Edge*>& edges, Edge* marked) -> void {
+      edges.erase(std::remove(edges.begin(), edges.end(), marked), edges.end());
+    };
+
+    auto find_edge = [] (Node* tail, Node* head) -> Edge* {
+      for (auto it : tail->outedges) {
+        if (it->head == head) {
+          return it;
+        }
+      }
+      return nullptr;
+    };
+
+    std::unordered_set<std::uint32_t> node_indices;
+    std::unordered_set<std::uint32_t> node_indices_alternate;
+
+    for (auto i : indices) {
+      Edge* edge = edges_[i.id].get();
+      Node* alt_tail = edge->tail->alternate;
+      Node* alt_head = edge->head->alternate;
+
+      if (remove_nodes && (i.where == 0 || i.where == 1)) {
+        node_indices.emplace(edge->tail->id);
+        node_indices.emplace(edge->head->id);
+      }
+      if (remove_nodes && (i.where == 0 || i.where == 2)) {
+        node_indices_alternate.emplace(alt_tail->id);
+        node_indices_alternate.emplace(alt_head->id);
+      }
+
+      if (i.where == 0 || i.where == 1) {
+        erase_remove(edges_[i.id]->tail->outedges, edges_[i.id].get());
+        erase_remove(edges_[i.id]->head->inedges, edges_[i.id].get());
+      }
+      if (i.where == 0 || i.where == 2) {
+        Edge* alt_edge = find_edge(alt_tail, alt_head);
+        erase_remove(alt_tail->outedges, alt_edge);
+        erase_remove(alt_head->inedges, alt_edge);
+      }
+    }
+
+    if (remove_nodes) {
+      for (auto i : node_indices) {
+        if (nodes_[i]->outdegree() == 0 && nodes_[i]->indegree() == 0) {
+          nodes_[i].reset();
+        }
+      }
+      for (auto i : node_indices_alternate) {
+        if (nodes_alternate_[i]->outdegree() == 0 && nodes_alternate_[i]->indegree() == 0) {
+          nodes_[i].reset();
+        }
+      }
+    }
+
+    for (auto i : indices) {
+      if (i.where == 2)
+        continue;
+      edges_[i.id].reset();
+    }
+  }
 
 std::unordered_set<std::uint32_t> Graph::FindRemovableEdges(
     const std::vector<Node*>& path) {

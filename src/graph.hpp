@@ -294,6 +294,10 @@ class Graph {
       const std::unordered_set<std::uint32_t>& indices,
       bool remove_nodes = false);
 
+  void RemoveDiploidEdges(
+    const std::vector<MarkedEdge>& indices,
+    bool remove_nodes = false);
+
   // use (Fruchterman & Reingold 1991) with (Barnes & Hut 1986) approximation
   // (draw with misc/plotter.py)
   void CreateForceDirectedLayout(const std::string& path = "");
