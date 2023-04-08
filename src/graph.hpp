@@ -126,6 +126,9 @@ class Graph {
 
   void SalvageHaplotypes();
 
+  void SalvageHaplotypesPrimary();
+  void SalvageHaplotypesAlternative();
+
   friend cereal::access;
 
   Graph() = default;  // needed for cereal

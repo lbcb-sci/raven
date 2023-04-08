@@ -1332,9 +1332,18 @@ void Graph::Assemble() {
     }
 
     if (annotations_.empty()) {
+
+      std::cerr << "[raven::Graph::Assemble] SalvagePlasmids "
+                << std::endl;
+
       SalvagePlasmids();
     } else {
-      SalvageHaplotypes();
+
+      std::cerr << "[raven::Graph::Assemble] SalvageHaplotypes "
+                << std::endl;
+
+      SalvageHaplotypesPrimary();
+      SalvageHaplotypesAlternative();
     }
 
     timer.Stop();
@@ -2425,6 +2434,261 @@ void Graph::SalvageHaplotypes() {
       nodes_.emplace_back(std::make_shared<Node>(na));
 
       node->pair = nodes_.back().get();
+      node->pair->pair = node.get();
+      node->pair->sequence.name = node->sequence.name;
+      node->pair->is_unitig = true;
+    }
+  }
+}
+
+void Graph::SalvageHaplotypesPrimary() {
+  
+  std::cerr << "[raven::Graph::Assemble] SalvageHaplotypesPrimary "
+            << std::endl;
+  
+  ram::MinimizerEngine minimizer_engine{thread_pool_};
+
+  while (true) {
+    auto num_nodes = nodes_.size();
+
+    CreateUnitigs();
+    if (num_nodes == nodes_.size()) {
+      break;
+    }
+
+    // extend primary
+    std::vector<std::unique_ptr<biosoup::NucleicAcid>> unitigs;
+    for (const auto& it : nodes_) {
+      if (!it || it->is_rc() || !it->is_unitig) {
+        continue;
+      }
+      unitigs.emplace_back(new biosoup::NucleicAcid(it->sequence));
+      unitigs.back()->id = unitigs.size() - 1;
+    }
+    if (unitigs.empty()) {
+      return;
+    }
+
+    minimizer_engine.Minimize(unitigs.begin(), unitigs.end());
+    minimizer_engine.Filter(0.001);
+
+    std::vector<std::vector<biosoup::Overlap>> overlaps(unitigs.size());
+
+    for (const auto& it : unitigs) {
+      for (const auto& jt : minimizer_engine.Map(it, true, true)) {
+        std::uint32_t lhs_len = unitigs[jt.lhs_id]->inflated_len;
+        std::uint32_t lhs_begin = jt.lhs_begin;
+        std::uint32_t lhs_end = jt.lhs_end;
+
+        std::uint32_t rhs_len = unitigs[jt.rhs_id]->inflated_len;
+        std::uint32_t rhs_begin = jt.strand ? jt.rhs_begin : rhs_len - jt.rhs_end;  // NOLINT
+        std::uint32_t rhs_end = jt.strand ? jt.rhs_end : rhs_len - jt.rhs_begin;
+
+        std::uint32_t overhang =
+            std::min(lhs_begin, rhs_begin) +
+            std::min(lhs_len - lhs_end, rhs_len - rhs_end);
+
+        if (lhs_end - lhs_begin < (lhs_end - lhs_begin + overhang) * 0.875 ||
+            rhs_end - rhs_begin < (rhs_end - rhs_begin + overhang) * 0.875) {
+          continue;
+        }
+        if (lhs_end - lhs_begin < lhs_len * 0.9 &&
+            rhs_end - rhs_begin < rhs_len * 0.9) {
+          continue;
+        }
+        if ((lhs_begin <= rhs_begin && lhs_len - lhs_end <= rhs_len - rhs_end) ||  // NOLINT
+            (rhs_begin <= lhs_begin && rhs_len - rhs_end <= lhs_len - lhs_end)) {  // NOLINT
+          continue;
+        }
+        if (lhs_len > rhs_len) {
+          overlaps[jt.lhs_id].emplace_back(jt);
+        } else {
+          overlaps[jt.rhs_id].emplace_back(
+              jt.rhs_id, jt.rhs_begin, jt.rhs_end,
+              jt.lhs_id, jt.lhs_begin, jt.lhs_end,
+              jt.score,
+              jt.strand);
+        }
+      }
+    }
+    for (auto& it : overlaps) {
+      if (it.empty() || it.size() > 2) {
+        continue;
+      }
+
+      const auto& unitig = unitigs[it.front().lhs_id];
+      auto data = unitig->InflateData();
+
+      for (auto& jt : it) {
+        if (!jt.strand) {
+          unitigs[jt.rhs_id]->ReverseAndComplement();
+          auto tmp = jt.rhs_begin;
+          jt.rhs_begin = unitigs[jt.rhs_id]->inflated_len - jt.rhs_end;
+          jt.rhs_end = unitigs[jt.rhs_id]->inflated_len - tmp;
+        }
+
+        if (jt.lhs_begin > jt.rhs_begin) {
+          data += unitigs[jt.rhs_id]->InflateData(jt.rhs_end);
+        } else {
+          data = unitigs[jt.rhs_id]->InflateData(0, jt.rhs_begin) + data;
+        }
+
+        if (!jt.strand) {
+          unitigs[jt.rhs_id]->ReverseAndComplement();
+        }
+      }
+
+      const auto& node = nodes_[std::atoi(&unitig->name[3])];
+
+      auto na = biosoup::NucleicAcid(node->sequence.name, data);
+      node->sequence = na;
+
+      na.name = node->pair->sequence.name;
+      na.ReverseAndComplement();
+      node->pair->sequence = na;
+    }
+  }
+}
+
+void Graph::SalvageHaplotypesAlternative() {
+  
+  std::cerr << "[raven::Graph::Assemble] SalvageHaplotypesAlternative "
+            << std::endl;
+  
+  ram::MinimizerEngine minimizer_engine{thread_pool_};
+
+  while (true) {
+    auto num_nodes = nodes_alternate_.size();
+
+    CreateUnitigs();
+    if (num_nodes == nodes_alternate_.size()) {
+      break;
+    }
+
+    // reconstruct alternative
+    std::vector<std::unique_ptr<biosoup::NucleicAcid>> unitigs;
+    for (const auto& it : nodes_alternate_) {
+      if (!it || it->is_rc() || !it->is_unitig) {
+        continue;
+      }
+      unitigs.emplace_back(new biosoup::NucleicAcid(it->sequence));
+      unitigs.back()->id = unitigs.size() - 1;
+    }
+    if (unitigs.empty()) {
+      return;
+    }
+
+    minimizer_engine.Minimize(unitigs.begin(), unitigs.end());
+    minimizer_engine.Filter(0.001);
+
+    std::vector<std::vector<biosoup::Overlap>> overlaps(unitigs.size());
+
+    for (const auto& it : unitigs) {
+      for (const auto& jt : minimizer_engine.Map(it, true, true)) {
+        std::uint32_t lhs_len = unitigs[jt.lhs_id]->inflated_len;
+        std::uint32_t lhs_begin = jt.lhs_begin;
+        std::uint32_t lhs_end = jt.lhs_end;
+
+        std::uint32_t rhs_len = unitigs[jt.rhs_id]->inflated_len;
+        std::uint32_t rhs_begin = jt.strand ? jt.rhs_begin : rhs_len - jt.rhs_end;  // NOLINT
+        std::uint32_t rhs_end = jt.strand ? jt.rhs_end : rhs_len - jt.rhs_begin;
+
+        std::uint32_t overhang =
+            std::min(lhs_begin, rhs_begin) +
+            std::min(lhs_len - lhs_end, rhs_len - rhs_end);
+
+        if (lhs_end - lhs_begin < (lhs_end - lhs_begin + overhang) * 0.875 ||
+            rhs_end - rhs_begin < (rhs_end - rhs_begin + overhang) * 0.875) {
+          continue;
+        }
+        if (rhs_begin <= lhs_begin && rhs_len - rhs_end <= lhs_len - lhs_end) {
+          overlaps[jt.lhs_id].emplace_back(jt);
+        } else if (lhs_begin <= rhs_begin && lhs_len - lhs_end <= rhs_len - rhs_end) {  // NOLINT
+          overlaps[jt.rhs_id].emplace_back(
+              jt.rhs_id, jt.rhs_begin, jt.rhs_end,
+              jt.lhs_id, jt.lhs_begin, jt.lhs_end,
+              jt.score,
+              jt.strand);
+        }
+      }
+    }
+    for (auto& it : overlaps) {
+      if (it.empty()) {
+        continue;
+      }
+
+      const auto& unitig = unitigs[it.front().lhs_id];
+      if (nodes_alternate_[std::atoi(&unitig->name[3])] == nullptr) {
+        continue;
+      }
+
+      std::sort(it.begin(), it.end(),
+          [] (const biosoup::Overlap& lhs,
+              const biosoup::Overlap& rhs) -> bool {
+            return lhs.lhs_begin < rhs.lhs_begin;
+          });
+      it.emplace_back(unitig->id, -1, -1, unitig->id, -1, -1, 0);  // dummy
+
+      std::string data = unitig->InflateData(0, it.front().lhs_begin);
+
+      std::unordered_set<std::uint32_t> marked_edges;
+      for (std::uint32_t j = 0; j < it.size() - 1; ++j) {
+        auto& jt = it[j];
+
+        const auto& n = nodes_alternate_[std::atoi(&unitigs[jt.rhs_id]->name[3])];
+        if (n == nullptr) {
+          continue;
+        }
+
+        if (!jt.strand) {
+          unitigs[jt.rhs_id]->ReverseAndComplement();
+          auto tmp = jt.rhs_begin;
+          jt.rhs_begin = unitigs[jt.rhs_id]->inflated_len - jt.rhs_end;
+          jt.rhs_end = unitigs[jt.rhs_id]->inflated_len - tmp;
+        }
+
+        data += unitigs[jt.rhs_id]->InflateData(
+            jt.rhs_begin,
+            jt.rhs_end - jt.rhs_begin);
+        if (jt.lhs_end < it[j + 1].lhs_begin) {
+          data += unitig->InflateData(
+              jt.lhs_end,
+              it[j + 1].lhs_begin - jt.lhs_end);
+        }
+
+        for (const auto& kt : n->inedges) {
+          marked_edges.emplace(kt->id);
+          marked_edges.emplace(kt->pair->id);
+        }
+        for (const auto& kt : n->outedges) {
+          marked_edges.emplace(kt->id);
+          marked_edges.emplace(kt->pair->id);
+        }
+
+        if (!jt.strand) {
+          unitigs[jt.rhs_id]->ReverseAndComplement();
+        }
+      }
+      RemoveEdges(marked_edges);
+
+      it.pop_back();
+      for (const auto& jt : it) {
+        auto id = std::atoi(&unitigs[jt.rhs_id]->name[3]);
+        nodes_alternate_[id ^ 1].reset();
+        nodes_alternate_[id].reset();
+      }
+
+      auto na = biosoup::NucleicAcid("", data);
+
+      auto node = std::make_shared<Node>(na);
+      node->sequence.name = "Utg" + std::to_string(node->id & (~1UL));
+      node->is_unitig = true;
+      nodes_alternate_.emplace_back(node);
+
+      na.ReverseAndComplement();
+      nodes_alternate_.emplace_back(std::make_shared<Node>(na));
+
+      node->pair = nodes_alternate_.back().get();
       node->pair->pair = node.get();
       node->pair->sequence.name = node->sequence.name;
       node->pair->is_unitig = true;
