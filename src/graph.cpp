@@ -1224,6 +1224,7 @@ void Graph::Assemble() {
   }
 
   biosoup::Timer timer{};
+  PrintGfa("after_construction.gfa");
 
   // remove transitive edges
   if (stage_ == -3) {
@@ -1252,34 +1253,42 @@ void Graph::Assemble() {
 
   // remove tips and bubbles
   if (stage_ == -2) {
+    //duplicate graph before bubble popping
+    std::cerr << "[raven::Graph::Assemble] start duplicating graph " << nodes_.size() << std::endl;
+    for (const auto& it : nodes_) {
+      auto node1 = std::make_shared<Node>(it->sequence);
+      auto node2 = std::make_shared<Node>(it->pair->sequence);
+      nodes_alternate_.emplace_back(node1);
+      nodes_alternate_.emplace_back(node2);
+      node1->pair = node2.get();
+      node2->pair = node1.get();
+      node1->color = it->color;
+      node2->color = it->pair->color;
+      it->alternate = node1.get();
+      it->pair->alternate = node2.get();
+      node1->alternate = it.get();
+      node2->alternate = it->pair;
+      node1->is_primary = false;
+      node2->is_primary = false;
+    }
+
+    std::cerr << "[raven::Graph::Assemble] duplicated nodes created" << std::endl;
+    for (const auto& it : nodes_) {
+      for (const auto& jt : it->outedges) {
+        std::make_shared<Edge>(jt->tail->alternate, jt->head->alternate, jt->length);
+      }
+    }
+    std::cerr << "[raven::Graph::Assemble] graph duplicated" << std::endl;
+
     timer.Start();
 
     while (true) {
+      std::cerr << "[raven::Graph::Assemble] removing tips" << std::endl;
       std::uint32_t num_changes = RemoveTips();
-
-      //duplicate graph before bubble popping
-      for (const auto& it : nodes_) {
-        auto node1 = std::make_shared<Node>(it->sequence);
-        auto node2 = std::make_shared<Node>(it->pair->sequence);
-        nodes_alternate_.emplace_back(node1);
-        nodes_alternate_.emplace_back(node2);
-        node1->pair = node2.get();
-        node2->pair = node1.get();
-        node1->color = it->color;
-        node2->color = it->pair->color;
-        it->alternate = node1.get();
-        it->pair->alternate = node2.get();
-        node1->alternate = it.get();
-        node2->alternate = it->pair;
-        node1->is_primary = false;
-        node2->is_primary = false;
-
-        for (const auto& jt : it->outedges) {
-          std::make_shared<Edge>(jt->tail->alternate, jt->head->alternate, jt->length);
-        }
-      }
-
+      std::cerr << "[raven::Graph::Assemble] num_changes " << num_changes << std::endl;
+      std::cerr << "[raven::Graph::Assemble] removing bubbles" << std::endl;
       num_changes += RemoveBubbles();
+      std::cerr << "[raven::Graph::Assemble] num_changes " << num_changes << std::endl;
       if (num_changes == 0) {
         break;
       }
@@ -1378,8 +1387,7 @@ std::uint32_t Graph::RemoveTransitiveEdges() {
   for (const auto& it : nodes_) {
     if (it == nullptr) {
       continue;
-    }
-    for (auto jt : it->outedges) {
+    }    for (auto jt : it->outedges) {
       candidate[jt->head->id] = jt;
     }
     for (auto jt : it->outedges) {
@@ -1743,10 +1751,12 @@ std::uint32_t Graph::RemoveBubbles() {
 
     std::vector<MarkedEdge> marked_edges;
     if (end) {
+      std::cerr << "[raven::Graph::RemoveBubbles] bubble " << end->id << ";" << other_end->id << std::endl;
       auto lhs = path_extract(begin, end);
       auto rhs = path_extract(begin, other_end);
       rhs.emplace_back(end);
       marked_edges = bubble_pop(lhs, rhs);
+      std::cerr << "[raven::Graph::RemoveBubbles] bubble popped " << marked_edges.size() << std::endl;
     }
 
     for (auto jt : visited) {
@@ -1754,6 +1764,7 @@ std::uint32_t Graph::RemoveBubbles() {
       predecessor[jt->id] = nullptr;
     }
 
+    std::cerr << "[raven::Graph::RemoveBubbles] removing edges" << std::endl;
     RemoveDiploidEdges(marked_edges, true);
     num_bubbles += 1 - marked_edges.empty();
   }
@@ -3025,6 +3036,7 @@ void Graph::RemoveEdges(
     std::unordered_set<std::uint32_t> node_indices;
     std::unordered_set<std::uint32_t> node_indices_alternate;
 
+    std::cerr << "[raven::Graph::RemoveDiploidEdges] indices size=" << indices.size() << std::endl;
     for (auto i : indices) {
       Edge* edge = edges_[i.id].get();
       Node* alt_tail = edge->tail->alternate;
@@ -3050,12 +3062,15 @@ void Graph::RemoveEdges(
       }
     }
 
+    std::cerr << "[raven::Graph::RemoveDiploidEdges] remove_nodes=" << remove_nodes << std::endl;
     if (remove_nodes) {
+      std::cerr << "[raven::Graph::RemoveDiploidEdges] 1" << std::endl;
       for (auto i : node_indices) {
         if (nodes_[i]->outdegree() == 0 && nodes_[i]->indegree() == 0) {
           nodes_[i].reset();
         }
       }
+      std::cerr << "[raven::Graph::RemoveDiploidEdges] 2" << std::endl;
       for (auto i : node_indices_alternate) {
         if (nodes_alternate_[i]->outdegree() == 0 && nodes_alternate_[i]->indegree() == 0) {
           nodes_[i].reset();
@@ -3063,6 +3078,7 @@ void Graph::RemoveEdges(
       }
     }
 
+    std::cerr << "[raven::Graph::RemoveDiploidEdges] 3" << std::endl;
     for (auto i : indices) {
       if (i.where == 2)
         continue;
