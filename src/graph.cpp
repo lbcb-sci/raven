@@ -32,6 +32,18 @@ Graph::Node::Node(const biosoup::NucleicAcid& sequence)
       outedges(),
       pair() {}
 
+  Graph::Node::Node(const biosoup::NucleicAcid& sequence, std::uint32_t id)
+    : id(id),
+      sequence(sequence),
+      count(1),
+      is_unitig(),
+      is_circular(),
+      is_polished(),
+      transitive(),
+      inedges(),
+      outedges(),
+      pair() {}
+
 Graph::Node::Node(Node* begin, Node* end)
     : id(num_objects++),
       sequence(),
@@ -65,6 +77,40 @@ Graph::Node::Node(Node* begin, Node* end)
     data);
 }
 
+  Graph::Node::Node(Node* begin, Node* end, std::uint32_t id)
+    : id(id),
+      sequence(),
+      count(),
+      is_unitig(),
+      is_circular(begin == end),
+      is_polished(),
+      transitive(),
+      inedges(),
+      outedges(),
+      pair() {
+
+    std::string data{};
+
+    auto it = begin;
+    while (true) {
+      data += it->outedges.front()->Label();
+      count += it->count;
+      if ((it = it->outedges.front()->head) == end) {
+        break;
+      }
+    }
+    if (begin != end) {
+      data += end->sequence.InflateData();
+      count += end->count;
+    }
+
+    is_unitig = count > 5 && data.size() > 9999;
+
+    sequence = biosoup::NucleicAcid(
+      (is_unitig ? "Utg" : "Ctg") + std::to_string(id & (~1UL)),
+      data);
+  }
+
 Graph::Edge::Edge(Node* tail, Node* head, std::uint32_t length)
     : id(num_objects++),
       length(length),
@@ -76,8 +122,21 @@ Graph::Edge::Edge(Node* tail, Node* head, std::uint32_t length)
   head->inedges.emplace_back(this);
 }
 
+  Graph::Edge::Edge(Node* tail, Node* head, std::uint32_t length, std::uint32_t id)
+    : id(id),
+      length(length),
+      weight(0),
+      tail(tail),
+      head(head),
+      pair() {
+    tail->outedges.emplace_back(this);
+    head->inedges.emplace_back(this);
+  }
+
 std::atomic<std::uint32_t> Graph::Node::num_objects{0};
+  std::atomic<std::uint32_t> Graph::Node::num_objects_alternate{0};
 std::atomic<std::uint32_t> Graph::Edge::num_objects{0};
+  std::atomic<std::uint32_t> Graph::Edge::num_objects_alternate{0};
 
   Graph::MarkedEdge::MarkedEdge(std::uint32_t id)
     : id(id),
@@ -1244,7 +1303,7 @@ void Graph::Assemble() {
     ++stage_;
     if (checkpoints_) {
       timer.Start();
-      Store();
+      //Store();
       std::cerr << "[raven::Graph::Assemble] reached checkpoint "
                 << std::fixed << timer.Stop() << "s"
                 << std::endl;
@@ -1256,28 +1315,39 @@ void Graph::Assemble() {
     //duplicate graph before bubble popping
     std::cerr << "[raven::Graph::Assemble] start duplicating graph " << nodes_.size() << std::endl;
     for (const auto& it : nodes_) {
-      auto node1 = std::make_shared<Node>(it->sequence);
-      auto node2 = std::make_shared<Node>(it->pair->sequence);
-      nodes_alternate_.emplace_back(node1);
-      nodes_alternate_.emplace_back(node2);
-      node1->pair = node2.get();
-      node2->pair = node1.get();
-      node1->color = it->color;
-      node2->color = it->pair->color;
-      it->alternate = node1.get();
-      it->pair->alternate = node2.get();
-      node1->alternate = it.get();
-      node2->alternate = it->pair;
-      node1->is_primary = false;
-      node2->is_primary = false;
+      auto node = std::make_shared<Node>(it->sequence, Node::num_objects_alternate++);
+      nodes_alternate_.emplace_back(node);
+      node->pair = it->pair->alternate;
+      if (node->pair != nullptr)
+        node->pair->pair = node.get();
+      node->color = it->color;
+      it->alternate = node.get();
+      node->alternate = it.get();
+      node->is_primary = false;
     }
+
+    auto find_edge = [] (Node* tail, Node* head) -> Edge* {
+      for (auto it : tail->outedges) {
+        if (it->head == head) {
+          return it;
+        }
+      }
+      return nullptr;
+    };
 
     std::cerr << "[raven::Graph::Assemble] duplicated nodes created" << std::endl;
     for (const auto& it : nodes_) {
       for (const auto& jt : it->outedges) {
-        std::make_shared<Edge>(jt->tail->alternate, jt->head->alternate, jt->length);
+        auto edge = std::make_shared<Edge>(jt->tail->alternate, jt->head->alternate, jt->length, Edge::num_objects_alternate++);
+        auto edge_pair = find_edge(jt->head->alternate->pair, jt->tail->alternate->pair);
+        if (edge_pair != nullptr) {
+          edge->pair = edge_pair;
+          edge_pair->pair = edge.get();
+        }
+        edges_alternate_.emplace_back(edge);
       }
     }
+
     std::cerr << "[raven::Graph::Assemble] graph duplicated" << std::endl;
 
     timer.Start();
@@ -1306,7 +1376,7 @@ void Graph::Assemble() {
     ++stage_;
     if (checkpoints_) {
       timer.Start();
-      Store();
+      //Store();
       std::cerr << "[raven::Graph::Assemble] reached checkpoint "
                 << std::fixed << timer.Stop() << "s"
                 << std::endl;
@@ -1320,7 +1390,7 @@ void Graph::Assemble() {
     if (annotations_.empty()) {
       CreateUnitigs(42);  // speed up force directed layout
     }
-    RemoveLongEdges(16);
+    //RemoveLongEdges(16);
 
     std::cerr << "[raven::Graph::Assemble] removed long edges "
               << std::fixed << timer.Stop() << "s"
@@ -1363,7 +1433,7 @@ void Graph::Assemble() {
     ++stage_;
     if (checkpoints_) {
       timer.Start();
-      Store();
+      //Store();
       std::cerr << "[raven::Graph::Assemble] reached checkpoint "
                 << std::fixed << timer.Stop() << "s"
                 << std::endl;
@@ -1735,6 +1805,8 @@ std::uint32_t Graph::RemoveBubbles() {
         if (distance[jt->id] + kt->length > 5000000) {  // out of reach
           continue;
         }
+        if (kt->head->id > distance.size())
+          continue;
         distance[kt->head->id] = distance[jt->id] + kt->length;
         visited.emplace_back(kt->head);
         que.emplace_back(kt->head);
@@ -2549,7 +2621,8 @@ void Graph::SalvageHaplotypesPrimary() {
         }
       }
 
-      const auto& node = nodes_[std::atoi(&unitig->name[3])];
+      int ind = std::atoi(&unitig->name[3]);
+      const auto& node = nodes_[ind];
 
       auto na = biosoup::NucleicAcid(node->sequence.name, data);
       node->sequence = na;
@@ -2571,7 +2644,7 @@ void Graph::SalvageHaplotypesAlternative() {
   while (true) {
     auto num_nodes = nodes_alternate_.size();
 
-    CreateUnitigs();
+    CreateUnitigsAlternate();
     if (num_nodes == nodes_alternate_.size()) {
       break;
     }
@@ -2642,7 +2715,8 @@ void Graph::SalvageHaplotypesAlternative() {
 
       std::string data = unitig->InflateData(0, it.front().lhs_begin);
 
-      std::unordered_set<std::uint32_t> marked_edges;
+      //std::unordered_set<std::uint32_t> marked_edges;
+      std::vector<MarkedEdge> marked_edges;
       for (std::uint32_t j = 0; j < it.size() - 1; ++j) {
         auto& jt = it[j];
 
@@ -2668,19 +2742,19 @@ void Graph::SalvageHaplotypesAlternative() {
         }
 
         for (const auto& kt : n->inedges) {
-          marked_edges.emplace(kt->id);
-          marked_edges.emplace(kt->pair->id);
+          marked_edges.emplace_back(kt->id, 2);
+          marked_edges.emplace_back(kt->pair->id, 2);
         }
         for (const auto& kt : n->outedges) {
-          marked_edges.emplace(kt->id);
-          marked_edges.emplace(kt->pair->id);
+          marked_edges.emplace_back(kt->id, 2);
+          marked_edges.emplace_back(kt->pair->id, 2);
         }
 
         if (!jt.strand) {
           unitigs[jt.rhs_id]->ReverseAndComplement();
         }
       }
-      RemoveEdges(marked_edges);
+      RemoveAlternateEdges(marked_edges);
 
       it.pop_back();
       for (const auto& jt : it) {
@@ -2691,13 +2765,13 @@ void Graph::SalvageHaplotypesAlternative() {
 
       auto na = biosoup::NucleicAcid("", data);
 
-      auto node = std::make_shared<Node>(na);
+      auto node = std::make_shared<Node>(na, Node::num_objects_alternate++);
       node->sequence.name = "Utg" + std::to_string(node->id & (~1UL));
       node->is_unitig = true;
       nodes_alternate_.emplace_back(node);
 
       na.ReverseAndComplement();
-      nodes_alternate_.emplace_back(std::make_shared<Node>(na));
+      nodes_alternate_.emplace_back(std::make_shared<Node>(na, Node::num_objects_alternate++));
 
       node->pair = nodes_alternate_.back().get();
       node->pair->pair = node.get();
@@ -2784,7 +2858,7 @@ void Graph::Polish(
     if (checkpoints_) {
       biosoup::Timer timer{};
       timer.Start();
-      Store();
+      //Store();
       std::cerr << "[raven::Graph::Polish] reached checkpoint "
                 << std::fixed << timer.Stop() << "s"
                 << std::endl;
@@ -2930,6 +3004,148 @@ std::uint32_t Graph::CreateUnitigs(std::uint32_t epsilon) {
   return unitigs.size() / 2;
 }
 
+  std::uint32_t Graph::CreateUnitigsAlternate(std::uint32_t epsilon) {
+    //std::unordered_set<std::uint32_t> marked_edges;
+    std::vector<MarkedEdge> marked_edges;
+    std::vector<std::shared_ptr<Node>> unitigs;
+    std::vector<std::shared_ptr<Edge>> unitig_edges;
+    std::vector<std::uint32_t> node_updates(nodes_alternate_.size(), 0);
+    std::vector<char> is_visited(nodes_alternate_.size(), 0);
+
+    for (const auto& it : nodes_alternate_) {
+      if (it == nullptr || is_visited[it->id] || it->is_junction()) {
+        continue;
+      }
+
+      std::uint32_t extension = 1;
+
+      bool is_circular = false;
+      auto begin = it.get();
+      while (!begin->is_junction()) {  // extend left
+        is_visited[begin->id] = 1;
+        is_visited[begin->pair->id] = 1;
+        if (begin->indegree() == 0 ||
+            begin->inedges.front()->tail->is_junction()) {
+          break;
+        }
+        begin = begin->inedges.front()->tail;
+        ++extension;
+        if (begin == it.get()) {
+          is_circular = true;
+          break;
+        }
+      }
+
+      auto end = it.get();
+      while (!end->is_junction()) {  // extend right
+        is_visited[end->id] = 1;
+        is_visited[end->pair->id] = 1;
+        if (end->outdegree() == 0 ||
+            end->outedges.front()->head->is_junction()) {
+          break;
+        }
+        end = end->outedges.front()->head;
+        ++extension;
+        if (end == it.get()) {
+          is_circular = true;
+          break;
+        }
+      }
+
+      if (!is_circular && begin == end) {
+        continue;
+      }
+      if (!is_circular && extension < 2 * epsilon + 2) {
+        continue;
+      }
+
+      if (begin != end) {  // remove nodes near junctions
+        for (std::uint32_t i = 0; i < epsilon; ++i) {
+          begin = begin->outedges.front()->head;
+        }
+        for (std::uint32_t i = 0; i < epsilon; ++i) {
+          end = end->inedges.front()->tail;
+        }
+      }
+
+      auto unitig = std::make_shared<Node>(begin, end, Node::num_objects_alternate++);
+      unitigs.emplace_back(unitig);
+      unitigs.emplace_back(std::make_shared<Node>(end->pair, begin->pair, Node::num_objects_alternate++));
+      unitig->pair = unitigs.back().get();
+      unitig->pair->pair = unitig.get();
+
+      if (begin != end) {  // connect unitig to graph
+        if (begin->indegree()) {
+          marked_edges.emplace_back(begin->inedges.front()->id, 2);
+          marked_edges.emplace_back(begin->inedges.front()->pair->id, 2);
+
+          auto edge = std::make_shared<Edge>(
+            begin->inedges.front()->tail,
+            unitig.get(),
+            begin->inedges.front()->length, Edge::num_objects_alternate++);
+          unitig_edges.emplace_back(edge);
+          unitig_edges.emplace_back(std::make_shared<Edge>(
+            unitig->pair,
+            begin->inedges.front()->pair->head,
+            begin->inedges.front()->pair->length + unitig->pair->sequence.inflated_len - begin->pair->sequence.inflated_len,
+            Edge::num_objects_alternate++));  // NOLINT
+          edge->pair = unitig_edges.back().get();
+          edge->pair->pair = edge.get();
+        }
+        if (end->outdegree()) {
+          marked_edges.emplace_back(end->outedges.front()->id, 2);
+          marked_edges.emplace_back(end->outedges.front()->pair->id, 2);
+
+          auto edge = std::make_shared<Edge>(
+            unitig.get(),
+            end->outedges.front()->head,
+            end->outedges.front()->length + unitig->sequence.inflated_len - end->sequence.inflated_len,
+            Edge::num_objects_alternate++);  // NOLINT
+          unitig_edges.emplace_back(edge);
+          unitig_edges.emplace_back(std::make_shared<Edge>(
+            end->outedges.front()->pair->tail,
+            unitig->pair,
+            end->outedges.front()->pair->length,
+            Edge::num_objects_alternate++));
+          edge->pair = unitig_edges.back().get();
+          edge->pair->pair = edge.get();
+        }
+      }
+
+      auto jt = begin;
+      while (true) {
+        marked_edges.emplace_back(jt->outedges.front()->id, 2);
+        marked_edges.emplace_back(jt->outedges.front()->pair->id, 2);
+
+        // update transitive edges
+        node_updates[jt->id & ~1UL] = unitig->id;
+        unitig->transitive.insert(
+          nodes_alternate_[jt->id & ~1UL]->transitive.begin(),
+          nodes_alternate_[jt->id & ~1UL]->transitive.end());
+
+        if ((jt = jt->outedges.front()->head) == end) {
+          break;
+        }
+      }
+    }
+
+    nodes_alternate_.insert(nodes_alternate_.end(), unitigs.begin(), unitigs.end());
+    edges_alternate_.insert(edges_alternate_.end(), unitig_edges.begin(), unitig_edges.end());
+    RemoveAlternateEdges(marked_edges, true);
+
+    for (const auto& it : nodes_alternate_) {  // update transitive edges
+      if (it) {
+        std::unordered_set<std::uint32_t> valid;
+        for (auto jt : it->transitive) {
+          valid.emplace(node_updates[jt] == 0 ? jt : node_updates[jt]);
+        }
+        it->transitive.swap(valid);
+      }
+    }
+
+    return unitigs.size() / 2;
+  }
+
 std::vector<std::unique_ptr<biosoup::NucleicAcid>> Graph::GetUnitigs(
     bool drop_unpolished) {
 
@@ -3057,8 +3273,10 @@ void Graph::RemoveEdges(
       }
       if (i.where == 0 || i.where == 2) {
         Edge* alt_edge = find_edge(alt_tail, alt_head);
-        erase_remove(alt_tail->outedges, alt_edge);
-        erase_remove(alt_head->inedges, alt_edge);
+        if (alt_edge != nullptr) {
+          erase_remove(alt_tail->outedges, alt_edge);
+          erase_remove(alt_head->inedges, alt_edge);
+        }
       }
     }
 
@@ -3073,7 +3291,7 @@ void Graph::RemoveEdges(
       std::cerr << "[raven::Graph::RemoveDiploidEdges] 2" << std::endl;
       for (auto i : node_indices_alternate) {
         if (nodes_alternate_[i]->outdegree() == 0 && nodes_alternate_[i]->indegree() == 0) {
-          nodes_[i].reset();
+          nodes_alternate_[i].reset();
         }
       }
     }
@@ -3083,6 +3301,55 @@ void Graph::RemoveEdges(
       if (i.where == 2)
         continue;
       edges_[i.id].reset();
+    }
+  }
+
+  void Graph::RemoveAlternateEdges(
+    const std::vector<MarkedEdge>& indices,
+    bool remove_nodes) {
+    auto erase_remove = [] (std::vector<Edge*>& edges, Edge* marked) -> void {
+      edges.erase(std::remove(edges.begin(), edges.end(), marked), edges.end());
+    };
+
+    auto find_edge = [] (Node* tail, Node* head) -> Edge* {
+      for (auto it : tail->outedges) {
+        if (it->head == head) {
+          return it;
+        }
+      }
+      return nullptr;
+    };
+
+    std::unordered_set<std::uint32_t> node_indices_alternate;
+
+    std::cerr << "[raven::Graph::RemoveDiploidEdges] indices size=" << indices.size() << std::endl;
+    for (auto i : indices) {
+      Edge* edge = edges_alternate_[i.id].get();
+
+      if (remove_nodes && (i.where == 0 || i.where == 2)) {
+        node_indices_alternate.emplace(edge->tail->id);
+        node_indices_alternate.emplace(edge->head->id);
+      }
+
+      if (i.where == 0 || i.where == 2) {
+        erase_remove(edges_alternate_[i.id]->tail->outedges, edges_alternate_[i.id].get());
+        erase_remove(edges_alternate_[i.id]->head->inedges, edges_alternate_[i.id].get());
+      }
+    }
+
+    std::cerr << "[raven::Graph::RemoveDiploidEdges] remove_nodes=" << remove_nodes << std::endl;
+    if (remove_nodes) {
+      std::cerr << "[raven::Graph::RemoveDiploidEdges] 2" << std::endl;
+      for (auto i : node_indices_alternate) {
+        if (nodes_alternate_[i]->outdegree() == 0 && nodes_alternate_[i]->indegree() == 0) {
+          nodes_alternate_[i].reset();
+        }
+      }
+    }
+
+    std::cerr << "[raven::Graph::RemoveDiploidEdges] 3" << std::endl;
+    for (auto i : indices) {
+      edges_alternate_[i.id].reset();
     }
   }
 

@@ -88,6 +88,7 @@ class Graph {
 
   // ignore nodes that are less than epsilon away from any junction node
   std::uint32_t CreateUnitigs(std::uint32_t epsilon = 0);
+  std::uint32_t CreateUnitigsAlternate(std::uint32_t epsilon = 0);
 
   std::vector<std::unique_ptr<biosoup::NucleicAcid>> GetUnitigs(
       bool drop_unpolished = false);
@@ -188,7 +189,9 @@ class Graph {
     Node() = default;  // needed for cereal
 
     explicit Node(const biosoup::NucleicAcid& sequence);
+    explicit Node(const biosoup::NucleicAcid& sequence, std::uint32_t id);
     Node(Node* begin, Node* end);
+    Node(Node* begin, Node* end, std::uint32_t id);
 
     Node(const Node&) = delete;
     Node& operator=(const Node&) = delete;
@@ -229,6 +232,7 @@ class Graph {
     }
 
     static std::atomic<std::uint32_t> num_objects;
+    static std::atomic<std::uint32_t> num_objects_alternate;
 
     std::uint32_t id;
     biosoup::NucleicAcid sequence;
@@ -250,6 +254,7 @@ class Graph {
     Edge() = default;  // needed for cereal
 
     Edge(Node* tail, Node* head, std::uint32_t length);
+    Edge(Node* tail, Node* head, std::uint32_t length, std::uint32_t id);
 
     Edge(const Edge&) = delete;
     Edge& operator=(const Edge&) = delete;
@@ -270,6 +275,7 @@ class Graph {
     }
 
     static std::atomic<std::uint32_t> num_objects;
+    static std::atomic<std::uint32_t> num_objects_alternate;
 
     std::uint32_t id;
     std::uint32_t length;
@@ -301,6 +307,10 @@ class Graph {
     const std::vector<MarkedEdge>& indices,
     bool remove_nodes = false);
 
+  void RemoveAlternateEdges(
+    const std::vector<MarkedEdge>& indices,
+    bool remove_nodes = false);
+
   // use (Fruchterman & Reingold 1991) with (Barnes & Hut 1986) approximation
   // (draw with misc/plotter.py)
   void CreateForceDirectedLayout(const std::string& path = "");
@@ -318,6 +328,7 @@ class Graph {
   std::vector<std::shared_ptr<Edge>> edges_;
 
   std::vector<std::shared_ptr<Node>> nodes_alternate_;
+  std::vector<std::shared_ptr<Edge>> edges_alternate_;
 };
 
 }  // namespace raven
