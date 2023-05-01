@@ -224,11 +224,8 @@ int main(int argc, char** argv) {
     std::cerr << "[raven::] error: missing input file(s)!" << std::endl;
     return EXIT_FAILURE;
   }
-
   
   raven::min_unitig_size = min_unitig_size;
-
-  std::cerr << "[raven::] KITAAAAAAAAAAAAAA 1: " << raven::min_unitig_size << std::endl;
 
   biosoup::Timer timer{};
   timer.Start();

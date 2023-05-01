@@ -50,8 +50,6 @@ Node::Node(const std::uint32_t id, Node* begin, Node* end)
 
   is_unitig = count > 5 && data.size() > min_unitig_size;
 
-  std::cerr << "[raven::] KITAAAAAAAAAAAAAA 2: " << raven::min_unitig_size << std::endl;
-
   sequence = biosoup::NucleicAcid(
       (is_unitig ? "Utg" : "Ctg") + std::to_string(id & (~1UL)), data);
 }
