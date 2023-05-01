@@ -72,6 +72,9 @@ usage: raven [options ...] <sequences> [<sequences> ...]
     -g, --gap <int>
       default: -4
       gap penalty (must be negative)
+    -u, --min-unitig-size <int>
+      default: 9999
+      minimal unitig size
     --graphical-fragment-assembly <string>
       prints the assembly graph in GFA format
     --resume

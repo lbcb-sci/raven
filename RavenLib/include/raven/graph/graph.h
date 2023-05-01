@@ -89,6 +89,8 @@ class RAVEN_EXPORT IndexedFactory {
 
 }  // namespace detail
 
+extern std::uint32_t min_unitig_size;
+
 struct RAVEN_EXPORT Edge;
 struct RAVEN_EXPORT Node;
 

@@ -4,6 +4,8 @@
 
 namespace raven {
 
+std::uint32_t min_unitig_size = 9999;
+
 Node::Node(const biosoup::NucleicAcid& sequence) : Node(0, sequence) {}
 
 Node::Node(const std::uint32_t id, const biosoup::NucleicAcid& sequence)
@@ -46,7 +48,9 @@ Node::Node(const std::uint32_t id, Node* begin, Node* end)
     count += end->count;
   }
 
-  is_unitig = count > 5 && data.size() > 9999;
+  is_unitig = count > 5 && data.size() > min_unitig_size;
+
+  std::cerr << "[raven::] KITAAAAAAAAAAAAAA 2: " << raven::min_unitig_size << std::endl;
 
   sequence = biosoup::NucleicAcid(
       (is_unitig ? "Utg" : "Ctg") + std::to_string(id & (~1UL)), data);

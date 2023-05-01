@@ -24,6 +24,7 @@ static struct option options[] = {
     {"match", required_argument, nullptr, 'm'},
     {"mismatch", required_argument, nullptr, 'n'},
     {"gap", required_argument, nullptr, 'g'},
+    {"min-unitig-size", required_argument, nullptr, 'u'},
 #ifdef CUDA_ENABLED
     {"cuda-poa-batches", optional_argument, nullptr, 'c'},
     {"cuda-banded-alignment", no_argument, nullptr, 'b'},
@@ -76,6 +77,8 @@ void Help() {
          "    -g, --gap <int>\n"
          "      default: -4\n"
          "      gap penalty (must be negative)\n"
+         "    -u, --min-unitig-size <int>\n"
+         "      minimal uniting size (default 9999)\n"         
 #ifdef CUDA_ENABLED
          "    -c, --cuda-poa-batches <int>\n"
          "      default: 0\n"
@@ -127,7 +130,9 @@ int main(int argc, char** argv) {
   std::uint32_t cuda_alignment_batches = 0;
   bool cuda_banded_alignment = false;
 
-  std::string optstr = "k:w:f:p:m:n:g:t:h:M";
+  std::uint32_t min_unitig_size = 9999;
+
+  std::string optstr = "k:w:f:p:m:n:g:u:t:h:M";
 #ifdef CUDA_ENABLED
   optstr += "c:ba:";
 #endif
@@ -164,6 +169,9 @@ int main(int argc, char** argv) {
         break;
       case 'g':
         g = std::atoi(optarg);
+        break;
+      case 'u':
+        min_unitig_size = std::atoi(optarg);
         break;
 #ifdef CUDA_ENABLED
       case 'c':
@@ -216,6 +224,11 @@ int main(int argc, char** argv) {
     std::cerr << "[raven::] error: missing input file(s)!" << std::endl;
     return EXIT_FAILURE;
   }
+
+  
+  raven::min_unitig_size = min_unitig_size;
+
+  std::cerr << "[raven::] KITAAAAAAAAAAAAAA 1: " << raven::min_unitig_size << std::endl;
 
   biosoup::Timer timer{};
   timer.Start();
