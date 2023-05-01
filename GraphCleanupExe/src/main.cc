@@ -4,6 +4,7 @@
 
 #include <iostream>
 #include <cstdlib>
+#include <map>
 
 #include "bioparser/fasta_parser.hpp"
 #include "bioparser/fastq_parser.hpp"
@@ -66,13 +67,22 @@ int main(int argc, char** argv) {
 
   raven::Graph graph;
 
-  graph = raven::LoadGfa(input_gfa_path);
+  std::map<std::string, long> nodeLengths;
+  std::map<std::uint32_t, std::string> additionalHifiasmEdgeInfo;
+
+  graph = raven::LoadHifiasmGfa(input_gfa_path, nodeLengths, additionalHifiasmEdgeInfo);
+
+  raven::PrintGfa(graph, output_gfa_path + ".raven.gfa");
 
   raven::RemoveInvalidEdgesFromGraph(graph);
 
+  raven::PrintGfa(graph, output_gfa_path + ".removedInvalidEdges.raven.gfa");
+  raven::PrintHifiasmGfa(graph, output_gfa_path + ".removedInvalidEdges.hifiasm.gfa", nodeLengths, additionalHifiasmEdgeInfo);
+
   raven::RemoveInvalidConnectionsFromGraph(graph);
 
-  raven::PrintGfa(graph, output_gfa_path);
+  raven::PrintGfa(graph, output_gfa_path + ".removedInvalidConnections.raven.gfa");
+  raven::PrintHifiasmGfa(graph, output_gfa_path + ".removedInvalidConnections.hifiasm.gfa", nodeLengths, additionalHifiasmEdgeInfo);
 
   timer.Stop();
   std::cerr << "[graph_cleanup::] " << std::fixed << timer.elapsed_time() << "s"
