@@ -89,6 +89,7 @@ class Graph {
   // ignore nodes that are less than epsilon away from any junction node
   std::uint32_t CreateUnitigs(std::uint32_t epsilon = 0);
   std::uint32_t CreateUnitigsAlternate(std::uint32_t epsilon = 0);
+  std::uint32_t GetBubbleChain();
 
   std::vector<std::unique_ptr<biosoup::NucleicAcid>> GetUnitigs(
       bool drop_unpolished = false);

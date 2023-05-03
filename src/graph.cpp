@@ -3146,6 +3146,10 @@ std::uint32_t Graph::CreateUnitigs(std::uint32_t epsilon) {
     return unitigs.size() / 2;
   }
 
+std::uint32_t Graph::GetBubbleChain(){
+  
+}
+
 std::vector<std::unique_ptr<biosoup::NucleicAcid>> Graph::GetUnitigs(
     bool drop_unpolished) {
 
