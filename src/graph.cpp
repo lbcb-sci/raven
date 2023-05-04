@@ -111,6 +111,72 @@ Graph::Node::Node(Node* begin, Node* end)
       data);
   }
 
+Graph::Node::Node(Node* begin, Node* end, bool is_unitig)
+    : id(num_objects++),
+      sequence(),
+      count(),
+      is_unitig(is_unitig),
+      is_circular(begin == end),
+      is_polished(),
+      transitive(),
+      inedges(),
+      outedges(),
+      pair() {
+  std::string data{};
+
+  auto it = begin;
+  while (true) {
+    data += it->outedges.front()->Label();
+    count += it->count;
+    if ((it = it->outedges.front()->head) == end) {
+      break;
+    }
+  }
+  if (begin != end) {
+    data += end->sequence.InflateData();
+    count += end->count;
+  }
+
+  is_unitig = count > 5 && data.size() > 9999;
+
+  sequence = biosoup::NucleicAcid(
+    "Utg" + std::to_string(id & (~1UL)),
+    data);
+}
+
+  Graph::Node::Node(Node* begin, Node* end, bool is_unitig, std::uint32_t id)
+    : id(id),
+      sequence(),
+      count(),
+      is_unitig(is_unitig),
+      is_circular(begin == end),
+      is_polished(),
+      transitive(),
+      inedges(),
+      outedges(),
+      pair() {
+
+    std::string data{};
+
+    auto it = begin;
+    while (true) {
+      data += it->outedges.front()->Label();
+      count += it->count;
+      if ((it = it->outedges.front()->head) == end) {
+        break;
+      }
+    }
+    if (begin != end) {
+      data += end->sequence.InflateData();
+      count += end->count;
+    }
+
+
+    sequence = biosoup::NucleicAcid(
+      "Utg" + std::to_string(id & (~1UL)),
+      data);
+  }
+
 Graph::Edge::Edge(Node* tail, Node* head, std::uint32_t length)
     : id(num_objects++),
       length(length),
@@ -1296,6 +1362,18 @@ void Graph::Assemble() {
               << std::endl;
 
     PrintGfa("after_transitive.gfa");
+  }
+
+  if(stage_ == -3){
+    timer.Start();
+
+    CreateBubbleChain();
+
+    std::cerr << "[raven::Graph::Assemble] created bubble chain "
+          << std::fixed << timer.Stop() << "s"
+          << std::endl;
+
+    PrintGfa("after_bubble_chain.gfa");
   }
 
   // checkpoint
@@ -3146,9 +3224,89 @@ std::uint32_t Graph::CreateUnitigs(std::uint32_t epsilon) {
     return unitigs.size() / 2;
   }
 
-std::uint32_t Graph::GetBubbleChain(){
+std::uint32_t Graph::CreateBubbleChain(){
+  ram::MinimizerEngine minimizer_engine{thread_pool_};
+  std::unordered_set<std::uint32_t> marked_edges;
+  std::vector<std::shared_ptr<Node>> unitigs;
+  std::vector<std::unique_ptr<biosoup::NucleicAcid>> unitig_seq;
+  std::vector<std::shared_ptr<Edge>> unitig_edges;
+  std::vector<std::uint32_t> node_updates(nodes_.size(), 0);
+  std::vector<char> is_visited(nodes_.size(), 0);
+
+
+  for (const auto& it : nodes_) {
+    if (it == nullptr || is_visited[it->id] || it->is_junction()) {
+      continue;
+    }
+
+    std::uint32_t extension = 1;
+
+    bool is_circular = false;
+    auto begin = it.get();
+    while (!begin->is_junction()) {  // extend left
+      is_visited[begin->id] = 1;
+      is_visited[begin->pair->id] = 1;
+      if (begin->indegree() == 0 ||
+          begin->inedges.front()->tail->is_junction()) {
+        break;
+      }
+      begin = begin->inedges.front()->tail;
+      ++extension;
+      if (begin == it.get()) {
+        is_circular = true;
+        break;
+      }
+    }
+
+    auto end = it.get();
+    while (!end->is_junction()) {  // extend right
+      is_visited[end->id] = 1;
+      is_visited[end->pair->id] = 1;
+      if (end->outdegree() == 0 ||
+          end->outedges.front()->head->is_junction()) {
+        break;
+      }
+      end = end->outedges.front()->head;
+      ++extension;
+      if (end == it.get()) {
+        is_circular = true;
+        break;
+      }
+    }
+
+    auto unitig = std::make_shared<Node>(begin, end, true);
+    unitigs.emplace_back(unitig);
+    unitigs.emplace_back(std::make_shared<Node>(end->pair, begin->pair));
+    unitig->pair = unitigs.back().get();
+    unitig->pair->pair = unitig.get();
+  }
+
+    
+
+  // for (const auto& it : nodes_) {
+  //   if (!it || it->is_rc() || !it->is_unitig) {
+  //     continue;
+  //   }
+  //   unitig_seq.emplace_back(new biosoup::NucleicAcid(it->sequence));
+  //   unitig_seq.back()->id = unitigs.size() - 1;
+  // }
+
+
+  // if (unitig_seq.empty()) {
+  //   return;
+  // }
   
-}
+  // minimizer_engine.Minimize(unitig_seq.begin(), unitig_seq.end());
+  // minimizer_engine.Filter(0.001);
+
+  // std::vector<std::vector<biosoup::Overlap>> overlaps(unitig_seq.size());
+  // for (const auto& it : unitig_seq) {
+  //   for (const auto& jt : minimizer_engine.Map(it, true, true)) {
+        
+  //     }
+  //   }
+  
+};
 
 std::vector<std::unique_ptr<biosoup::NucleicAcid>> Graph::GetUnitigs(
     bool drop_unpolished) {
