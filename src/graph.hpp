@@ -46,6 +46,7 @@ constexpr double freq_low_th = 0.333;
 constexpr double freq_high_th = 0.667;
 constexpr std::uint8_t print_snp_data = 1;
 
+
 class Graph {
  public:
   Graph(
@@ -89,7 +90,7 @@ class Graph {
   // ignore nodes that are less than epsilon away from any junction node
   std::uint32_t CreateUnitigs(std::uint32_t epsilon = 0);
   std::uint32_t CreateUnitigsAlternate(std::uint32_t epsilon = 0);
-  std::uint32_t GetBubbleChain();
+  std::uint32_t CreateBubbleChain();
 
   std::vector<std::unique_ptr<biosoup::NucleicAcid>> GetUnitigs(
       bool drop_unpolished = false);
@@ -105,6 +106,9 @@ class Graph {
 
   // draw with Bandage
   void PrintGfa(const std::string& path) const;
+
+  // draw unitig graph with Bandage
+  void PrintUnitigGfa(const std::string& path) const;
 
   // cereal load wrapper
   void Load();
@@ -193,6 +197,8 @@ class Graph {
     explicit Node(const biosoup::NucleicAcid& sequence, std::uint32_t id);
     Node(Node* begin, Node* end);
     Node(Node* begin, Node* end, std::uint32_t id);
+    Node(Node* begin, Node* end, bool is_unitig);
+    Node(Node* begin, Node* end, bool is_unitig, std::uint32_t id);
 
     Node(const Node&) = delete;
     Node& operator=(const Node&) = delete;
@@ -297,6 +303,19 @@ class Graph {
     int where = 0;
   };
 
+  struct UnitigGraph;
+
+  struct UnitigGraph{
+  public:
+    UnitigGraph() = default;
+    ~UnitigGraph() = default;
+    UnitigGraph(Graph asg);
+
+    std::vector<std::vector<Node>> asg_nodes;
+    std::vector<Node> usg_nodes; 
+    std::vector<Edge> edges;
+  };
+
   std::unordered_set<std::uint32_t> FindRemovableEdges(
       const std::vector<Node*>& path);
 
@@ -331,6 +350,7 @@ class Graph {
   std::vector<std::shared_ptr<Node>> nodes_alternate_;
   std::vector<std::shared_ptr<Edge>> edges_alternate_;
 };
+
 
 }  // namespace raven
 
