@@ -90,7 +90,7 @@ class Graph {
   // ignore nodes that are less than epsilon away from any junction node
   std::uint32_t CreateUnitigs(std::uint32_t epsilon = 0);
   std::uint32_t CreateUnitigsAlternate(std::uint32_t epsilon = 0);
-  std::uint32_t CreateBubbleChain();
+  void CreateUnitigGraph();
 
   std::vector<std::unique_ptr<biosoup::NucleicAcid>> GetUnitigs(
       bool drop_unpolished = false);
@@ -309,11 +309,14 @@ class Graph {
   public:
     UnitigGraph() = default;
     ~UnitigGraph() = default;
-    UnitigGraph(Graph asg);
+    //UnitigGraph(Graph* asg);
+
 
     std::vector<std::vector<Node>> asg_nodes;
-    std::vector<Node> usg_nodes; 
-    std::vector<Edge> edges;
+    std::vector<std::shared_ptr<Node>> usg_nodes; 
+    std::vector<std::shared_ptr<Edge>> edges;
+    std::shared_ptr<std::uint32_t> n_nodes;
+    std::shared_ptr<std::uint32_t> n_edges;
   };
 
   std::unordered_set<std::uint32_t> FindRemovableEdges(
@@ -346,6 +349,7 @@ class Graph {
   std::vector<std::unique_ptr<Pile>> piles_;
   std::vector<std::shared_ptr<Node>> nodes_;
   std::vector<std::shared_ptr<Edge>> edges_;
+  std::shared_ptr<UnitigGraph> bubble_chain;
 
   std::vector<std::shared_ptr<Node>> nodes_alternate_;
   std::vector<std::shared_ptr<Edge>> edges_alternate_;
