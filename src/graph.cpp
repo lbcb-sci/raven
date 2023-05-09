@@ -121,13 +121,15 @@ Graph::Node::Node(Node* begin, Node* end, bool is_unitig)
       transitive(),
       inedges(),
       outedges(),
-      pair() {
+      pair(),
+      unitig_nodes() {
   std::string data{};
 
   auto it = begin;
   while (true) {
     data += it->outedges.front()->Label();
     count += it->count;
+    //unitig_nodes.emplace_back(it);
     if ((it = it->outedges.front()->head) == end) {
       break;
     }
@@ -136,8 +138,6 @@ Graph::Node::Node(Node* begin, Node* end, bool is_unitig)
     data += end->sequence.InflateData();
     count += end->count;
   }
-
-  is_unitig = count > 5 && data.size() > 9999;
 
   sequence = biosoup::NucleicAcid(
     "Utg" + std::to_string(id & (~1UL)),
@@ -154,7 +154,8 @@ Graph::Node::Node(Node* begin, Node* end, bool is_unitig)
       transitive(),
       inedges(),
       outedges(),
-      pair() {
+      pair(),
+      unitig_nodes() {
 
     std::string data{};
 
@@ -162,6 +163,7 @@ Graph::Node::Node(Node* begin, Node* end, bool is_unitig)
     while (true) {
       data += it->outedges.front()->Label();
       count += it->count;
+      //unitig_nodes.emplace_back(it->id);
       if ((it = it->outedges.front()->head) == end) {
         break;
       }
@@ -199,12 +201,31 @@ Graph::Edge::Edge(Node* tail, Node* head, std::uint32_t length)
     head->inedges.emplace_back(this);
   }
 
-Graph::UnitigGraph::UnitigGraph()
-    : asg_nodes(),
-      usg_nodes(),
-      edges(),
-      n_nodes(0),
-      n_edges(0) {}
+  Graph::Edge::Edge(std::shared_ptr<Node> tail, Node* head, std::uint32_t length)
+    : id(num_objects++),
+      length(length),
+      weight(0),
+      tail(tail.get()),
+      head(head),
+      pair() {
+    tail->outedges.emplace_back(this);
+    head->inedges.emplace_back(this);
+  }
+
+  Graph::Edge::Edge(std::shared_ptr<Node> tail, Node* head, std::uint32_t length, std::uint32_t id)
+    : id(id),
+      length(length),
+      weight(0),
+      tail(tail.get()),
+      head(head),
+      pair() {
+    tail->outedges.emplace_back(this);
+    head->inedges.emplace_back(this);
+  }
+
+// //Graph::UnitigGraph::UnitigGraph()
+//     : usg_nodes(),
+//       edges() {}
 
 std::atomic<std::uint32_t> Graph::Node::num_objects{0};
   std::atomic<std::uint32_t> Graph::Node::num_objects_alternate{0};
@@ -1374,7 +1395,7 @@ void Graph::Assemble() {
   if(stage_ == -3){
     timer.Start();
 
-    CreateBubbleChain();
+    CreateUnitigGraph();
 
     std::cerr << "[raven::Graph::Assemble] created bubble chain "
           << std::fixed << timer.Stop() << "s"
@@ -3231,6 +3252,7 @@ std::uint32_t Graph::CreateUnitigs(std::uint32_t epsilon) {
     return unitigs.size() / 2;
   }
 
+
 void Graph::CreateUnitigGraph(){
   ram::MinimizerEngine minimizer_engine{thread_pool_};
 
@@ -3239,10 +3261,9 @@ void Graph::CreateUnitigGraph(){
   std::vector<std::shared_ptr<Node>> unitigs;
   std::vector<std::unique_ptr<biosoup::NucleicAcid>> unitig_seq;
   std::vector<std::shared_ptr<Edge>> unitig_edges;
-  Graph::UnitigGraph uag();
+  Graph::UnitigGraph uag;
   std::vector<std::uint32_t> node_updates(nodes_.size(), 0);
   std::vector<char> is_visited(nodes_.size(), 0);
-
 
   for (const auto& it : nodes_) {
     if (it == nullptr || is_visited[it->id] || it->is_junction()) {
@@ -3283,22 +3304,58 @@ void Graph::CreateUnitigGraph(){
         break;
       }
     }
-
-    UnitigGraph  ug;
     auto unitig = std::make_shared<Node>(begin, end, true);
-    ug.asg_nodes.emplace_back(unitig);
-    ug.usg_nodes.emplace_back(unitig);
-    unitigs.emplace_back(unitig);
-    unitigs.emplace_back(std::make_shared<Node>(end->pair, begin->pair));
-    unitig->pair = unitigs.back().get();
-    unitig->pair->pair = unitig.get();
-  }
+    uag.usg_nodes.emplace_back(unitig);
+  };
 
+  // // create unitig graph edges ## v1 just copy the edges from ends
+  // for(auto& unitig : unitigs){
+  //   auto front_inedges = unitig->unitig_nodes.front().inedges;
+  //   auto front_outedges = unitig->unitig_nodes.front().outedges;
+
+  //   std::uint32_t front_indegree = unitig->unitig_nodes.front().indegree();
+  //   std::uint32_t front_outdegree = unitig->unitig_nodes.front().outdegree();
+
+  //   auto back_inedges = unitig->unitig_nodes.back().inedges;
+  //   auto back_outedges = unitig->unitig_nodes.back().outedges;
+
+  //   std::uint32_t back_indegree = unitig->unitig_nodes.back().indegree();
+  //   std::uint32_t back_outdegree = unitig->unitig_nodes.back().outdegree();   
+
+  //   if(front_indegree > 1){
+  //     for(auto& front_in_overlap : front_inedges){
+  //       Node* tmp = unitigs[0].get();
+  //       Edge unitig_edge = Edge(tmp, front_in_overlap->tail, front_in_overlap->length);
+  //       uag.edges.emplace_back(unitig_edge);
+  //     }
+  //   }
+
+  //   if(front_outdegree > 1){
+  //     for(auto& front_out_overlap : front_outedges){
+  //       Edge unitig_edge = Edge(unitig, front_out_overlap->tail, front_out_overlap->length);
+  //       uag.edges.emplace_back(unitig_edge);
+  //     }
+  //   }
+
+  //   if(back_indegree > 1){
+  //     for(auto& back_in_overlap : back_inedges){
+  //       Edge unitig_edge = Edge(unitig, back_in_overlap->tail, back_in_overlap->length);
+  //       uag.edges.emplace_back(unitig_edge);
+  //     }
+  //   }
+
+  //   if(back_outdegree > 1){
+  //     for(auto& back_out_overlap : front_inedges){
+  //       Edge unitig_edge = Edge(unitig, back_out_overlap->tail, back_out_overlap->length);
+  //       uag.edges.emplace_back(unitig_edge);
+  //     }
+
+  //   };
+  // };
   // for debug
   std::string output_path = "unitig_graph.gfa";
   PrintUnitigGfa(output_path);
-  
-};
+}
 
 std::vector<std::unique_ptr<biosoup::NucleicAcid>> Graph::GetUnitigs(
     bool drop_unpolished) {
@@ -3682,42 +3739,47 @@ void Graph::PrintGfa(const std::string& path) const {
   os.close();
 }
 
-void Graph::PrintUnitigGfa(const std::string& path) const {
-  if (path.empty()) {
-    return;
-  }
-  std::ofstream os(path);
-  for (const auto& it : bubble_chain->usg_nodes) {
-    if ((it == nullptr) || it->is_rc() ||
-        (it->count == 1 && it->outdegree() == 0 && it->indegree() == 0)) {
-      continue;
-    }
-    os << "S\t" << it->sequence.name
-       << "\t"  << "*"  // it->sequence.InflateData()
-       << "\tLN:i:" << it->sequence.inflated_len
-       << "\tRC:i:" << it->count
-       << "\tCL:z:" << (it->color ? "blue" : "orange")
-       << std::endl;
-    if (it->is_circular) {
-      os << "L\t" << it->sequence.name << "\t" << '+'
-         << "\t"  << it->sequence.name << "\t" << '+'
-         << "\t0M"
-         << std::endl;
-    }
-  }
-  for (const auto& it : edges_) {
-    if (it == nullptr || it->is_rc()) {
-      continue;
-    }
-    os << "L\t" << it->tail->sequence.name << "\t" << (it->tail->is_rc() ? '-' : '+')  // NOLINT
-       << "\t"  << it->head->sequence.name << "\t" << (it->head->is_rc() ? '-' : '+')  // NOLINT
-       << "\t"  << it->tail->sequence.inflated_len - it->length << 'M'
-       << std::endl;
-  }
-  os.close();
+// void Graph::PrintUnitigGfa(const std::string& path) const {
+//   if (path.empty()) {
+//     return;
+//   }
+//   std::ofstream os(path);
+//   for (const auto& it : bubble_chain_->usg_nodes) {
+//     if ((it == nullptr) || it->is_rc() ||
+//         (it->count == 1 && it->outdegree() == 0 && it->indegree() == 0)) {
+//       continue;
+//     }
+//     os << "S\t" << it->sequence.name
+//        << "\t"  << "*"  // it->sequence.InflateData()
+//        << "\tLN:i:" << it->sequence.inflated_len
+//        << "\tRC:i:" << it->count
+//        << "\tCL:z:" << (it->color ? "blue" : "orange")
+//        << std::endl;
+//     if (it->is_circular) {
+//       os << "L\t" << it->sequence.name << "\t" << '+'
+//          << "\t"  << it->sequence.name << "\t" << '+'
+//          << "\t0M"
+//          << std::endl;
+//     }
+//     for(const auto& unitig_node : it->unitig_nodes){
+//       os << "A\t" << it->sequence.name
+//          << unitig_node.sequence.name
+//          << std::endl;
+//     };
+//   }
+//   for (const auto& it : edges_) {
+//     if (it == nullptr || it->is_rc()) {
+//       continue;
+//     }
+//     os << "L\t" << it->tail->sequence.name << "\t" << (it->tail->is_rc() ? '-' : '+')  // NOLINT
+//        << "\t"  << it->head->sequence.name << "\t" << (it->head->is_rc() ? '-' : '+')  // NOLINT
+//        << "\t"  << it->tail->sequence.inflated_len - it->length << 'M'
+//        << std::endl;
+//   }
+//   os.close();
 
 
-};
+// };
 
 void Graph::Store() const {
   std::ofstream os("raven.cereal");

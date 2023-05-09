@@ -206,6 +206,10 @@ class Graph {
     Node(Node&&) = default;
     Node& operator=(Node&&) = default;
 
+    bool operator==(const Node& other){
+      return other.sequence.id == this->sequence.id;
+    };
+
     ~Node() = default;
 
     std::uint32_t indegree() const {
@@ -253,6 +257,8 @@ class Graph {
     std::vector<Edge*> outedges;
     Node* pair;
 
+    std::vector<std::uint32_t> unitig_nodes;
+
     Node* alternate;
     bool is_primary = true;
   };
@@ -262,6 +268,8 @@ class Graph {
 
     Edge(Node* tail, Node* head, std::uint32_t length);
     Edge(Node* tail, Node* head, std::uint32_t length, std::uint32_t id);
+    Edge(std::shared_ptr<Node> tail, Node* head, std::uint32_t length);
+    Edge(std::shared_ptr<Node> tail, Node* head, std::uint32_t length, std::uint32_t id);
 
     Edge(const Edge&) = delete;
     Edge& operator=(const Edge&) = delete;
@@ -311,12 +319,22 @@ class Graph {
     ~UnitigGraph() = default;
     //UnitigGraph(Graph* asg);
 
+    std::shared_ptr<Node> asg_to_usg_node(Node query){
+      for(auto& usg_node : usg_nodes){
+        for(auto& asg_node : usg_node->unitig_nodes){
+          if(query == asg_node) return usg_node;
+        }
+      }
+      return nullptr;
+    };
 
-    std::vector<std::vector<Node>> asg_nodes;
+    // std::shared_ptr<Node> usg_to_asg_node(Node query){
+
+    // };
+
+
     std::vector<std::shared_ptr<Node>> usg_nodes; 
     std::vector<std::shared_ptr<Edge>> edges;
-    std::shared_ptr<std::uint32_t> n_nodes;
-    std::shared_ptr<std::uint32_t> n_edges;
   };
 
   std::unordered_set<std::uint32_t> FindRemovableEdges(
@@ -349,12 +367,23 @@ class Graph {
   std::vector<std::unique_ptr<Pile>> piles_;
   std::vector<std::shared_ptr<Node>> nodes_;
   std::vector<std::shared_ptr<Edge>> edges_;
-  std::shared_ptr<UnitigGraph> bubble_chain;
+  std::shared_ptr<UnitigGraph> bubble_chain_;
 
   std::vector<std::shared_ptr<Node>> nodes_alternate_;
   std::vector<std::shared_ptr<Edge>> edges_alternate_;
 };
 
+class UnitigGraph : public Graph{
+
+
+  struct UnitigNode;
+  struct UnitigEdge;
+
+
+
+  std::vector<std::shared_ptr<UnitigNode>> nodes_;
+  std::vector<std::shared_ptr<UnitigEdge>> edges_;
+};
 
 }  // namespace raven
 
