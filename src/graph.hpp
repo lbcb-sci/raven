@@ -96,7 +96,7 @@ class Graph {
       bool drop_unpolished = false);
 
   std::vector<std::unique_ptr<biosoup::NucleicAcid>> GetUnitigPairs(
-    bool drop_unpolished = false);
+      bool drop_unpolished = false);
 
   // draw with misc/plotter.py
   void PrintJson(const std::string& path) const;
@@ -257,7 +257,7 @@ class Graph {
     std::vector<Edge*> outedges;
     Node* pair;
 
-    std::vector<std::uint32_t> unitig_nodes;
+    std::vector<Node*> unitig_nodes;
 
     Node* alternate;
     bool is_primary = true;
@@ -268,8 +268,6 @@ class Graph {
 
     Edge(Node* tail, Node* head, std::uint32_t length);
     Edge(Node* tail, Node* head, std::uint32_t length, std::uint32_t id);
-    Edge(std::shared_ptr<Node> tail, Node* head, std::uint32_t length);
-    Edge(std::shared_ptr<Node> tail, Node* head, std::uint32_t length, std::uint32_t id);
 
     Edge(const Edge&) = delete;
     Edge& operator=(const Edge&) = delete;
@@ -317,21 +315,6 @@ class Graph {
   public:
     UnitigGraph() = default;
     ~UnitigGraph() = default;
-    //UnitigGraph(Graph* asg);
-
-    std::shared_ptr<Node> asg_to_usg_node(Node query){
-      for(auto& usg_node : usg_nodes){
-        for(auto& asg_node : usg_node->unitig_nodes){
-          if(query == asg_node) return usg_node;
-        }
-      }
-      return nullptr;
-    };
-
-    // std::shared_ptr<Node> usg_to_asg_node(Node query){
-
-    // };
-
 
     std::vector<std::shared_ptr<Node>> usg_nodes; 
     std::vector<std::shared_ptr<Edge>> edges;
@@ -343,6 +326,10 @@ class Graph {
   void RemoveEdges(
       const std::unordered_set<std::uint32_t>& indices,
       bool remove_nodes = false);
+
+  void RemoveUnitigEdges(
+    const std::unordered_set<std::uint32_t>& indices,
+    bool remove_nodes = false);
 
   void RemoveDiploidEdges(
     const std::vector<MarkedEdge>& indices,
@@ -367,23 +354,14 @@ class Graph {
   std::vector<std::unique_ptr<Pile>> piles_;
   std::vector<std::shared_ptr<Node>> nodes_;
   std::vector<std::shared_ptr<Edge>> edges_;
-  std::shared_ptr<UnitigGraph> bubble_chain_;
+  
+  std::vector<std::shared_ptr<Node>> unitig_nodes_;
+  std::vector<std::shared_ptr<Edge>> unitig_edges_;
 
   std::vector<std::shared_ptr<Node>> nodes_alternate_;
   std::vector<std::shared_ptr<Edge>> edges_alternate_;
 };
 
-class UnitigGraph : public Graph{
-
-
-  struct UnitigNode;
-  struct UnitigEdge;
-
-
-
-  std::vector<std::shared_ptr<UnitigNode>> nodes_;
-  std::vector<std::shared_ptr<UnitigEdge>> edges_;
-};
 
 }  // namespace raven
 

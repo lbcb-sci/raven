@@ -123,26 +123,48 @@ Graph::Node::Node(Node* begin, Node* end, bool is_unitig)
       outedges(),
       pair(),
       unitig_nodes() {
-  std::string data{};
+    std::string data{};
+
 
   auto it = begin;
-  while (true) {
-    data += it->outedges.front()->Label();
-    count += it->count;
-    //unitig_nodes.emplace_back(it);
-    if ((it = it->outedges.front()->head) == end) {
-      break;
-    }
+  if(begin == end){
+    
+      data += it->outedges.front()->Label();
+      count += it->count;
+      unitig_nodes.emplace_back(it);
   }
-  if (begin != end) {
-    data += end->sequence.InflateData();
-    count += end->count;
+  else{
+    while (true) {
+      data += it->outedges.front()->Label();
+      count += it->count;
+      unitig_nodes.emplace_back(it);
+      if ((it = it->outedges.front()->head) == end) {
+        break;
+        }
+      }
+    
+      if (begin != end) {
+        data += end->sequence.InflateData();
+        count += end->count;
+      }
   }
 
-  sequence = biosoup::NucleicAcid(
-    "Utg" + std::to_string(id & (~1UL)),
-    data);
-}
+    std::uint32_t inedge_count{0};
+    std::uint32_t outedge_count{0};
+    for(auto& inedge : begin->inedges){
+      inedges.emplace_back(inedge);
+      inedge_count++;
+    };
+
+    for(auto& outedge : end->outedges){
+      outedges.emplace_back(outedge);
+      outedge_count++;
+    };
+
+    sequence = biosoup::NucleicAcid(
+      "Utg" + std::to_string(id & (~1UL)),
+      data);
+  }
 
   Graph::Node::Node(Node* begin, Node* end, bool is_unitig, std::uint32_t id)
     : id(id),
@@ -173,6 +195,13 @@ Graph::Node::Node(Node* begin, Node* end, bool is_unitig)
       count += end->count;
     }
 
+    for(auto& inedge : begin->inedges){
+      inedges.emplace_back(inedge);
+    };
+
+    for(auto& outedge : end->outedges){
+      outedges.emplace_back(outedge);
+    };
 
     sequence = biosoup::NucleicAcid(
       "Utg" + std::to_string(id & (~1UL)),
@@ -200,32 +229,6 @@ Graph::Edge::Edge(Node* tail, Node* head, std::uint32_t length)
     tail->outedges.emplace_back(this);
     head->inedges.emplace_back(this);
   }
-
-  Graph::Edge::Edge(std::shared_ptr<Node> tail, Node* head, std::uint32_t length)
-    : id(num_objects++),
-      length(length),
-      weight(0),
-      tail(tail.get()),
-      head(head),
-      pair() {
-    tail->outedges.emplace_back(this);
-    head->inedges.emplace_back(this);
-  }
-
-  Graph::Edge::Edge(std::shared_ptr<Node> tail, Node* head, std::uint32_t length, std::uint32_t id)
-    : id(id),
-      length(length),
-      weight(0),
-      tail(tail.get()),
-      head(head),
-      pair() {
-    tail->outedges.emplace_back(this);
-    head->inedges.emplace_back(this);
-  }
-
-// //Graph::UnitigGraph::UnitigGraph()
-//     : usg_nodes(),
-//       edges() {}
 
 std::atomic<std::uint32_t> Graph::Node::num_objects{0};
   std::atomic<std::uint32_t> Graph::Node::num_objects_alternate{0};
@@ -1401,7 +1404,7 @@ void Graph::Assemble() {
           << std::fixed << timer.Stop() << "s"
           << std::endl;
 
-    PrintGfa("after_bubble_chain.gfa");
+   // PrintGfa("after_bubble_chain.gfa");
   }
 
   // checkpoint
@@ -3254,19 +3257,17 @@ std::uint32_t Graph::CreateUnitigs(std::uint32_t epsilon) {
 
 
 void Graph::CreateUnitigGraph(){
-  ram::MinimizerEngine minimizer_engine{thread_pool_};
-
-
   std::unordered_set<std::uint32_t> marked_edges;
   std::vector<std::shared_ptr<Node>> unitigs;
-  std::vector<std::unique_ptr<biosoup::NucleicAcid>> unitig_seq;
   std::vector<std::shared_ptr<Edge>> unitig_edges;
-  Graph::UnitigGraph uag;
   std::vector<std::uint32_t> node_updates(nodes_.size(), 0);
   std::vector<char> is_visited(nodes_.size(), 0);
 
+  std::uint32_t flag = false;
+
   for (const auto& it : nodes_) {
-    if (it == nullptr || is_visited[it->id] || it->is_junction()) {
+
+    if (it == nullptr || is_visited[it->id]) {
       continue;
     }
 
@@ -3275,6 +3276,10 @@ void Graph::CreateUnitigGraph(){
     bool is_circular = false;
     auto begin = it.get();
     while (!begin->is_junction()) {  // extend left
+      // if(begin->id == 1870){
+      //   std::cout << begin->id << std::endl;
+      //   flag = true;
+      // };
       is_visited[begin->id] = 1;
       is_visited[begin->pair->id] = 1;
       if (begin->indegree() == 0 ||
@@ -3282,6 +3287,9 @@ void Graph::CreateUnitigGraph(){
         break;
       }
       begin = begin->inedges.front()->tail;
+      if(begin->id == 1107){
+        flag = true;
+      }
       ++extension;
       if (begin == it.get()) {
         is_circular = true;
@@ -3291,6 +3299,10 @@ void Graph::CreateUnitigGraph(){
 
     auto end = it.get();
     while (!end->is_junction()) {  // extend right
+      // if(end->id == 1870){
+      //   std::cout << end->id << std::endl;
+      //   flag = true;
+      // };
       is_visited[end->id] = 1;
       is_visited[end->pair->id] = 1;
       if (end->outdegree() == 0 ||
@@ -3298,61 +3310,146 @@ void Graph::CreateUnitigGraph(){
         break;
       }
       end = end->outedges.front()->head;
+      if(end->id == 1107){
+        flag = true;
+      }
       ++extension;
       if (end == it.get()) {
         is_circular = true;
         break;
       }
     }
+
+    // if (!is_circular && begin == end) {
+    //   continue;
+    // }
+
+
+    // if(flag){
+    //   std::cout << "gotem'" << std::endl;
+    //   auto unitig = std::make_shared<Node>(begin, end, true);
+    // } 
     auto unitig = std::make_shared<Node>(begin, end, true);
-    uag.usg_nodes.emplace_back(unitig);
+    unitigs.emplace_back(unitig);
+    if(flag){
+      std::cout << "Contig with read 1107 : " << unitig->id << std::endl;
+      flag = false;
+      // for(auto& unitig : unitigs){
+      //   for(auto& unitig_nodes : unitig-)
+      // }
+    };
+    unitigs.emplace_back(std::make_shared<Node>(end->pair, begin->pair, true));
+    unitig->pair = unitigs.back().get();
+    unitig->pair->pair = unitig.get();
+  }
+
+  auto GetUnitigFromNode = [&] (Node* query_node) -> Node* {
+    for(auto& unitig : unitigs){
+      for(auto unitig_node : unitig->unitig_nodes){
+        if(unitig_node->id == 1107){
+          std::cout << unitig_node->id << std::endl;
+        }
+        if(unitig_node->id == query_node->id){
+          return unitig.get();
+        };
+    };
+      
+  };
+  return nullptr;  
   };
 
-  // // create unitig graph edges ## v1 just copy the edges from ends
-  // for(auto& unitig : unitigs){
-  //   auto front_inedges = unitig->unitig_nodes.front().inedges;
-  //   auto front_outedges = unitig->unitig_nodes.front().outedges;
+  for(auto& unitig : unitigs){
+    for(auto& unitig_node : unitig->unitig_nodes){
+      std::cout << unitig_node->id << std::endl;
+    }
+  }
 
-  //   std::uint32_t front_indegree = unitig->unitig_nodes.front().indegree();
-  //   std::uint32_t front_outdegree = unitig->unitig_nodes.front().outdegree();
+  std::uint32_t counter = 0;
+  std::string path = "debug.gfa";
+  for(auto& unitig : unitigs){
+    if (!unitig->is_circular) {  // connect unitig to graph
+    counter++;
+    if(counter>200) {
+      
+      PrintUnitigGfa(path);
+    }
+      for(auto& inedge : unitig->inedges){
+        marked_edges.emplace(inedge->id);
+     //   marked_edges.emplace(inedge->pair->id);
 
-  //   auto back_inedges = unitig->unitig_nodes.back().inedges;
-  //   auto back_outedges = unitig->unitig_nodes.back().outedges;
+        auto edge = std::make_shared<Edge>(
+          GetUnitigFromNode(inedge->tail), // pretvoriti u unitig iz kojeg dolazi inedge->tail
+          unitig.get(),
+          inedge->length
+        );
+        unitig_edges.emplace_back(edge);
 
-  //   std::uint32_t back_indegree = unitig->unitig_nodes.back().indegree();
-  //   std::uint32_t back_outdegree = unitig->unitig_nodes.back().outdegree();   
+        // auto rc_edge = std::make_shared<Edge>(
+        //   unitig->pair,
+        //   GetUnitigFromNode(inedge->pair->head),
+        //   inedge->pair->length + unitig->pair->sequence.inflated_len - inedge->pair->head->sequence.inflated_len
+        // );
+        // unitig_edges.emplace_back(rc_edge);
+        // edge->pair = unitig_edges.back().get();
+        // edge->pair->pair = edge.get();
+      };
 
-  //   if(front_indegree > 1){
-  //     for(auto& front_in_overlap : front_inedges){
-  //       Node* tmp = unitigs[0].get();
-  //       Edge unitig_edge = Edge(tmp, front_in_overlap->tail, front_in_overlap->length);
-  //       uag.edges.emplace_back(unitig_edge);
+      for(auto& outedge : unitig->outedges){
+        marked_edges.emplace(outedge->id);
+       // marked_edges.emplace(outedge->pair->id);
+
+        auto edge = std::make_shared<Edge>(
+          GetUnitigFromNode(outedge->head), // pretvoriti u unitig iz kojeg dolazi outedge->tail
+          unitig.get(),
+          outedge->length
+        );
+        unitig_edges.emplace_back(edge);
+
+        // auto rc_edge = std::make_shared<Edge>(
+        //   unitig->pair,
+        //   GetUnitigFromNode(outedge->pair->tail),
+        //   outedge->pair->length + unitig->pair->sequence.inflated_len - outedge->pair->tail->sequence.inflated_len
+        // );        
+        // unitig_edges.emplace_back(rc_edge);
+        // edge->pair = unitig_edges.back().get();
+        // edge->pair->pair = edge.get();
+      };
+    };
+    // auto jt = unitig->unitig_nodes.front();
+    // auto end = unitig->unitig_nodes.back();
+    // while (true) {
+    //   marked_edges.emplace(jt->outedges.front()->id);
+    //  // marked_edges.emplace(jt->outedges.front()->pair->id);
+
+    //   // update transitive edges
+    //   node_updates[jt->id & ~1UL] = unitig->id;
+    //   unitig->transitive.insert(
+    //      nodes_[jt->id & ~1UL]->transitive.begin(),
+    //      nodes_[jt->id & ~1UL]->transitive.end());
+
+    //   if ((jt = jt->outedges.front()->head) == end) {
+    //     break;
+    //   }
+    // }
+
+
+  }
+
+  unitig_nodes_.insert(unitig_nodes_.end(), unitigs.begin(), unitigs.end());
+  unitig_edges_.insert(unitig_edges_.end(), unitig_edges.begin(), unitig_edges.end());
+  //RemoveUnitigEdges(marked_edges, true);
+
+  // for (const auto& it : nodes_) {  // update transitive edges
+  //   if (it) {
+  //     std::unordered_set<std::uint32_t> valid;
+  //     for (auto jt : it->transitive) {
+  //       valid.emplace(node_updates[jt] == 0 ? jt : node_updates[jt]);
   //     }
+  //     it->transitive.swap(valid);
   //   }
+  // }
 
-  //   if(front_outdegree > 1){
-  //     for(auto& front_out_overlap : front_outedges){
-  //       Edge unitig_edge = Edge(unitig, front_out_overlap->tail, front_out_overlap->length);
-  //       uag.edges.emplace_back(unitig_edge);
-  //     }
-  //   }
 
-  //   if(back_indegree > 1){
-  //     for(auto& back_in_overlap : back_inedges){
-  //       Edge unitig_edge = Edge(unitig, back_in_overlap->tail, back_in_overlap->length);
-  //       uag.edges.emplace_back(unitig_edge);
-  //     }
-  //   }
-
-  //   if(back_outdegree > 1){
-  //     for(auto& back_out_overlap : front_inedges){
-  //       Edge unitig_edge = Edge(unitig, back_out_overlap->tail, back_out_overlap->length);
-  //       uag.edges.emplace_back(unitig_edge);
-  //     }
-
-  //   };
-  // };
-  // for debug
   std::string output_path = "unitig_graph.gfa";
   PrintUnitigGfa(output_path);
 }
@@ -3444,125 +3541,154 @@ void Graph::RemoveEdges(
   }
 }
 
-  void Graph::RemoveDiploidEdges(
-    const std::vector<MarkedEdge>& indices,
+void Graph::RemoveUnitigEdges(
+    const std::unordered_set<std::uint32_t>& indices,
     bool remove_nodes) {
-    auto erase_remove = [] (std::vector<Edge*>& edges, Edge* marked) -> void {
-      edges.erase(std::remove(edges.begin(), edges.end(), marked), edges.end());
-    };
 
-    auto find_edge = [] (Node* tail, Node* head) -> Edge* {
-      for (auto it : tail->outedges) {
-        if (it->head == head) {
-          return it;
-        }
-      }
-      return nullptr;
-    };
+  auto erase_remove = [] (std::vector<Edge*>& edges, Edge* marked) -> void {
+    edges.erase(std::remove(edges.begin(), edges.end(), marked), edges.end());
+  };
 
-    std::unordered_set<std::uint32_t> node_indices;
-    std::unordered_set<std::uint32_t> node_indices_alternate;
-
-    std::cerr << "[raven::Graph::RemoveDiploidEdges] indices size=" << indices.size() << std::endl;
-    for (auto i : indices) {
-      Edge* edge = edges_[i.id].get();
-      Node* alt_tail = edge->tail->alternate;
-      Node* alt_head = edge->head->alternate;
-
-      if (remove_nodes && (i.where == 0 || i.where == 1)) {
-        node_indices.emplace(edge->tail->id);
-        node_indices.emplace(edge->head->id);
-      }
-      if (remove_nodes && (i.where == 0 || i.where == 2)) {
-        node_indices_alternate.emplace(alt_tail->id);
-        node_indices_alternate.emplace(alt_head->id);
-      }
-
-      if (i.where == 0 || i.where == 1) {
-        erase_remove(edges_[i.id]->tail->outedges, edges_[i.id].get());
-        erase_remove(edges_[i.id]->head->inedges, edges_[i.id].get());
-      }
-      if (i.where == 0 || i.where == 2) {
-        Edge* alt_edge = find_edge(alt_tail, alt_head);
-        if (alt_edge != nullptr) {
-          erase_remove(alt_tail->outedges, alt_edge);
-          erase_remove(alt_head->inedges, alt_edge);
-        }
-      }
-    }
-
-    std::cerr << "[raven::Graph::RemoveDiploidEdges] remove_nodes=" << remove_nodes << std::endl;
+  std::unordered_set<std::uint32_t> node_indices;
+  for (auto i : indices) {
     if (remove_nodes) {
-      std::cerr << "[raven::Graph::RemoveDiploidEdges] 1" << std::endl;
-      for (auto i : node_indices) {
-        if (nodes_[i]->outdegree() == 0 && nodes_[i]->indegree() == 0) {
-          nodes_[i].reset();
-        }
-      }
-      std::cerr << "[raven::Graph::RemoveDiploidEdges] 2" << std::endl;
-      for (auto i : node_indices_alternate) {
-        if (nodes_alternate_[i]->outdegree() == 0 && nodes_alternate_[i]->indegree() == 0) {
-          nodes_alternate_[i].reset();
-        }
+      node_indices.emplace(unitig_edges_[i]->tail->id);
+      node_indices.emplace(unitig_edges_[i]->head->id);
+    }
+    erase_remove(unitig_edges_[i]->tail->outedges, unitig_edges_[i].get());
+    erase_remove(unitig_edges_[i]->head->inedges, unitig_edges_[i].get());
+  }
+  if (remove_nodes) {
+    for (auto i : node_indices) {
+      if (unitig_nodes_[i]->outdegree() == 0 && unitig_nodes_[i]->indegree() == 0) {
+        unitig_nodes_[i].reset();
       }
     }
+  }
+  for (auto i : indices) {
+    unitig_edges_[i].reset();
+  }
+}
 
-    std::cerr << "[raven::Graph::RemoveDiploidEdges] 3" << std::endl;
-    for (auto i : indices) {
-      if (i.where == 2)
-        continue;
-      edges_[i.id].reset();
+void Graph::RemoveDiploidEdges(
+  const std::vector<MarkedEdge>& indices,
+  bool remove_nodes) {
+  auto erase_remove = [] (std::vector<Edge*>& edges, Edge* marked) -> void {
+    edges.erase(std::remove(edges.begin(), edges.end(), marked), edges.end());
+  };
+
+  auto find_edge = [] (Node* tail, Node* head) -> Edge* {
+    for (auto it : tail->outedges) {
+      if (it->head == head) {
+        return it;
+      }
+    }
+    return nullptr;
+  };
+
+  std::unordered_set<std::uint32_t> node_indices;
+  std::unordered_set<std::uint32_t> node_indices_alternate;
+
+  std::cerr << "[raven::Graph::RemoveDiploidEdges] indices size=" << indices.size() << std::endl;
+  for (auto i : indices) {
+    Edge* edge = edges_[i.id].get();
+    Node* alt_tail = edge->tail->alternate;
+    Node* alt_head = edge->head->alternate;
+
+    if (remove_nodes && (i.where == 0 || i.where == 1)) {
+      node_indices.emplace(edge->tail->id);
+      node_indices.emplace(edge->head->id);
+    }
+    if (remove_nodes && (i.where == 0 || i.where == 2)) {
+      node_indices_alternate.emplace(alt_tail->id);
+      node_indices_alternate.emplace(alt_head->id);
+    }
+
+    if (i.where == 0 || i.where == 1) {
+      erase_remove(edges_[i.id]->tail->outedges, edges_[i.id].get());
+      erase_remove(edges_[i.id]->head->inedges, edges_[i.id].get());
+    }
+    if (i.where == 0 || i.where == 2) {
+      Edge* alt_edge = find_edge(alt_tail, alt_head);
+      if (alt_edge != nullptr) {
+        erase_remove(alt_tail->outedges, alt_edge);
+        erase_remove(alt_head->inedges, alt_edge);
+      }
     }
   }
 
-  void Graph::RemoveAlternateEdges(
-    const std::vector<MarkedEdge>& indices,
-    bool remove_nodes) {
-    auto erase_remove = [] (std::vector<Edge*>& edges, Edge* marked) -> void {
-      edges.erase(std::remove(edges.begin(), edges.end(), marked), edges.end());
-    };
-
-    auto find_edge = [] (Node* tail, Node* head) -> Edge* {
-      for (auto it : tail->outedges) {
-        if (it->head == head) {
-          return it;
-        }
-      }
-      return nullptr;
-    };
-
-    std::unordered_set<std::uint32_t> node_indices_alternate;
-
-    std::cerr << "[raven::Graph::RemoveDiploidEdges] indices size=" << indices.size() << std::endl;
-    for (auto i : indices) {
-      Edge* edge = edges_alternate_[i.id].get();
-
-      if (remove_nodes && (i.where == 0 || i.where == 2)) {
-        node_indices_alternate.emplace(edge->tail->id);
-        node_indices_alternate.emplace(edge->head->id);
-      }
-
-      if (i.where == 0 || i.where == 2) {
-        erase_remove(edges_alternate_[i.id]->tail->outedges, edges_alternate_[i.id].get());
-        erase_remove(edges_alternate_[i.id]->head->inedges, edges_alternate_[i.id].get());
+  std::cerr << "[raven::Graph::RemoveDiploidEdges] remove_nodes=" << remove_nodes << std::endl;
+  if (remove_nodes) {
+    std::cerr << "[raven::Graph::RemoveDiploidEdges] 1" << std::endl;
+    for (auto i : node_indices) {
+      if (nodes_[i]->outdegree() == 0 && nodes_[i]->indegree() == 0) {
+        nodes_[i].reset();
       }
     }
-
-    std::cerr << "[raven::Graph::RemoveDiploidEdges] remove_nodes=" << remove_nodes << std::endl;
-    if (remove_nodes) {
-      std::cerr << "[raven::Graph::RemoveDiploidEdges] 2" << std::endl;
-      for (auto i : node_indices_alternate) {
-        if (nodes_alternate_[i]->outdegree() == 0 && nodes_alternate_[i]->indegree() == 0) {
-          nodes_alternate_[i].reset();
-        }
+    std::cerr << "[raven::Graph::RemoveDiploidEdges] 2" << std::endl;
+    for (auto i : node_indices_alternate) {
+      if (nodes_alternate_[i]->outdegree() == 0 && nodes_alternate_[i]->indegree() == 0) {
+        nodes_alternate_[i].reset();
       }
-    }
-
-    std::cerr << "[raven::Graph::RemoveDiploidEdges] 3" << std::endl;
-    for (auto i : indices) {
-      edges_alternate_[i.id].reset();
     }
   }
+
+  std::cerr << "[raven::Graph::RemoveDiploidEdges] 3" << std::endl;
+  for (auto i : indices) {
+    if (i.where == 2)
+      continue;
+    edges_[i.id].reset();
+  }
+}
+
+void Graph::RemoveAlternateEdges(
+  const std::vector<MarkedEdge>& indices,
+  bool remove_nodes) {
+  auto erase_remove = [] (std::vector<Edge*>& edges, Edge* marked) -> void {
+    edges.erase(std::remove(edges.begin(), edges.end(), marked), edges.end());
+  };
+
+  auto find_edge = [] (Node* tail, Node* head) -> Edge* {
+    for (auto it : tail->outedges) {
+      if (it->head == head) {
+        return it;
+      }
+    }
+    return nullptr;
+  };
+
+  std::unordered_set<std::uint32_t> node_indices_alternate;
+
+  std::cerr << "[raven::Graph::RemoveDiploidEdges] indices size=" << indices.size() << std::endl;
+  for (auto i : indices) {
+    Edge* edge = edges_alternate_[i.id].get();
+
+    if (remove_nodes && (i.where == 0 || i.where == 2)) {
+      node_indices_alternate.emplace(edge->tail->id);
+      node_indices_alternate.emplace(edge->head->id);
+    }
+
+    if (i.where == 0 || i.where == 2) {
+      erase_remove(edges_alternate_[i.id]->tail->outedges, edges_alternate_[i.id].get());
+      erase_remove(edges_alternate_[i.id]->head->inedges, edges_alternate_[i.id].get());
+    }
+  }
+
+  std::cerr << "[raven::Graph::RemoveDiploidEdges] remove_nodes=" << remove_nodes << std::endl;
+  if (remove_nodes) {
+    std::cerr << "[raven::Graph::RemoveDiploidEdges] 2" << std::endl;
+    for (auto i : node_indices_alternate) {
+      if (nodes_alternate_[i]->outdegree() == 0 && nodes_alternate_[i]->indegree() == 0) {
+        nodes_alternate_[i].reset();
+      }
+    }
+  }
+
+  std::cerr << "[raven::Graph::RemoveDiploidEdges] 3" << std::endl;
+  for (auto i : indices) {
+    edges_alternate_[i.id].reset();
+  }
+}
 
 std::unordered_set<std::uint32_t> Graph::FindRemovableEdges(
     const std::vector<Node*>& path) {
@@ -3739,47 +3865,48 @@ void Graph::PrintGfa(const std::string& path) const {
   os.close();
 }
 
-// void Graph::PrintUnitigGfa(const std::string& path) const {
-//   if (path.empty()) {
-//     return;
-//   }
-//   std::ofstream os(path);
-//   for (const auto& it : bubble_chain_->usg_nodes) {
-//     if ((it == nullptr) || it->is_rc() ||
-//         (it->count == 1 && it->outdegree() == 0 && it->indegree() == 0)) {
-//       continue;
-//     }
-//     os << "S\t" << it->sequence.name
-//        << "\t"  << "*"  // it->sequence.InflateData()
-//        << "\tLN:i:" << it->sequence.inflated_len
-//        << "\tRC:i:" << it->count
-//        << "\tCL:z:" << (it->color ? "blue" : "orange")
-//        << std::endl;
-//     if (it->is_circular) {
-//       os << "L\t" << it->sequence.name << "\t" << '+'
-//          << "\t"  << it->sequence.name << "\t" << '+'
-//          << "\t0M"
-//          << std::endl;
-//     }
-//     for(const auto& unitig_node : it->unitig_nodes){
-//       os << "A\t" << it->sequence.name
-//          << unitig_node.sequence.name
-//          << std::endl;
-//     };
-//   }
-//   for (const auto& it : edges_) {
-//     if (it == nullptr || it->is_rc()) {
-//       continue;
-//     }
-//     os << "L\t" << it->tail->sequence.name << "\t" << (it->tail->is_rc() ? '-' : '+')  // NOLINT
-//        << "\t"  << it->head->sequence.name << "\t" << (it->head->is_rc() ? '-' : '+')  // NOLINT
-//        << "\t"  << it->tail->sequence.inflated_len - it->length << 'M'
-//        << std::endl;
-//   }
-//   os.close();
+void Graph::PrintUnitigGfa(const std::string& path) const {
+  if (path.empty()) {
+    return;
+  }
+  std::ofstream os(path);
+  for (const auto& it : unitig_nodes_) {
+    if ((it == nullptr) || it->is_rc() ||
+        (it->count == 1 && it->outdegree() == 0 && it->indegree() == 0)) {
+      continue;
+    }
+    os << "S\t" << it->sequence.name
+       << "\t"  << "*"  // it->sequence.InflateData()
+       << "\tLN:i:" << it->sequence.inflated_len
+       << "\tRC:i:" << it->count
+       << "\tCL:z:" << (it->color ? "blue" : "orange")
+       << std::endl;
+    if (it->is_circular) {
+      // os << "L\t" << it->sequence.name << "\t" << '+'
+      //    << "\t"  << it->sequence.name << "\t" << '+'
+      //    << "\t0M"
+      //    << std::endl;
+      continue;
+    }
+    for(const auto& unitig_node : it->unitig_nodes){
+      os << "A\t" << it->sequence.name << "\t"
+         << unitig_node->sequence.name << "\t"
+         << std::endl;
+    };
+  }
+  for (const auto& it : unitig_edges_) {
+    if (it == nullptr || it->is_rc()) {
+      continue;
+    }
+    os << "L\t" << it->tail->sequence.name << "\t" << (it->tail->is_rc() ? '-' : '+')  // NOLINT
+       << "\t"  << it->head->sequence.name << "\t" << (it->head->is_rc() ? '-' : '+')  // NOLINT
+       << "\t"  << it->tail->sequence.inflated_len - it->length << 'M'
+       << std::endl;
+  }
+  os.close();
 
 
-// };
+};
 
 void Graph::Store() const {
   std::ofstream os("raven.cereal");
