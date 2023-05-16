@@ -255,6 +255,10 @@ class Graph {
     unsigned color = 0;
     std::vector<Edge*> inedges;
     std::vector<Edge*> outedges;
+    std::vector<Edge*> front_inedges;
+    std::vector<Edge*> front_outedges;
+    std::vector<Edge*> back_inedges;
+    std::vector<Edge*> back_outedges;
     Node* pair;
 
     std::vector<Node*> unitig_nodes;

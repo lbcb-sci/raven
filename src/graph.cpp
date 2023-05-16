@@ -116,11 +116,13 @@ Graph::Node::Node(Node* begin, Node* end, bool is_unitig)
       sequence(),
       count(),
       is_unitig(is_unitig),
-      is_circular(begin == end),
+      is_circular(false),
       is_polished(),
       transitive(),
-      inedges(),
-      outedges(),
+      front_inedges(),
+      front_outedges(),
+      back_inedges(),
+      back_outedges(),
       pair(),
       unitig_nodes() {
     std::string data{};
@@ -128,9 +130,15 @@ Graph::Node::Node(Node* begin, Node* end, bool is_unitig)
 
   auto it = begin;
   if(begin == end){
-    
-      data += it->outedges.front()->Label();
-      count += it->count;
+
+      if(it->outdegree() > 0){
+        data += it->outedges.front()->Label();
+        count += it->count;
+      }
+      else  if(it->indegree() > 0){
+        data += it->inedges.front()->Label();
+        count += it->count;
+      }
       unitig_nodes.emplace_back(it);
   }
   else{
@@ -139,6 +147,7 @@ Graph::Node::Node(Node* begin, Node* end, bool is_unitig)
       count += it->count;
       unitig_nodes.emplace_back(it);
       if ((it = it->outedges.front()->head) == end) {
+        unitig_nodes.emplace_back(it);
         break;
         }
       }
@@ -149,64 +158,86 @@ Graph::Node::Node(Node* begin, Node* end, bool is_unitig)
       }
   }
 
-    std::uint32_t inedge_count{0};
-    std::uint32_t outedge_count{0};
+
+    std::uint32_t front_inedge_count{0};
+    std::uint32_t back_inedge_count{0};
+    std::uint32_t front_outedge_count{0};
+    std::uint32_t back_outedge_count{0};
+
     for(auto& inedge : begin->inedges){
-      inedges.emplace_back(inedge);
-      inedge_count++;
-    };
-
-    for(auto& outedge : end->outedges){
-      outedges.emplace_back(outedge);
-      outedge_count++;
-    };
-
-    sequence = biosoup::NucleicAcid(
-      "Utg" + std::to_string(id & (~1UL)),
-      data);
-  }
-
-  Graph::Node::Node(Node* begin, Node* end, bool is_unitig, std::uint32_t id)
-    : id(id),
-      sequence(),
-      count(),
-      is_unitig(is_unitig),
-      is_circular(begin == end),
-      is_polished(),
-      transitive(),
-      inedges(),
-      outedges(),
-      pair(),
-      unitig_nodes() {
-
-    std::string data{};
-
-    auto it = begin;
-    while (true) {
-      data += it->outedges.front()->Label();
-      count += it->count;
-      //unitig_nodes.emplace_back(it->id);
-      if ((it = it->outedges.front()->head) == end) {
-        break;
+      if(std::find(unitig_nodes.begin(), unitig_nodes.end(), inedge->tail) == unitig_nodes.end()){
+        front_inedges.emplace_back(inedge);
+        front_inedge_count++;
       }
-    }
-    if (begin != end) {
-      data += end->sequence.InflateData();
-      count += end->count;
-    }
-
-    for(auto& inedge : begin->inedges){
-      inedges.emplace_back(inedge);
     };
+
+    for(auto& outedge : begin->outedges){
+      if(std::find(unitig_nodes.begin(), unitig_nodes.end(), outedge->head) == unitig_nodes.end()){
+        front_outedges.emplace_back(outedge);
+        front_outedge_count++;
+      }
+    };
+    
+    for(auto& inedge : end->inedges){
+      if(std::find(unitig_nodes.begin(), unitig_nodes.end(), inedge->tail) == unitig_nodes.end()){      
+        back_inedges.emplace_back(inedge);
+        back_inedge_count++;
+      };
+    };
+
 
     for(auto& outedge : end->outedges){
-      outedges.emplace_back(outedge);
+      if(std::find(unitig_nodes.begin(), unitig_nodes.end(), outedge->head) == unitig_nodes.end()){      
+        back_outedges.emplace_back(outedge);
+        back_outedge_count++;
+      };
     };
-
     sequence = biosoup::NucleicAcid(
       "Utg" + std::to_string(id & (~1UL)),
       data);
   }
+
+  // Graph::Node::Node(Node* begin, Node* end, bool is_unitig, std::uint32_t id)
+  //   : id(id),
+  //     sequence(),
+  //     count(),
+  //     is_unitig(is_unitig),
+  //     is_circular(begin == end),
+  //     is_polished(),
+  //     transitive(),
+  //     inedges(),
+  //     outedges(),
+  //     pair(),
+  //     unitig_nodes() {
+
+  //   std::string data{};
+
+  //   auto it = begin;
+  //   while (true) {
+  //     data += it->outedges.front()->Label();
+  //     count += it->count;
+  //     //unitig_nodes.emplace_back(it->id);
+  //     if ((it = it->outedges.front()->head) == end) {
+  //       break;
+  //     }
+  //   }
+  //   if (begin != end) {
+  //     data += end->sequence.InflateData();
+  //     count += end->count;
+  //   }
+
+  //   for(auto& inedge : begin->inedges){
+  //     inedges.emplace_back(inedge);
+  //   };
+
+  //   for(auto& outedge : end->outedges){
+  //     outedges.emplace_back(outedge);
+  //   };
+
+  //   sequence = biosoup::NucleicAcid(
+  //     "Utg" + std::to_string(id & (~1UL)),
+  //     data);
+  // }
 
 Graph::Edge::Edge(Node* tail, Node* head, std::uint32_t length)
     : id(num_objects++),
@@ -3263,7 +3294,6 @@ void Graph::CreateUnitigGraph(){
   std::vector<std::uint32_t> node_updates(nodes_.size(), 0);
   std::vector<char> is_visited(nodes_.size(), 0);
 
-  std::uint32_t flag = false;
 
   for (const auto& it : nodes_) {
 
@@ -3275,21 +3305,26 @@ void Graph::CreateUnitigGraph(){
 
     bool is_circular = false;
     auto begin = it.get();
-    while (!begin->is_junction()) {  // extend left
-      // if(begin->id == 1870){
-      //   std::cout << begin->id << std::endl;
-      //   flag = true;
-      // };
+    bool first_node_flag = false;
+
+    while (true) {  // extend left
+      //if(is_visited[begin->id]) break;
       is_visited[begin->id] = 1;
       is_visited[begin->pair->id] = 1;
-      if (begin->indegree() == 0 ||
-          begin->inedges.front()->tail->is_junction()) {
+
+      if(begin->indegree() > 1 || begin->indegree() == 0){
+        if(extension == 1){
+          first_node_flag = true;
+        }
         break;
       }
-      begin = begin->inedges.front()->tail;
-      if(begin->id == 1107){
-        flag = true;
+
+      auto next = begin->inedges.front()->tail;
+      if(next->outdegree() != 1){
+        break;
       }
+
+      begin = next;
       ++extension;
       if (begin == it.get()) {
         is_circular = true;
@@ -3297,22 +3332,28 @@ void Graph::CreateUnitigGraph(){
       }
     }
 
+
     auto end = it.get();
-    while (!end->is_junction()) {  // extend right
-      // if(end->id == 1870){
-      //   std::cout << end->id << std::endl;
-      //   flag = true;
-      // };
+    while (true) {  // extend right
+      // if(is_visited[end->id] && !first_node_flag) {
+      //   break;
+      // }
+      // else{
+      //   first_node_flag = false;
+      // }
       is_visited[end->id] = 1;
       is_visited[end->pair->id] = 1;
-      if (end->outdegree() == 0 ||
-          end->outedges.front()->head->is_junction()) {
+
+      if(end->outdegree() > 1 || end->outdegree() == 0){
         break;
       }
-      end = end->outedges.front()->head;
-      if(end->id == 1107){
-        flag = true;
+
+      auto next = end->outedges.front()->head;
+
+      if(next->indegree() != 1){
+        break;
       }
+      end = next;
       ++extension;
       if (end == it.get()) {
         is_circular = true;
@@ -3320,99 +3361,133 @@ void Graph::CreateUnitigGraph(){
       }
     }
 
-    // if (!is_circular && begin == end) {
-    //   continue;
-    // }
-
-
-    // if(flag){
-    //   std::cout << "gotem'" << std::endl;
-    //   auto unitig = std::make_shared<Node>(begin, end, true);
-    // } 
     auto unitig = std::make_shared<Node>(begin, end, true);
     unitigs.emplace_back(unitig);
-    if(flag){
-      std::cout << "Contig with read 1107 : " << unitig->id << std::endl;
-      flag = false;
-      // for(auto& unitig : unitigs){
-      //   for(auto& unitig_nodes : unitig-)
-      // }
-    };
     unitigs.emplace_back(std::make_shared<Node>(end->pair, begin->pair, true));
     unitig->pair = unitigs.back().get();
     unitig->pair->pair = unitig.get();
   }
 
+  std::ofstream os("debug.gfa");
+
+  for(auto& unitig : unitigs){
+    os << unitig->sequence.name << std::endl;
+    for(auto& unitig_nodes_1 : unitig->unitig_nodes){
+      os << unitig_nodes_1->sequence.name << std::endl;
+    };
+
+  };
+
+  os.close();
+
   auto GetUnitigFromNode = [&] (Node* query_node) -> Node* {
     for(auto& unitig : unitigs){
       for(auto unitig_node : unitig->unitig_nodes){
-        if(unitig_node->id == 1107){
-          std::cout << unitig_node->id << std::endl;
-        }
         if(unitig_node->id == query_node->id){
           return unitig.get();
         };
+      };     
     };
-      
-  };
   return nullptr;  
   };
 
-  for(auto& unitig : unitigs){
-    for(auto& unitig_node : unitig->unitig_nodes){
-      std::cout << unitig_node->id << std::endl;
-    }
-  }
-
   std::uint32_t counter = 0;
-  std::string path = "debug.gfa";
   for(auto& unitig : unitigs){
     if (!unitig->is_circular) {  // connect unitig to graph
     counter++;
-    if(counter>200) {
-      
-      PrintUnitigGfa(path);
-    }
-      for(auto& inedge : unitig->inedges){
+      for(auto& inedge : unitig->front_inedges){
         marked_edges.emplace(inedge->id);
-     //   marked_edges.emplace(inedge->pair->id);
+        marked_edges.emplace(inedge->pair->id);
 
         auto edge = std::make_shared<Edge>(
           GetUnitigFromNode(inedge->tail), // pretvoriti u unitig iz kojeg dolazi inedge->tail
           unitig.get(),
-          inedge->length
+          100
+          //inedge->length // pretvoriti u pravi length
         );
         unitig_edges.emplace_back(edge);
 
+        auto rc_edge = std::make_shared<Edge>(
+          unitig->pair,
+          GetUnitigFromNode(inedge->pair->head),
+          100
+          //inedge->pair->length + unitig->pair->sequence.inflated_len - inedge->pair->head->sequence.inflated_len
+        );
+        unitig_edges.emplace_back(rc_edge);
+        edge->pair = unitig_edges.back().get();
+        edge->pair->pair = edge.get();
+      };
+
+      // for(auto& outedge : unitig->front_outedges){
+      //   marked_edges.emplace(outedge->id);
+      //  // marked_edges.emplace(outedge->pair->id);
+
+      //   auto edge = std::make_shared<Edge>(
+      //     unitig.get(),
+      //     GetUnitigFromNode(outedge->head),
+      //     //outedge->length
+      //     100
+      //   );
+      //   unitig_edges.emplace_back(edge);
+
         // auto rc_edge = std::make_shared<Edge>(
+        //   GetUnitigFromNode(outedge->pair->head),
         //   unitig->pair,
-        //   GetUnitigFromNode(inedge->pair->head),
-        //   inedge->pair->length + unitig->pair->sequence.inflated_len - inedge->pair->head->sequence.inflated_len
+        //   100
+        //   //outedge->pair->length + unitig->pair->sequence.inflated_len - outedge->pair->head->sequence.inflated_len
         // );
         // unitig_edges.emplace_back(rc_edge);
         // edge->pair = unitig_edges.back().get();
         // edge->pair->pair = edge.get();
-      };
 
-      for(auto& outedge : unitig->outedges){
+
+      //}
+      
+      // for(auto& inedge : unitig->back_inedges){
+      //   marked_edges.emplace(inedge->id);
+      //   //marked_edges.emplace(inedge->pair->id);
+      
+
+      //   auto edge = std::make_shared<Edge>(
+      //     GetUnitigFromNode(inedge->tail),
+      //     unitig.get(),
+      //     100
+      //     //inedge->length
+      //   );
+      //   unitig_edges.emplace_back(edge);
+
+      //   // auto rc_edge = std::make_shared<Edge>(
+      //   //   unitig->pair,
+      //   //   GetUnitigFromNode(inedge->pair->head),
+      //   //   100
+      //   //   //inedge->pair->length + unitig->pair->sequence.inflated_len - inedge->pair->head->sequence.inflated_len
+      //   // );
+      //   // unitig_edges.emplace_back(rc_edge);
+      //   // edge->pair = unitig_edges.back().get();
+      //   // edge->pair->pair = edge.get();
+      // }
+
+      for(auto& outedge : unitig->back_outedges){
         marked_edges.emplace(outedge->id);
-       // marked_edges.emplace(outedge->pair->id);
+        marked_edges.emplace(outedge->pair->id);
 
         auto edge = std::make_shared<Edge>(
-          GetUnitigFromNode(outedge->head), // pretvoriti u unitig iz kojeg dolazi outedge->tail
           unitig.get(),
-          outedge->length
+          GetUnitigFromNode(outedge->head), // pretvoriti u unitig iz kojeg dolazi outedge->tail
+          //outedge->length
+          100
         );
         unitig_edges.emplace_back(edge);
 
-        // auto rc_edge = std::make_shared<Edge>(
-        //   unitig->pair,
-        //   GetUnitigFromNode(outedge->pair->tail),
-        //   outedge->pair->length + unitig->pair->sequence.inflated_len - outedge->pair->tail->sequence.inflated_len
-        // );        
-        // unitig_edges.emplace_back(rc_edge);
-        // edge->pair = unitig_edges.back().get();
-        // edge->pair->pair = edge.get();
+        auto rc_edge = std::make_shared<Edge>(
+          GetUnitigFromNode(outedge->pair->head),
+          unitig->pair,
+          100
+          //outedge->pair->length + unitig->pair->sequence.inflated_len - outedge->pair->head->sequence.inflated_len
+        );
+        unitig_edges.emplace_back(rc_edge);
+        edge->pair = unitig_edges.back().get();
+        edge->pair->pair = edge.get();
       };
     };
     // auto jt = unitig->unitig_nodes.front();
@@ -3871,9 +3946,13 @@ void Graph::PrintUnitigGfa(const std::string& path) const {
   }
   std::ofstream os(path);
   for (const auto& it : unitig_nodes_) {
-    if ((it == nullptr) || it->is_rc() ||
-        (it->count == 1 && it->outdegree() == 0 && it->indegree() == 0)) {
-      continue;
+  if ((it == nullptr) || it->is_rc() ||
+      (it->count == 1 && it->outdegree() == 0 && it->indegree() == 0)) {
+    continue;
+  }
+
+    if(it->sequence.name == "Utg3054"){
+      std::cout << "test" << std::endl;
     }
     os << "S\t" << it->sequence.name
        << "\t"  << "*"  // it->sequence.InflateData()
@@ -3881,18 +3960,27 @@ void Graph::PrintUnitigGfa(const std::string& path) const {
        << "\tRC:i:" << it->count
        << "\tCL:z:" << (it->color ? "blue" : "orange")
        << std::endl;
-    if (it->is_circular) {
-      // os << "L\t" << it->sequence.name << "\t" << '+'
-      //    << "\t"  << it->sequence.name << "\t" << '+'
-      //    << "\t0M"
-      //    << std::endl;
-      continue;
-    }
+  // if (it->is_circular) {
+  //   os << "A\t" << it->sequence.name << "\t"
+  //      << it->sequence.name << "\t"
+  //      << std::endl;
+  //   continue;
+  // }
     for(const auto& unitig_node : it->unitig_nodes){
       os << "A\t" << it->sequence.name << "\t"
          << unitig_node->sequence.name << "\t"
          << std::endl;
     };
+    // for(const auto& outedge : it->outedges){
+    //   os << "L\t" << outedge->tail->sequence.name << "\t" << "+"
+    //      << "\t" << outedge->head->sequence.name << "\t" << "+"
+    //      << "\t" << outedge->length << "M" << std::endl;
+    // }
+    // for(const auto& inedge : it->inedges){
+    //   os << "L\t" << inedge->tail->sequence.name << "\t" << "+"
+    //      << "\t" << inedge->head->sequence.name << "\t" << "+"
+    //      << "\t" << inedge->length << "M" << std::endl;
+    // }
   }
   for (const auto& it : unitig_edges_) {
     if (it == nullptr || it->is_rc()) {
