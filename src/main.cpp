@@ -36,10 +36,11 @@ namespace {
     {"version", no_argument, nullptr, 'v'},
     {"help", no_argument, nullptr, 'h'},
     {"output", required_argument, nullptr, 'o'},
+    {"ultralong-phasing", required_argument, nullptr, 'u'},
     {nullptr, 0, nullptr, 0}
   };
 
-  std::string optstr = "wp:m:n:g:s:D:f:rdt:vho:";
+  std::string optstr = "wp:m:n:g:s:D:f:rdt:vho:u:";
 
   void Help() {
     std::cout <<
@@ -94,7 +95,9 @@ namespace {
               "      prints the version number\n"
               "    -o, --output <string>\n"
               "      output file name, if it is not set output is written to stdout\n"
-              "      for diploid assembly, outputs will be written in 2 files with suffixes -1, -2"
+              "      for diploid assembly, outputs will be written in 2 files with suffixes -1, -2\n"
+              "    -u, --ultralong-phasing <string>\n"
+              "       path to ul reads used for phasing\n"
               "    -h, --help\n"
               "      prints the usage\n";
   }
@@ -142,6 +145,8 @@ int main(int argc, char** argv) {
   std::int8_t m = 3;
   std::int8_t n = -5;
   std::int8_t g = -4;
+
+  std::string ul_read_path;
 
   double disagreement = 0.1;
   std::string gfa_path = "";
@@ -198,6 +203,7 @@ int main(int argc, char** argv) {
       case 'o': output_path = optarg;
         stdoutput = false;
         break;
+      case 'u': ul_read_path = optarg; break;
       default: return 1;
     }
   }
@@ -259,9 +265,34 @@ int main(int argc, char** argv) {
 
     timer.Start();
   }
+  
+  std::vector<std::unique_ptr<biosoup::NucleicAcid>> ul_sequences;
+  if(!ul_read_path.empty()){
+    
+    try{
+      auto ul_sequence_parser = CreateParser(ul_read_path);
+      ul_sequences = ul_sequence_parser->Parse(-1);
+    } catch (const std::invalid_argument& exception){
+      std::cerr << exception.what() << std::endl;   
+    }
+
+    if(ul_sequences.empty()){
+      std::cerr << "[raven::] error: ul read path set but the file appears empty" << std::endl;
+    }
+
+    std::cerr << "[raven::] loaded " << ul_sequences.size() << " ul sequences "
+              << std::fixed << timer.Stop() << "s"
+              << std::endl; 
+              
+    timer.Start();
+  };
 
   graph.Construct(sequences, disagreement, split);
-  graph.Assemble();
+  if(ul_read_path.empty()){
+    graph.Assemble();
+  } else {
+    graph.UlAssemble(ul_sequences);
+  }
   graph.Polish(sequences, m, n, g, cuda_poa_batches, cuda_banded_alignment,
       cuda_alignment_batches, num_polishing_rounds);
   graph.PrintGfa(gfa_path);

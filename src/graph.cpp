@@ -1435,7 +1435,7 @@ void Graph::Assemble() {
           << std::fixed << timer.Stop() << "s"
           << std::endl;
 
-   // PrintGfa("after_bubble_chain.gfa");
+  // PrintGfa("after_bubble_chain.gfa");
   }
 
   // checkpoint
@@ -1584,6 +1584,42 @@ void Graph::Assemble() {
             << std::fixed << timer.elapsed_time() << "s"
             << std::endl;
 }
+
+void Graph::UlAssemble(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& ul_sequences){
+  if (stage_ < -3 || stage_ > -1) {
+    return;
+  }
+
+  biosoup::Timer timer{};
+  PrintGfa("after_construction.gfa");
+
+  // remove transitive edges
+  if (stage_ == -3) {
+    timer.Start();
+
+    RemoveTransitiveEdges();
+
+    std::cerr << "[raven::Graph::Assemble] removed transitive edges "
+              << std::fixed << timer.Stop() << "s"
+              << std::endl;
+
+    PrintGfa("after_transitive.gfa");
+  }
+
+  if(stage_ == -3){
+    timer.Start();
+
+    CreateUnitigGraph();
+
+    std::cerr << "[raven::Graph::Assemble] created bubble chain "
+          << std::fixed << timer.Stop() << "s"
+          << std::endl;
+
+  // PrintGfa("after_bubble_chain.gfa");
+  }
+  
+  
+};
 
 std::uint32_t Graph::RemoveTransitiveEdges() {
   auto is_comparable = [] (double a, double b) -> bool {
@@ -3285,6 +3321,7 @@ std::uint32_t Graph::CreateUnitigs(std::uint32_t epsilon) {
 
     return unitigs.size() / 2;
   }
+
 
 
 void Graph::CreateUnitigGraph(){

@@ -76,6 +76,9 @@ class Graph {
   // simplify with transitive reduction, tip prunning and bubble popping
   void Assemble();
 
+  void UlAssemble(
+      std::vector<std::unique_ptr<biosoup::NucleicAcid>>& ul_sequences);
+
   // Racon wrapper
   void Polish(
       const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
@@ -91,6 +94,7 @@ class Graph {
   std::uint32_t CreateUnitigs(std::uint32_t epsilon = 0);
   std::uint32_t CreateUnitigsAlternate(std::uint32_t epsilon = 0);
   void CreateUnitigGraph();
+
 
   std::vector<std::unique_ptr<biosoup::NucleicAcid>> GetUnitigs(
       bool drop_unpolished = false);
@@ -134,6 +138,7 @@ class Graph {
 
   void SalvageHaplotypesPrimary();
   void SalvageHaplotypesAlternative();
+
 
   friend cereal::access;
 
@@ -364,6 +369,7 @@ class Graph {
 
   std::vector<std::shared_ptr<Node>> nodes_alternate_;
   std::vector<std::shared_ptr<Edge>> edges_alternate_;
+
 };
 
 
