@@ -25,6 +25,8 @@ void PrintGfa(const Graph& graph, const std::string& path) {
     os << "LN:i:" << it->sequence.inflated_len;
     os << "\t";
     os << "RC:i:" << it->count;
+    os << "\t";
+    os << "dp:f:" << it->coverage;
     os << std::endl;
     
     if (it->is_circular) {

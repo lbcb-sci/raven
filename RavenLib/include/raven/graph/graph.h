@@ -136,6 +136,7 @@ struct Node {
   std::vector<Edge*> inedges;
   std::vector<Edge*> outedges;
   Node* pair;
+  std::uint16_t coverage = 0;
 };
 
 struct Edge {

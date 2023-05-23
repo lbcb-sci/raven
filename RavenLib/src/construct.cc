@@ -596,11 +596,15 @@ void ConstructAssemblyGraph(
         sequences[it->id()]->InflateData(it->begin(),
                                          it->end() - it->begin())};  // NOLINT
 
+    std::uint16_t coverage = it->median();
+
     sequence_to_node[it->id()] = graph.node_factory.NextIndex();
     auto node = emplace_node_through_factory(sequence);
+    node->coverage = coverage;
 
     sequence.ReverseAndComplement();
     auto rc_node = emplace_node_through_factory(sequence);
+    rc_node->coverage = coverage;
 
     node->pair = rc_node;
     rc_node->pair = node;

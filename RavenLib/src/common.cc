@@ -107,8 +107,13 @@ std::uint32_t CreateUnitigs(Graph& graph, std::uint32_t epsilon) {
       }
     }
 
+    std::uint16_t coverage = (begin->coverage + end->coverage)/2;
+
     auto unitig = emplace_node_through_factory(begin, end);
+    unitig->coverage = coverage;
+    
     auto rc_unitig = emplace_node_through_factory(end->pair, begin->pair);
+    rc_unitig->coverage = coverage;
 
     unitig->pair = rc_unitig;
     rc_unitig->pair = unitig;
