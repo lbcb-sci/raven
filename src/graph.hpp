@@ -94,6 +94,7 @@ class Graph {
   std::uint32_t CreateUnitigs(std::uint32_t epsilon = 0);
   std::uint32_t CreateUnitigsAlternate(std::uint32_t epsilon = 0);
   void CreateUnitigGraph();
+  void ResolveGraphWithUl(std::vector<std::unique_ptr<biosoup::NucleicAcid>> &ul_reads);
 
 
   std::vector<std::unique_ptr<biosoup::NucleicAcid>> GetUnitigs(
