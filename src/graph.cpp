@@ -130,15 +130,15 @@ Graph::Node::Node(Node* begin, Node* end, bool is_unitig)
 
   auto it = begin;
   if(begin == end){
-
-      if(it->outdegree() > 0){
-        data += it->outedges.front()->Label();
-        count += it->count;
-      }
-      else  if(it->indegree() > 0){
-        data += it->inedges.front()->Label();
-        count += it->count;
-      }
+      data += it->sequence.InflateData();
+      // if(it->outdegree() > 0){
+      //   data += it->outedges.front()->Label();
+      //   count += it->count;
+      // }
+      // else  if(it->indegree() > 0){
+      //   data += it->inedges.front()->Label();
+      //   count += it->count;
+      // }
       unitig_nodes.emplace_back(it);
   }
   else{
