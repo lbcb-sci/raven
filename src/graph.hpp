@@ -306,6 +306,7 @@ class Graph {
     Node* tail;
     Node* head;
     Edge* pair;
+    Edge* alternate;
   };
 
   struct MarkedEdge {

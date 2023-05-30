@@ -30,7 +30,8 @@ Graph::Node::Node(const biosoup::NucleicAcid& sequence)
       transitive(),
       inedges(),
       outedges(),
-      pair() {}
+      pair(),
+      alternate() {}
 
   Graph::Node::Node(const biosoup::NucleicAcid& sequence, std::uint32_t id)
     : id(id),
@@ -42,7 +43,8 @@ Graph::Node::Node(const biosoup::NucleicAcid& sequence)
       transitive(),
       inedges(),
       outedges(),
-      pair() {}
+      pair(),
+      alternate() {}
 
 Graph::Node::Node(Node* begin, Node* end)
     : id(num_objects++),
@@ -54,7 +56,8 @@ Graph::Node::Node(Node* begin, Node* end)
       transitive(),
       inedges(),
       outedges(),
-      pair() {
+      pair(),
+      alternate() {
   std::string data{};
 
   auto it = begin;
@@ -87,7 +90,8 @@ Graph::Node::Node(Node* begin, Node* end)
       transitive(),
       inedges(),
       outedges(),
-      pair() {
+      pair(),
+      alternate() {
 
     std::string data{};
 
@@ -124,7 +128,8 @@ Graph::Node::Node(Node* begin, Node* end, bool is_unitig)
       back_inedges(),
       back_outedges(),
       pair(),
-      unitig_nodes() {
+      unitig_nodes(),
+      alternate() {
     std::string data{};
 
 
@@ -208,7 +213,8 @@ Graph::Node::Node(Node* begin, Node* end, bool is_unitig)
       inedges(),
       outedges(),
       pair(),
-      unitig_nodes() {
+      unitig_nodes(),
+      alternate() {
 
     std::string data{};
 
@@ -288,7 +294,8 @@ Graph::Edge::Edge(Node* tail, Node* head, std::uint32_t length)
       weight(0),
       tail(tail),
       head(head),
-      pair() {
+      pair(),
+      alternate() {
   tail->outedges.emplace_back(this);
   head->inedges.emplace_back(this);
 }
@@ -299,7 +306,8 @@ Graph::Edge::Edge(Node* tail, Node* head, std::uint32_t length)
       weight(0),
       tail(tail),
       head(head),
-      pair() {
+      pair(),
+      alternate() {
     tail->outedges.emplace_back(this);
     head->inedges.emplace_back(this);
   }
@@ -1493,11 +1501,15 @@ void Graph::Assemble() {
   // remove tips and bubbles
   if (stage_ == -2) {
     //duplicate graph before bubble popping
-    std::cerr << "[raven::Graph::Assemble] start duplicating graph " << nodes_.size() << std::endl;
+    std::cerr << "[raven::Graph::Assemble] start duplicating graph; nodes: " << nodes_.size() << std::endl;
     for (const auto& it : nodes_) {
+      if (it == nullptr)
+        continue;
+
       auto node = std::make_shared<Node>(it->sequence, Node::num_objects_alternate++);
       nodes_alternate_.emplace_back(node);
-      node->pair = it->pair->alternate;
+      if (it->pair != nullptr)
+        node->pair = it->pair->alternate;
       if (node->pair != nullptr)
         node->pair->pair = node.get();
       node->color = it->color;
@@ -1506,39 +1518,34 @@ void Graph::Assemble() {
       node->is_primary = false;
     }
 
-    auto find_edge = [] (Node* tail, Node* head) -> Edge* {
-      for (auto it : tail->outedges) {
-        if (it->head == head) {
-          return it;
-        }
-      }
-      return nullptr;
-    };
-
     std::cerr << "[raven::Graph::Assemble] duplicated nodes created" << std::endl;
-    for (const auto& it : nodes_) {
-      for (const auto& jt : it->outedges) {
-        auto edge = std::make_shared<Edge>(jt->tail->alternate, jt->head->alternate, jt->length, Edge::num_objects_alternate++);
-        auto edge_pair = find_edge(jt->head->alternate->pair, jt->tail->alternate->pair);
-        if (edge_pair != nullptr) {
-          edge->pair = edge_pair;
-          edge_pair->pair = edge.get();
-        }
-        edges_alternate_.emplace_back(edge);
-      }
+
+    for (const auto& it : edges_) {
+      if (it == nullptr)
+        continue;
+
+      auto edge = std::make_shared<Edge>(it->tail->alternate, it->head->alternate, it->length, Edge::num_objects_alternate++);
+      it->alternate = edge.get();
+      edge->alternate = it.get();
+
+      edge->pair = it->pair->alternate;
+      if (edge->pair != nullptr)
+        edge->pair->pair = edge.get();
+
+      edges_alternate_.emplace_back(edge);
     }
 
     std::cerr << "[raven::Graph::Assemble] graph duplicated" << std::endl;
 
     timer.Start();
 
+    int pass_count = 0;
     while (true) {
-      std::cerr << "[raven::Graph::Assemble] removing tips" << std::endl;
+      std::cerr << "[raven::Graph::Assemble] removing tips and bubbles; pass: " << ++pass_count << "; tips first:" << std::endl;
       std::uint32_t num_changes = RemoveTips();
-      std::cerr << "[raven::Graph::Assemble] num_changes " << num_changes << std::endl;
-      std::cerr << "[raven::Graph::Assemble] removing bubbles" << std::endl;
+      std::cerr << "[raven::Graph::Assemble] num_changes for tips: " << num_changes << "; removing bubbles: " << std::endl;
       num_changes += RemoveBubbles();
-      std::cerr << "[raven::Graph::Assemble] num_changes " << num_changes << std::endl;
+      std::cerr << "[raven::Graph::Assemble] num_changes for bubbles " << num_changes << std::endl;
       if (num_changes == 0) {
         break;
       }
@@ -1580,11 +1587,15 @@ void Graph::Assemble() {
 
     timer.Start();
 
+    int pass_count = 0;
     while (true) {
+      std::cerr << "[raven::Graph::Assemble] removing tips and bubbles; pass: " << ++pass_count << "; tips first:" << std::endl;
       std::uint32_t num_changes = RemoveTips();
+      std::cerr << "[raven::Graph::Assemble] num_changes for tips: " << num_changes << "; removing bubbles: " << std::endl;
       if (annotations_.empty()) {
         num_changes += RemoveBubbles();
       }
+      std::cerr << "[raven::Graph::Assemble] num_changes for bubbles " << num_changes << std::endl;
       if (num_changes == 0) {
         break;
       }
@@ -1669,7 +1680,7 @@ void Graph::UlAssemble(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& ul_se
 
   }
 
-};
+}
 
 std::uint32_t Graph::RemoveTransitiveEdges() {
   auto is_comparable = [] (double a, double b) -> bool {
@@ -2049,12 +2060,10 @@ std::uint32_t Graph::RemoveBubbles() {
 
     std::vector<MarkedEdge> marked_edges;
     if (end) {
-      std::cerr << "[raven::Graph::RemoveBubbles] bubble " << end->id << ";" << other_end->id << std::endl;
       auto lhs = path_extract(begin, end);
       auto rhs = path_extract(begin, other_end);
       rhs.emplace_back(end);
       marked_edges = bubble_pop(lhs, rhs);
-      std::cerr << "[raven::Graph::RemoveBubbles] bubble popped " << marked_edges.size() << std::endl;
     }
 
     for (auto jt : visited) {
@@ -2062,7 +2071,6 @@ std::uint32_t Graph::RemoveBubbles() {
       predecessor[jt->id] = nullptr;
     }
 
-    std::cerr << "[raven::Graph::RemoveBubbles] removing edges" << std::endl;
     RemoveDiploidEdges(marked_edges, true);
     num_bubbles += 1 - marked_edges.empty();
   }
@@ -3518,7 +3526,7 @@ void Graph::CreateUnitigGraph(){
 void Graph::ResolveGraphWithUl(std::vector<std::unique_ptr<biosoup::NucleicAcid>> &ul_reads){
   //get unitig sequences
   //
-};
+}
 
 
 std::vector<std::unique_ptr<biosoup::NucleicAcid>> Graph::GetUnitigs(
@@ -3644,118 +3652,100 @@ void Graph::RemoveDiploidEdges(
     edges.erase(std::remove(edges.begin(), edges.end(), marked), edges.end());
   };
 
-  auto find_edge = [] (Node* tail, Node* head) -> Edge* {
-    for (auto it : tail->outedges) {
-      if (it->head == head) {
-        return it;
+    std::unordered_set<std::uint32_t> node_indices;
+    std::unordered_set<std::uint32_t> node_indices_alternate;
+
+    for (auto i : indices) {
+      Edge* edge = edges_[i.id].get();
+      Edge* edge_alternate = edge->alternate;
+
+      if (remove_nodes && (i.where == 0 || i.where == 1)) {
+        node_indices.emplace(edge->tail->id);
+        node_indices.emplace(edge->head->id);
+      }
+      if (remove_nodes && (i.where == 0 || i.where == 2)) {
+        if (edge_alternate != nullptr) {
+          node_indices_alternate.emplace(edge_alternate->tail->id);
+          node_indices_alternate.emplace(edge_alternate->head->id);
+        }
+      }
+
+      if (i.where == 0 || i.where == 1) {
+        erase_remove(edges_[i.id]->tail->outedges, edge);
+        erase_remove(edges_[i.id]->head->inedges, edge);
+      }
+      if (i.where == 0 || i.where == 2) {
+        if (edge_alternate != nullptr) {
+          erase_remove(edge_alternate->tail->outedges, edge_alternate);
+          erase_remove(edge_alternate->head->inedges, edge_alternate);
+        }
       }
     }
-    return nullptr;
-  };
 
-  std::unordered_set<std::uint32_t> node_indices;
-  std::unordered_set<std::uint32_t> node_indices_alternate;
-
-  std::cerr << "[raven::Graph::RemoveDiploidEdges] indices size=" << indices.size() << std::endl;
-  for (auto i : indices) {
-    Edge* edge = edges_[i.id].get();
-    Node* alt_tail = edge->tail->alternate;
-    Node* alt_head = edge->head->alternate;
-
-    if (remove_nodes && (i.where == 0 || i.where == 1)) {
-      node_indices.emplace(edge->tail->id);
-      node_indices.emplace(edge->head->id);
-    }
-    if (remove_nodes && (i.where == 0 || i.where == 2)) {
-      node_indices_alternate.emplace(alt_tail->id);
-      node_indices_alternate.emplace(alt_head->id);
-    }
-
-    if (i.where == 0 || i.where == 1) {
-      erase_remove(edges_[i.id]->tail->outedges, edges_[i.id].get());
-      erase_remove(edges_[i.id]->head->inedges, edges_[i.id].get());
-    }
-    if (i.where == 0 || i.where == 2) {
-      Edge* alt_edge = find_edge(alt_tail, alt_head);
-      if (alt_edge != nullptr) {
-        erase_remove(alt_tail->outedges, alt_edge);
-        erase_remove(alt_head->inedges, alt_edge);
+    if (remove_nodes) {
+      for (auto i : node_indices) {
+        if (nodes_[i]->outdegree() == 0 && nodes_[i]->indegree() == 0) {
+          nodes_[i].reset();
+        }
+      }
+      for (auto i : node_indices_alternate) {
+        if (i < nodes_alternate_.size() && nodes_alternate_[i] != nullptr && nodes_alternate_[i]->outdegree() == 0 && nodes_alternate_[i]->indegree() == 0) {
+          nodes_alternate_[i].reset();
+        }
       }
     }
-  }
 
-  std::cerr << "[raven::Graph::RemoveDiploidEdges] remove_nodes=" << remove_nodes << std::endl;
-  if (remove_nodes) {
-    std::cerr << "[raven::Graph::RemoveDiploidEdges] 1" << std::endl;
-    for (auto i : node_indices) {
-      if (nodes_[i]->outdegree() == 0 && nodes_[i]->indegree() == 0) {
-        nodes_[i].reset();
+    for (auto i : indices) {
+      Edge* edge = edges_[i.id].get();
+      Edge* edge_alternate = edge->alternate;
+
+      if (i.where == 0 || i.where == 1) {
+        if (edges_.size() > i.id)
+          edges_[i.id].reset();
       }
-    }
-    std::cerr << "[raven::Graph::RemoveDiploidEdges] 2" << std::endl;
-    for (auto i : node_indices_alternate) {
-      if (nodes_alternate_[i]->outdegree() == 0 && nodes_alternate_[i]->indegree() == 0) {
-        nodes_alternate_[i].reset();
-      }
-    }
-  }
-
-  std::cerr << "[raven::Graph::RemoveDiploidEdges] 3" << std::endl;
-  for (auto i : indices) {
-    if (i.where == 2)
-      continue;
-    edges_[i.id].reset();
-  }
-}
-
-void Graph::RemoveAlternateEdges(
-  const std::vector<MarkedEdge>& indices,
-  bool remove_nodes) {
-  auto erase_remove = [] (std::vector<Edge*>& edges, Edge* marked) -> void {
-    edges.erase(std::remove(edges.begin(), edges.end(), marked), edges.end());
-  };
-
-  auto find_edge = [] (Node* tail, Node* head) -> Edge* {
-    for (auto it : tail->outedges) {
-      if (it->head == head) {
-        return it;
-      }
-    }
-    return nullptr;
-  };
-
-  std::unordered_set<std::uint32_t> node_indices_alternate;
-
-  std::cerr << "[raven::Graph::RemoveDiploidEdges] indices size=" << indices.size() << std::endl;
-  for (auto i : indices) {
-    Edge* edge = edges_alternate_[i.id].get();
-
-    if (remove_nodes && (i.where == 0 || i.where == 2)) {
-      node_indices_alternate.emplace(edge->tail->id);
-      node_indices_alternate.emplace(edge->head->id);
-    }
-
-    if (i.where == 0 || i.where == 2) {
-      erase_remove(edges_alternate_[i.id]->tail->outedges, edges_alternate_[i.id].get());
-      erase_remove(edges_alternate_[i.id]->head->inedges, edges_alternate_[i.id].get());
-    }
-  }
-
-  std::cerr << "[raven::Graph::RemoveDiploidEdges] remove_nodes=" << remove_nodes << std::endl;
-  if (remove_nodes) {
-    std::cerr << "[raven::Graph::RemoveDiploidEdges] 2" << std::endl;
-    for (auto i : node_indices_alternate) {
-      if (nodes_alternate_[i]->outdegree() == 0 && nodes_alternate_[i]->indegree() == 0) {
-        nodes_alternate_[i].reset();
+      if (i.where == 0 || i.where == 2) {
+        if (edge_alternate != nullptr && edges_alternate_.size() > edge_alternate->id) {
+          edges_alternate_[edge_alternate->id].reset();
+        }
       }
     }
   }
 
-  std::cerr << "[raven::Graph::RemoveDiploidEdges] 3" << std::endl;
-  for (auto i : indices) {
-    edges_alternate_[i.id].reset();
+  void Graph::RemoveAlternateEdges(
+    const std::vector<MarkedEdge>& indices,
+    bool remove_nodes) {
+    auto erase_remove = [] (std::vector<Edge*>& edges, Edge* marked) -> void {
+      edges.erase(std::remove(edges.begin(), edges.end(), marked), edges.end());
+    };
+
+    std::unordered_set<std::uint32_t> node_indices_alternate;
+
+    for (auto i : indices) {
+      Edge* edge = edges_alternate_[i.id].get();
+
+      if (remove_nodes && (i.where == 0 || i.where == 2)) {
+        node_indices_alternate.emplace(edge->tail->id);
+        node_indices_alternate.emplace(edge->head->id);
+      }
+
+      if (i.where == 0 || i.where == 2) {
+        erase_remove(edges_alternate_[i.id]->tail->outedges, edges_alternate_[i.id].get());
+        erase_remove(edges_alternate_[i.id]->head->inedges, edges_alternate_[i.id].get());
+      }
+    }
+
+    if (remove_nodes) {
+      for (auto i : node_indices_alternate) {
+        if (nodes_alternate_[i]->outdegree() == 0 && nodes_alternate_[i]->indegree() == 0) {
+          nodes_alternate_[i].reset();
+        }
+      }
+    }
+
+    for (auto i : indices) {
+      edges_alternate_[i.id].reset();
+    }
   }
-}
 
 std::unordered_set<std::uint32_t> Graph::FindRemovableEdges(
     const std::vector<Node*>& path) {
@@ -3973,7 +3963,7 @@ void Graph::PrintUnitigGfa(const std::string& path) const {
   os.close();
 
 
-};
+}
 
 void Graph::Store() const {
   std::ofstream os("raven.cereal");
