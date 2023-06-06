@@ -31,11 +31,11 @@ jobs:
           version: "7"
           platform: x64
 
-      - if: ${{ matrix.compiler == 'clang++-8' }}
+      - if: ${{ matrix.compiler == 'clang++-11' }}
         name: Setup Clang
         uses: egor-tensin/setup-clang@v1
         with:
-          version: "8"
+          version: "11"
           platform: x64
 
       - name: Configure CMake
