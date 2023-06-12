@@ -344,7 +344,8 @@ Graph::Graph(
 void Graph::Construct(
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,  // NOLINT
     double disagreement,
-    unsigned split) {
+    unsigned split,
+    std::size_t kMaxNumOverlaps) {
   disagreement_ = disagreement;
   if (sequences.empty() || stage_ > -4) {
     return;
@@ -800,11 +801,9 @@ auto edlib_alignment_reverse = [](const std::string& s) -> std::string {
                     overlaps[i].begin() + num_overlaps[i],
                     overlaps[i].end());
 
-                num_overlaps[i] = std::min(
-                    overlaps[i].size(),
-                    static_cast<std::size_t>(16));
+                num_overlaps[i] = std::min(overlaps[i].size(), kMaxNumOverlaps);
 
-                if (overlaps[i].size() < 16) {
+                if (overlaps[i].size() < kMaxNumOverlaps) {
                   return;
                 }
 
@@ -815,7 +814,7 @@ auto edlib_alignment_reverse = [](const std::string& s) -> std::string {
                     });
 
                 std::vector<biosoup::Overlap> tmp;
-                tmp.insert(tmp.end(), overlaps[i].begin(), overlaps[i].begin() + 16);  // NOLINT
+                tmp.insert(tmp.end(), overlaps[i].begin(), overlaps[i].begin() + kMaxNumOverlaps);  // NOLINT
                 tmp.swap(overlaps[i]);
               },
               it->id()));

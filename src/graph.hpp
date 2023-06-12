@@ -71,7 +71,8 @@ class Graph {
   void Construct(
       std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,  // NOLINT
       double disagreement = 0.1,
-      unsigned split = 0);
+      unsigned split = 0,
+      std::size_t kMaxNumOverlaps = 16);
 
   // simplify with transitive reduction, tip prunning and bubble popping
   void Assemble();

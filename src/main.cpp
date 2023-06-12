@@ -37,10 +37,11 @@ namespace {
     {"help", no_argument, nullptr, 'h'},
     {"output", required_argument, nullptr, 'o'},
     {"ultralong-phasing", required_argument, nullptr, 'u'},
+    {"kMaxNumOverlaps", required_argument, nullptr, 'x'},
     {nullptr, 0, nullptr, 0}
   };
 
-  std::string optstr = "wp:m:n:g:s:D:f:rdt:vho:u:";
+  std::string optstr = "wp:m:n:g:s:D:f:rdt:vho:u:x:";
 
   void Help() {
     std::cout <<
@@ -98,6 +99,9 @@ namespace {
               "      for diploid assembly, outputs will be written in 2 files with suffixes -1, -2\n"
               "    -u, --ultralong-phasing <string>\n"
               "       path to ul reads used for phasing\n"
+              "    -x, --kMaxNumOverlaps <long unsigned int>\n"
+              "      default: 16\n"
+              "      maximum number of overlaps that will be taken during find overlaps and create piles stage\n"              
               "    -h, --help\n"
               "      prints the usage\n";
   }
@@ -162,6 +166,8 @@ int main(int argc, char** argv) {
   std::uint32_t cuda_alignment_batches = 0;
   bool cuda_banded_alignment = false;
 
+  std::size_t kMaxNumOverlaps = 16;
+
 #ifdef CUDA_ENABLED
   optstr += "c:ba:";
 #endif
@@ -204,6 +210,7 @@ int main(int argc, char** argv) {
         stdoutput = false;
         break;
       case 'u': ul_read_path = optarg; break;
+      case 'x': kMaxNumOverlaps = std::atof(optarg); break;
       default: return 1;
     }
   }
@@ -287,7 +294,7 @@ int main(int argc, char** argv) {
     timer.Start();
   };
 
-  graph.Construct(sequences, disagreement, split);
+  graph.Construct(sequences, disagreement, split, kMaxNumOverlaps);
   if(ul_read_path.empty()){
     graph.Assemble();
   } else {
