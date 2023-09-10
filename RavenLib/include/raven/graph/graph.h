@@ -99,9 +99,11 @@ struct Node {
 
   explicit Node(const biosoup::NucleicAcid& sequence);
   explicit Node(Node* begin, Node* end);
-
+  
   explicit Node(const std::uint32_t id, const biosoup::NucleicAcid& sequence);
   explicit Node(const std::uint32_t id, Node* begin, Node* end);
+
+  explicit Node(Node* begin, Node* end, bool is_unitig);
 
   Node(const Node&) = delete;
   Node& operator=(const Node&) = delete;
@@ -123,8 +125,10 @@ struct Node {
   template <class Archive>
   void serialize(Archive& archive) {
     archive(id, sequence, count, is_unitig, is_circular, is_polished,
-            transitive);
+            transitive, color);
   }
+
+  static std::atomic<std::uint32_t> num_objects;
 
   std::uint32_t id;
   biosoup::NucleicAcid sequence;
@@ -133,10 +137,17 @@ struct Node {
   bool is_circular;
   bool is_polished;
   std::unordered_set<std::uint32_t> transitive;
+  unsigned color = 0;
   std::vector<Edge*> inedges;
   std::vector<Edge*> outedges;
+  std::vector<Edge*> front_inedges;
+  std::vector<Edge*> front_outedges;
+  std::vector<Edge*> back_inedges;
+  std::vector<Edge*> back_outedges;
   Node* pair;
   std::uint16_t coverage = 0;
+
+  std::vector<Node*> unitig_nodes;
 };
 
 struct Edge {
@@ -180,6 +191,10 @@ struct RAVEN_EXPORT Graph {
   std::vector<std::unique_ptr<Pile>> piles;
   std::vector<std::unique_ptr<Node>> nodes;
   std::vector<std::unique_ptr<Edge>> edges;
+
+  std::vector<std::shared_ptr<Node>> unitig_nodes;
+  std::vector<std::shared_ptr<Edge>> unitig_edges;
+
 };
 
 }  // namespace raven

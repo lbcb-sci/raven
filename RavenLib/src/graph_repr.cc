@@ -67,6 +67,186 @@ void PrintGfa(const Graph& graph, const std::string& path) {
   os.close();
 }
 
+void PrintUnitigGfa(const Graph& graph, const std::string& path) {
+  if (path.empty()) {
+    return;
+  }
+  std::ofstream os(path);
+  for (const auto& it : graph.unitig_nodes) {
+  if ((it == nullptr) || it->is_rc() ||
+      (it->count == 1 && it->outdegree() == 0 && it->indegree() == 0)) {
+    continue;
+  }
+
+    os << "S\t" << it->sequence.name
+       << "\t"  << it->sequence.InflateData()
+       << "\tLN:i:" << it->sequence.inflated_len
+       << "\tRC:i:" << it->count
+       << "\tCL:z:" << (it->color ? "blue" : "orange")
+       << std::endl;
+    if (it->is_circular) {
+      os << "A\t" << it->sequence.name << "\t"
+        << it->sequence.name << "\t"
+        << std::endl;
+      continue;
+    }
+    for(const auto& unitig_node : it->unitig_nodes){
+      os << "A\t" << it->sequence.name << "\t"
+         << unitig_node->sequence.name << "\t"
+         << std::endl;
+    };
+  }
+  for (const auto& it : graph.unitig_edges) {
+    if (it == nullptr || it->is_rc()) {
+      continue;
+    }
+    os << "L\t" << it->tail->sequence.name << "\t" << (it->tail->is_rc() ? '-' : '+')  // NOLINT
+       << "\t"  << it->head->sequence.name << "\t" << (it->head->is_rc() ? '-' : '+')  // NOLINT
+       << "\t"  << it->tail->sequence.inflated_len - it->length << 'M'
+       << std::endl;
+  }
+  os.close();
+
+}
+
+void CreateUnitigGraph(Graph& graph) {
+  std::unordered_set<std::uint32_t> marked_edges;
+  std::vector<std::shared_ptr<Node>> unitigs;
+  std::vector<std::shared_ptr<Edge>> unitig_edges;
+  std::vector<std::uint32_t> node_updates(graph.nodes.size(), 0);
+  std::vector<char> is_visited(graph.nodes.size(), 0);
+
+
+  for (const auto& it : graph.nodes) {
+
+    if (it == nullptr || is_visited[it->id]) {
+      continue;
+    }
+
+    std::uint32_t extension = 1;
+
+    bool is_circular = false;
+    auto begin = it.get();
+
+    while (true) {  // extend left
+      is_visited[begin->id] = 1;
+      is_visited[begin->pair->id] = 1;
+
+      if(begin->indegree() > 1 || begin->indegree() == 0){
+        break;
+      }
+
+      auto next = begin->inedges.front()->tail;
+      if(next->outdegree() != 1){
+        break;
+      }
+
+      begin = next;
+      ++extension;
+      if (begin == it.get()) {
+        is_circular = true;
+        break;
+      }
+    }
+
+
+    auto end = it.get();
+    while (true) {  // extend right
+      is_visited[end->id] = 1;
+      is_visited[end->pair->id] = 1;
+
+      if(end->outdegree() > 1 || end->outdegree() == 0){
+        break;
+      }
+
+      auto next = end->outedges.front()->head;
+
+      if(next->indegree() != 1){
+        break;
+      }
+      end = next;
+      ++extension;
+      if (end == it.get()) {
+        is_circular = true;
+        break;
+      }
+    }
+
+    auto unitig = std::make_shared<Node>(begin, end, true);
+    unitigs.emplace_back(unitig);
+    unitigs.emplace_back(std::make_shared<Node>(end->pair, begin->pair, true));
+    unitig->pair = unitigs.back().get();
+    unitig->pair->pair = unitig.get();
+  }
+
+  auto GetUnitigFromNode = [&] (Node* query_node) -> Node* {
+    for(auto& unitig : unitigs){
+      for(auto unitig_node : unitig->unitig_nodes){
+        if(unitig_node->id == query_node->id){
+          return unitig.get();
+        };
+      };     
+    };
+    return nullptr;  
+  };
+
+  std::uint32_t counter = 0;
+  for(auto& unitig : unitigs){
+    if (!unitig->is_circular) {  // connect unitig to graph
+    counter++;
+      for(auto& inedge : unitig->front_inedges){
+        marked_edges.emplace(inedge->id);
+        marked_edges.emplace(inedge->pair->id);
+
+        auto tail_unitig = GetUnitigFromNode(inedge->tail);
+
+        auto edge = std::make_shared<Edge>(
+          tail_unitig,
+          unitig.get(),
+          tail_unitig->sequence.inflated_len - inedge->tail->sequence.inflated_len + inedge->length
+        );
+        unitig_edges.emplace_back(edge);
+
+        auto rc_head_unitig = GetUnitigFromNode(inedge->pair->head);
+        auto rc_edge = std::make_shared<Edge>(
+          unitig->pair,
+          rc_head_unitig,
+          unitig->pair->sequence.inflated_len - inedge->pair->head->sequence.inflated_len + inedge->length
+        );
+        unitig_edges.emplace_back(rc_edge);
+        edge->pair = unitig_edges.back().get();
+        edge->pair->pair = edge.get();
+      };
+
+      for(auto& outedge : unitig->back_outedges){
+        marked_edges.emplace(outedge->id);
+        marked_edges.emplace(outedge->pair->id);
+
+        auto head_unitig = GetUnitigFromNode(outedge->head);
+        auto edge = std::make_shared<Edge>(
+          unitig.get(),
+          head_unitig,
+          unitig->sequence.inflated_len - outedge->tail->sequence.inflated_len + outedge->length
+        );
+        unitig_edges.emplace_back(edge);
+
+        auto rc_tail_unitig = GetUnitigFromNode(outedge->pair->head);
+        auto rc_edge = std::make_shared<Edge>(
+          rc_tail_unitig,
+          unitig->pair,
+          rc_tail_unitig->sequence.inflated_len - outedge->pair->head->sequence.inflated_len + outedge->length
+        );
+        unitig_edges.emplace_back(rc_edge);
+        edge->pair = unitig_edges.back().get();
+        edge->pair->pair = edge.get();
+      };
+    };
+
+  }
+  graph.unitig_nodes.insert(graph.unitig_nodes.end(), unitigs.begin(), unitigs.end());
+  graph.unitig_edges.insert(graph.unitig_edges.end(), unitig_edges.begin(), unitig_edges.end());
+}
+
 std::vector<std::string> getGfa(const Graph& graph) {
   std::vector<std::string> resultVector;
   std::string line;

@@ -31,6 +31,7 @@ static struct option options[] = {
     {"cuda-alignment-batches", required_argument, nullptr, 'a'},
 #endif
     {"graphical-fragment-assembly", required_argument, nullptr, 'F'},
+    {"unitig-graphical-fragment-assembly", required_argument, nullptr, 'U'},
     {"resume", no_argument, nullptr, 'r'},
     {"disable-checkpoints", no_argument, nullptr, 'd'},
     {"threads", required_argument, nullptr, 't'},
@@ -90,8 +91,10 @@ void Help() {
          "      default: 0\n"
          "      number of batches for CUDA accelerated alignment\n"
 #endif
-         "    --graphical-fragment-assembly <string>\n"
+         "    -F --graphical-fragment-assembly <string>\n"
          "      prints the assembly graph in GFA format\n"
+         "    -U --unitig-graphical-fragment-assembly <string>\n"
+         "      prints the unitig assembly graph in GFA format\n"         
          "    --resume\n"
          "      resume previous run from last checkpoint\n"
          "    --disable-checkpoints\n"
@@ -121,6 +124,7 @@ int main(int argc, char** argv) {
   std::int8_t g = -4;
 
   std::string gfa_path = "";
+  std::string unitig_gfa_path = "";
   bool resume = false;
   bool checkpoints = true;
 
@@ -132,7 +136,7 @@ int main(int argc, char** argv) {
 
   std::uint32_t min_unitig_size = 9999;
 
-  std::string optstr = "k:w:f:p:m:n:g:u:t:h:M";
+  std::string optstr = "F:U:k:w:f:p:m:n:g:u:t:h:M";
 #ifdef CUDA_ENABLED
   optstr += "c:ba:";
 #endif
@@ -195,6 +199,9 @@ int main(int argc, char** argv) {
       case 'F':
         gfa_path = optarg;
         break;
+      case 'U':
+        unitig_gfa_path = optarg;
+        break;        
       case 'r':
         resume = true;
         break;
@@ -311,6 +318,11 @@ int main(int argc, char** argv) {
   );
 
   raven::PrintGfa(graph, gfa_path);
+
+  if (!unitig_gfa_path.empty()) {
+    raven::CreateUnitigGraph(graph);
+    raven::PrintUnitigGfa(graph, unitig_gfa_path);
+  }
 
   for (const auto& it : raven::GetUnitigs(graph, num_polishing_rounds > 0)) {
     std::cout << ">" << it->name << std::endl;
