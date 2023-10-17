@@ -147,7 +147,7 @@ struct Node {
   Node* pair;
   std::uint16_t coverage = 0;
 
-  std::vector<Node*> unitig_nodes;
+  std::unordered_set<std::string> original_node_sequence_names;
 };
 
 struct Edge {
@@ -191,10 +191,6 @@ struct RAVEN_EXPORT Graph {
   std::vector<std::unique_ptr<Pile>> piles;
   std::vector<std::unique_ptr<Node>> nodes;
   std::vector<std::unique_ptr<Edge>> edges;
-
-  std::vector<std::shared_ptr<Node>> unitig_nodes;
-  std::vector<std::shared_ptr<Edge>> unitig_edges;
-
 };
 
 }  // namespace raven

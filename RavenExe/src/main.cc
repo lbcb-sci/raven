@@ -320,7 +320,6 @@ int main(int argc, char** argv) {
   raven::PrintGfa(graph, gfa_path);
 
   if (!unitig_gfa_path.empty()) {
-    raven::CreateUnitigGraph(graph);
     raven::PrintUnitigGfa(graph, unitig_gfa_path);
   }
 

@@ -17,8 +17,6 @@ RAVEN_EXPORT Graph LoadGfa(const std::string& path);
 RAVEN_EXPORT std::vector<std::string> getGfa(const Graph& graph);
 RAVEN_EXPORT std::vector<std::string> getCsv(const Graph& graph, bool printSequenceName = false, bool printPileBeginEnd = false, bool printEdgeSimilarity = false);
 
-RAVEN_EXPORT void CreateUnitigGraph(Graph& graph);
-
 }  // namespace raven
 
 #endif  // RAVEN_GRAPH_SERIALIZATION_GRAPH_REPR_H_

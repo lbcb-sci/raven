@@ -31,6 +31,8 @@ void RemoveEdges(Graph& graph, const std::unordered_set<std::uint32_t>& indices,
 
 std::uint32_t CreateUnitigs(Graph& graph, std::uint32_t epsilon) {
   std::unordered_set<std::uint32_t> marked_edges;
+  std::unordered_set<Edge *> single_unting_marked_edges;
+  std::unordered_set<Edge *> single_rc_unting_marked_edges;
   std::vector<std::unique_ptr<Node>> unitigs;
   std::vector<std::unique_ptr<Edge>> unitig_edges;
   std::vector<std::uint32_t> node_updates(graph.nodes.size(), 0);
@@ -118,10 +120,17 @@ std::uint32_t CreateUnitigs(Graph& graph, std::uint32_t epsilon) {
     unitig->pair = rc_unitig;
     rc_unitig->pair = unitig;
 
+    if (begin == end) {
+      unitig->original_node_sequence_names.insert(begin->sequence.name);
+      rc_unitig->original_node_sequence_names.insert(begin->pair->sequence.name);
+    }
+
     if (begin != end) {  // connect unitig to graph
       if (begin->indegree()) {
         marked_edges.emplace(begin->inedges.front()->id);
         marked_edges.emplace(begin->inedges.front()->pair->id);
+        single_unting_marked_edges.insert(begin->inedges.front());
+        single_rc_unting_marked_edges.insert(begin->inedges.front()->pair);
 
         auto edge =
             emplace_edge_through_factory(begin->inedges.front()->tail, unitig,
@@ -137,6 +146,8 @@ std::uint32_t CreateUnitigs(Graph& graph, std::uint32_t epsilon) {
       if (end->outdegree()) {
         marked_edges.emplace(end->outedges.front()->id);
         marked_edges.emplace(end->outedges.front()->pair->id);
+        single_unting_marked_edges.insert(end->outedges.front());
+        single_rc_unting_marked_edges.insert(end->outedges.front()->pair);
 
         auto edge = emplace_edge_through_factory(
             unitig, end->outedges.front()->head,
@@ -156,6 +167,8 @@ std::uint32_t CreateUnitigs(Graph& graph, std::uint32_t epsilon) {
     while (true) {
       marked_edges.emplace(jt->outedges.front()->id);
       marked_edges.emplace(jt->outedges.front()->pair->id);
+      single_unting_marked_edges.insert(jt->outedges.front());
+      single_rc_unting_marked_edges.insert(jt->outedges.front()->pair);
 
       // update transitive edges
       node_updates[jt->id & ~1UL] = unitig->id;
@@ -166,6 +179,30 @@ std::uint32_t CreateUnitigs(Graph& graph, std::uint32_t epsilon) {
         break;
       }
     }
+
+    if (single_unting_marked_edges.size() > 0) {
+      for (const auto single_unting_marked_edge : single_unting_marked_edges) {
+        if (single_unting_marked_edge->head != nullptr) {
+          unitig->original_node_sequence_names.insert(single_unting_marked_edge->head->sequence.name);
+        }
+        if (single_unting_marked_edge->tail != nullptr) {
+          unitig->original_node_sequence_names.insert(single_unting_marked_edge->tail->sequence.name);
+        }
+      }
+    }
+    if (single_rc_unting_marked_edges.size() > 0) {
+      for (const auto single_rc_unting_marked_edge : single_rc_unting_marked_edges) {
+        if (single_rc_unting_marked_edge->head != nullptr) {
+          rc_unitig->original_node_sequence_names.insert(single_rc_unting_marked_edge->head->sequence.name);
+        }
+        if (single_rc_unting_marked_edge->tail != nullptr) {
+          rc_unitig->original_node_sequence_names.insert(single_rc_unting_marked_edge->tail->sequence.name);
+        }
+      }
+    }
+
+    single_unting_marked_edges.clear();
+    single_rc_unting_marked_edges.clear();
   }
 
   std::move(unitigs.begin(), unitigs.end(), std::back_inserter(graph.nodes));
