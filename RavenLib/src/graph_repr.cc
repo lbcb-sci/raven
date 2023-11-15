@@ -82,14 +82,16 @@ void PrintUnitigGfa(const Graph& graph, const std::string& path) {
        << "\t"  << it->sequence.InflateData()
        << "\tLN:i:" << it->sequence.inflated_len
        << "\tRC:i:" << it->count
-       << "\tCL:z:" << (it->color ? "blue" : "orange");
+       << "\tCL:z:" << (it->color ? "blue" : "orange")
+       << std::endl;
+
     if (it->original_node_sequence_names.size() > 0) {
-       os << "\tA\t";
       for(const auto& original_node_sequence_name : it->original_node_sequence_names){
-        os << original_node_sequence_name << "\t";
+        os << "A\t"
+           << original_node_sequence_name
+           << std::endl;
       }
-    }
-    os << std::endl;
+    }       
   }
   for (const auto& it : graph.edges) {
     if (it == nullptr || it->is_rc()) {
