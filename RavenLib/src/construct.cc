@@ -262,9 +262,13 @@ void ResolveChimericSequences(
       medians.emplace_back(it->median());
     }
   }
-  std::nth_element(medians.begin(), medians.begin() + medians.size() / 2,
+ 
+  std::uint16_t median = 0;
+  if (medians.size() > 0){
+    std::nth_element(medians.begin(), medians.begin() + medians.size() / 2,
                    medians.end());
-  std::uint16_t median = medians[medians.size() / 2];
+    median = medians[medians.size() / 2];
+  }
 
   std::vector<std::future<void>> thread_futures;
   for (const auto& it : piles) {
